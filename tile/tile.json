@@ -9,6 +9,9 @@
     }
   },
   "skills": {
+    "dld-common": {
+      "path": "skills/dld-common/SKILL.md"
+    },
     "dld-init": {
       "path": "skills/dld-init/SKILL.md"
     },
