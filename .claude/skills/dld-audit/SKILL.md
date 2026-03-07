@@ -137,4 +137,5 @@ bash .claude/skills/dld-audit/scripts/update-audit-state.sh
 > Next steps:
 > - Fix any orphaned or stale references identified above
 > - `/dld-decide` — record new decisions for undocumented changes
+> - `/dld-snapshot` — regenerate the spec projection
 > - `/dld-status` — view overall decision log state

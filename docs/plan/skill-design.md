@@ -81,13 +81,14 @@ Scans for drift between decisions and code.
 
 #### `/dld-snapshot`
 
-Generates the consolidated spec projection from the decision log.
+Generates two spec projections from the decision log:
 
-- Reads all `accepted` decisions
-- If a previous snapshot exists, focuses on what changed since the last run
-- Resolves supersession chains (excludes superseded/deprecated decisions from active view)
-- Generates a consolidated markdown snapshot organized by namespace or tag
-- Writes to `decisions/SNAPSHOT.md`
+1. **`decisions/SNAPSHOT.md`** — Detailed per-decision reference. Every active decision with its rationale summary and code references. Organized by namespace (namespaced) or tag (flat).
+2. **`decisions/OVERVIEW.md`** — High-level narrative synthesis. Prose document that explains the system's current design by synthesizing across decisions. Includes Mermaid diagrams for architecture, flows, and decision relationships.
+
+- Reads all `accepted` decisions (excludes superseded/deprecated/proposed)
+- Resolves supersession chains
+- Generates SNAPSHOT.md first (structured reference), then OVERVIEW.md (narrative synthesis from the snapshot)
 - Records snapshot metadata (see "Run Tracking" below)
 
 ### Utility
@@ -257,8 +258,14 @@ Utility (anytime):
       SKILL.md
     dld-audit/                   # V2
       SKILL.md
+      scripts/
+        find-annotations.sh
+        update-audit-state.sh
     dld-snapshot/                # V3
       SKILL.md
+      scripts/
+        collect-active-decisions.sh
+        update-snapshot-state.sh
 ```
 
 ### Project Artifacts (created by skills)
@@ -267,7 +274,8 @@ Utility (anytime):
 dld.config.yaml                     # project configuration
 decisions/
   INDEX.md                          # auto-generated decision index
-  SNAPSHOT.md                       # generated spec projection
+  SNAPSHOT.md                       # detailed per-decision reference
+  OVERVIEW.md                       # narrative synthesis with diagrams
   PRACTICES.md                      # development practices manifest (optional)
   .dld-state.yaml                   # run tracking for audit/snapshot
   DL-001.md                         # decision records (flat mode)
