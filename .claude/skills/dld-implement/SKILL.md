@@ -109,3 +109,4 @@ bash .claude/skills/dld-common/scripts/regenerate-index.sh
 >
 > Next steps:
 > - `/dld-decide` — record another decision
+> - `/dld-audit` — check for drift between decisions and code
