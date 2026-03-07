@@ -81,6 +81,8 @@ If they accept, help them fill it out by asking about:
 - Code style preferences (error handling patterns, validation approach)
 - Architecture conventions (dependency injection, repository pattern, etc.)
 
+If the repository already has application code, scan it first and suggest conventions you observe (e.g., "I see you're using Result types for error handling and Zod for validation — should I include those?"). This saves the user from having to recall everything from scratch.
+
 Write `decisions/PRACTICES.md` with their answers in simple markdown format:
 ```markdown
 # Development Practices
@@ -118,5 +120,12 @@ This project uses Decision-Linked Development. Decisions are recorded in `decisi
 Tell the user:
 
 > DLD is initialized. Here's what you can do next:
+
+If the repository already has application code:
+> - `/dld-retrofit` — generate initial decisions from your existing codebase
+> - Edit `decisions/PRACTICES.md` to refine your development practices (if created)
+
+If this is a new/empty project:
 > - `/dld-decide` — record your first decision
+> - `/dld-plan` — break down a feature into multiple decisions
 > - Edit `decisions/PRACTICES.md` to refine your development practices (if created)
