@@ -30,19 +30,17 @@ DLD is implemented as a set of AI agent skills following the [Agent Skills](http
 
 #### Via Tessl (recommended)
 
-DLD is available as a [Tessl](https://tessl.io) tile, which works across multiple AI agents (Claude Code, Cursor, Copilot, etc.):
+DLD is packaged as a [Tessl](https://tessl.io) tile, which works across multiple AI agents (Claude Code, Cursor, Copilot, etc.):
 
 ```bash
-tessl install dld-kit/dld
+# Install from GitHub
+tessl install github:jimutt/dld-kit
+
+# Or from a local clone of this repo
+tessl install file:.
 ```
 
 This installs the skills, shared scripts, and a steering rule that teaches your agent to look up `@decision` annotations automatically.
-
-To install from a local checkout (e.g., for testing before publishing):
-
-```bash
-tessl install file:./tile
-```
 
 #### Manual (Claude Code only)
 
