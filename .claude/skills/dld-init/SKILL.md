@@ -20,7 +20,7 @@ Skill-specific scripts:
 ## Prerequisites
 
 - This must be a git repository
-- `dld.config.yaml` must NOT already exist at the repo root (if it does, tell the user DLD is already initialized)
+- `dld.config.yaml` must NOT already exist at the repo root (if it does, tell the user DLD is already initialized and suggest `/dld-status` instead)
 
 ## Steps
 
