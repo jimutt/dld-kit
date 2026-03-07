@@ -12,7 +12,7 @@ When an AI coding agent encounters an annotation, it looks up the referenced dec
 
 AI agents are good at writing code. They're bad at knowing *why* your code looks the way it does. That retry logic with the unusual backoff curve? It's tuned for a specific third-party API's rate limiting behavior. That seemingly redundant validation step? It catches a data inconsistency that only surfaces in production with legacy imports.
 
-These decisions live in Jira tickets, Slack threads, and departed engineers' heads — not where an LLM can find them. DLD fixes this by recording decisions as structured artifacts linked directly to the code they affect.
+These decisions are scattered across Jira tickets, Slack threads, and departed engineers' heads. An AI agent *can* search these sources, but without an explicit link from the code to the relevant context, it has to guess what to look for — and it usually doesn't know to look at all. DLD fixes this by recording decisions as structured artifacts linked directly to the code they affect.
 
 ### How it differs from Spec-Driven Development
 
