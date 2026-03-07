@@ -8,6 +8,10 @@ user_invocable: true
 
 You are helping the developer record a development decision. This should be a focused, low-ceremony conversation — not an interrogation.
 
+## Interaction style
+
+Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
+
 ## Script Paths
 
 Shared scripts:

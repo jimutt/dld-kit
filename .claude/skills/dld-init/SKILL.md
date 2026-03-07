@@ -8,6 +8,10 @@ user_invocable: true
 
 You are initializing Decision-Linked Development (DLD) in this repository. This is an interactive setup process that runs once per project.
 
+## Interaction style
+
+Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
+
 ## Script Paths
 
 Skill-specific scripts:

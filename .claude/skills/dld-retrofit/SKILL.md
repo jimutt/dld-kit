@@ -8,6 +8,10 @@ user_invocable: true
 
 You are helping the developer bootstrap DLD in an existing codebase by generating decision records from what the code already does. The goal is **not** 100% decision coverage — it's to create enough scaffolding that the DLD workflow feels natural for future development.
 
+## Interaction style
+
+Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
+
 ## Script Paths
 
 Shared scripts:
@@ -63,7 +67,21 @@ Explain the two modes and ask the user to choose:
 
 ## Step 4: Identify decisions
 
-Based on the scope and granularity, analyze the code and identify candidate decisions. Focus on:
+### System-framing decisions (always include these first)
+
+Before diving into implementation details, identify **foundational decisions that frame the system itself**. These establish the context that all other decisions hang on:
+
+- **System purpose** — What is this service/application and why does it exist? What problem does it solve? (e.g., "Auth integration microservice bridging platform accounts to Firebase Auth")
+- **Core domain model** — What are the key domain concepts and their relationships? (e.g., "Multi-provider account linking with one primary identity per provider")
+- **Key integration boundaries** — What external systems does this interact with and how? (e.g., "Dual Firebase integration: Admin SDK for backend, REST API for OOB flows")
+
+These framing decisions may not map to a single function — they often reference the application entry point, main service interface, or core domain model files. Without them, the projected OVERVIEW.md would read as a collection of implementation details with no narrative anchor.
+
+Aim for 1-3 framing decisions depending on the system's complexity. Ask the user to help articulate these — they capture the kind of high-level context that's hardest to infer from code alone.
+
+### Implementation-level decisions
+
+Then identify decisions at the implementation level. Focus on:
 
 - **Architectural choices** — why the code is structured this way (module boundaries, layer patterns, data flow)
 - **Non-obvious implementation details** — retry logic, caching strategies, validation approaches, error handling patterns
@@ -81,13 +99,21 @@ Based on the scope and granularity, analyze the code and identify candidate deci
 
 Don't ask about everything — focus on cases where the implementation seems intentionally specific and the rationale would be lost without human input.
 
-Present the proposed decisions as a numbered list:
+Present the proposed decisions as a numbered list, with framing decisions first:
 
 > **Proposed decisions:**
-> 1. **[Title]** — [one-line summary of what the decision covers]
+>
+> *System framing:*
+> 1. **[System purpose/identity]** — [what this system is and why it exists]
+>    - Affects: `src/Application.ts` (or equivalent entry point)
+> 2. **[Core domain model]** — [key concepts and relationships]
+>    - Affects: `src/models/Account.ts`, `src/models/Identity.ts`
+>
+> *Implementation decisions:*
+> 3. **[Title]** — [one-line summary]
 >    - Affects: `src/path/to/code.ts`
-> 2. **[Title]** — [one-line summary]
->    - Affects: `src/path/to/other.ts`, `src/path/to/related.ts`
+> 4. **[Title]** — [one-line summary]
+>    - Affects: `src/path/to/other.ts`
 > ...
 >
 > Want me to proceed with all of these, remove any, or adjust?
