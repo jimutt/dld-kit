@@ -1,7 +1,7 @@
 ---
 name: dld-init
 description: Bootstrap DLD (Decision-Linked Development) in a repository. Creates dld.config.yaml, the decisions/ directory, and INDEX.md. Run once per project.
-user_invocable: true
+compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
 ---
 
 # /dld-init — Bootstrap DLD
@@ -16,9 +16,9 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 Skill-specific scripts:
 ```
-.claude/skills/dld-init/scripts/create-config.sh
-.claude/skills/dld-init/scripts/create-directories.sh
-.claude/skills/dld-init/scripts/create-empty-index.sh
+scripts/create-config.sh
+scripts/create-directories.sh
+scripts/create-empty-index.sh
 ```
 
 ## Prerequisites
@@ -43,23 +43,23 @@ If namespaced, ask for the initial namespace list. Suggest they can add more lat
 
 Run the create-config script:
 ```bash
-bash .claude/skills/dld-init/scripts/create-config.sh <mode> [namespace1 namespace2 ...]
+bash scripts/create-config.sh <mode> [namespace1 namespace2 ...]
 ```
 
 Example flat:
 ```bash
-bash .claude/skills/dld-init/scripts/create-config.sh flat
+bash scripts/create-config.sh flat
 ```
 
 Example namespaced:
 ```bash
-bash .claude/skills/dld-init/scripts/create-config.sh namespaced billing auth shared
+bash scripts/create-config.sh namespaced billing auth shared
 ```
 
 ### 3. Create directory structure
 
 ```bash
-bash .claude/skills/dld-init/scripts/create-directories.sh
+bash scripts/create-directories.sh
 ```
 
 This reads mode and namespaces from `dld.config.yaml` (created in step 2).
@@ -67,7 +67,7 @@ This reads mode and namespaces from `dld.config.yaml` (created in step 2).
 ### 4. Create initial INDEX.md
 
 ```bash
-bash .claude/skills/dld-init/scripts/create-empty-index.sh
+bash scripts/create-empty-index.sh
 ```
 
 This reads mode from `dld.config.yaml`.
@@ -104,6 +104,8 @@ Write `decisions/PRACTICES.md` with their answers in simple markdown format:
 For namespaced projects, this is the root-level shared practices. Mention they can create namespace-specific practices later at `decisions/<namespace>/PRACTICES.md`.
 
 ### 6. Add DLD instructions to `CLAUDE.md`
+
+> **Note:** If DLD was installed via Tessl, the `rules/dld-workflow.md` steering file already provides these instructions automatically and this step can be skipped.
 
 Append the following block to `CLAUDE.md` at the repo root (create the file if it doesn't exist). If the file exists, add the block at the end, preserving existing content.
 

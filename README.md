@@ -24,11 +24,44 @@ Most SDD approaches in practice revolve around specification documents that tend
 
 ## How it works
 
-DLD is implemented as a set of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills. All interaction happens through skill invocations.
+DLD is implemented as a set of AI agent skills following the [Agent Skills](https://agentskills.io) open standard. All interaction happens through skill invocations.
 
 ### Installation
 
-There's no installer or package distribution yet. To use DLD, manually copy the `.claude/skills/` directory (including `dld-common/` and all `dld-*` skill directories) into your project's `.claude/skills/` folder.
+#### Via Tessl (recommended)
+
+DLD is packaged as a [Tessl](https://tessl.io) tile, which works across multiple AI agents (Claude Code, Cursor, Copilot, etc.):
+
+```bash
+# Install from GitHub
+tessl install github:jimutt/dld-kit
+
+# Or from a local clone of this repo
+tessl install file:.
+```
+
+This installs the skills, shared scripts, and a steering rule that teaches your agent to look up `@decision` annotations automatically.
+
+#### Manual (Claude Code only)
+
+Copy the `.claude/skills/` directory (including `dld-common/` and all `dld-*` skill directories) into your project's `.claude/skills/` folder:
+
+```bash
+cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
+```
+
+Then add the following to your project's `CLAUDE.md` (or let `/dld-init` do it for you):
+
+```markdown
+## DLD (Decision-Linked Development)
+
+This project uses Decision-Linked Development. Decisions are recorded in `decisions/` as individual markdown files.
+
+- When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
+- Use `/dld-decide` to record new decisions
+- Use `/dld-implement` to implement proposed decisions
+- Use `/dld-lookup` to query decisions by ID, tag, or code path
+```
 
 ### Quick start
 

@@ -1,7 +1,7 @@
 ---
 name: dld-plan
 description: Break down a feature into multiple decisions interactively. Creates a set of decision records grouped by a shared tag.
-user_invocable: true
+compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
 ---
 
 # /dld-plan — Plan a Feature as Multiple Decisions
@@ -16,14 +16,14 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 Shared scripts:
 ```
-.claude/skills/dld-common/scripts/next-id.sh
-.claude/skills/dld-common/scripts/regenerate-index.sh
-.claude/skills/dld-common/scripts/update-status.sh
+../dld-common/scripts/next-id.sh
+../dld-common/scripts/regenerate-index.sh
+../dld-common/scripts/update-status.sh
 ```
 
 Skill-specific scripts (from dld-decide):
 ```
-.claude/skills/dld-decide/scripts/create-decision.sh
+../dld-decide/scripts/create-decision.sh
 ```
 
 ## Prerequisites
@@ -91,12 +91,12 @@ For each decision in the breakdown, run the same scripts used by `/dld-decide`:
 
 First, get the next ID:
 ```bash
-bash .claude/skills/dld-common/scripts/next-id.sh
+bash ../dld-common/scripts/next-id.sh
 ```
 
 Then create the record:
 ```bash
-bash .claude/skills/dld-decide/scripts/create-decision.sh \
+bash ../dld-decide/scripts/create-decision.sh \
   --id "DL-NNN" \
   --title "Short descriptive title" \
   --namespace "billing" \
@@ -123,7 +123,7 @@ Repeat for each decision, incrementing the ID each time. Run `next-id.sh` before
 
 If any decision supersedes an existing one, also update the old decision's status:
 ```bash
-bash .claude/skills/dld-common/scripts/update-status.sh DL-003 superseded
+bash ../dld-common/scripts/update-status.sh DL-003 superseded
 ```
 
 For each decision, compose a focused body. Keep it concise — the full feature context is captured across the group. Each individual decision should capture its own specific rationale.
@@ -132,7 +132,7 @@ For each decision, compose a focused body. Keep it concise — the full feature 
 
 After all decisions are created:
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+bash ../dld-common/scripts/regenerate-index.sh
 ```
 
 ### 8. Suggest next steps
