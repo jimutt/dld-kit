@@ -18,7 +18,7 @@ These decisions live in Jira tickets, Slack threads, and departed engineers' hea
 
 Most SDD approaches in practice revolve around specification documents that tend to become maintenance burdens as systems evolve. DLD takes a different angle, borrowing from **event sourcing**:
 
-- **Decisions are immutable events** — the log is append-only. Decisions can be superseded but never edited or deleted.
+- **Decisions are append-only events** — once accepted, decisions are immutable. They can be superseded but never edited or deleted. (Proposed decisions can still be refined during implementation.)
 - **The spec is a derived projection** — generated from the decision log, never manually maintained. Like a read model built from an event stream.
 - **Tight code coupling** — `@decision` annotations in code act as mechanical triggers for AI agents, not just documentation.
 
