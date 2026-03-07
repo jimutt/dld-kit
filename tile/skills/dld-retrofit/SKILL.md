@@ -1,6 +1,6 @@
 ---
 name: dld-retrofit
-description: Bootstrap DLD decisions from an existing codebase. Analyzes code to generate initial decision records and annotations.
+description: Bootstrap DLD decisions from an existing codebase. Analyzes code to infer rationale, generates decision records, and adds `@decision` annotations.
 compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
 ---
 
