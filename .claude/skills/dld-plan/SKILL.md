@@ -1,6 +1,6 @@
 ---
 name: dld-plan
-description: Break down a larger feature into multiple decisions. Creates grouped decision records with a shared tag.
+description: Break down a feature into multiple decisions interactively. Creates a set of decision records grouped by a shared tag.
 user_invocable: true
 ---
 

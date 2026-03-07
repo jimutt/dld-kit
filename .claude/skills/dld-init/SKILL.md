@@ -1,6 +1,6 @@
 ---
 name: dld-init
-description: Bootstrap DLD (Decision-Linked Development) in a repository. Run once per project.
+description: Bootstrap DLD (Decision-Linked Development) in a repository. Creates dld.config.yaml, the decisions/ directory, and INDEX.md. Run once per project.
 user_invocable: true
 ---
 

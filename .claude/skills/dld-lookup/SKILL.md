@@ -1,6 +1,6 @@
 ---
 name: dld-lookup
-description: Look up decisions by ID, tag, code path, or keyword. Used by the agent when encountering @decision annotations.
+description: Look up decisions by ID, tag, code path, or keyword. Also used internally by the agent when encountering `@decision` annotations in code.
 user_invocable: true
 ---
 
@@ -59,7 +59,7 @@ If the input doesn't match the `DL-NNN`, `tag:`, or `path:` patterns, treat it a
 
 Display results the same way as tag lookup.
 
-## When used by the agent (encountering @decision annotations)
+## When used by the agent (encountering `@decision` annotations)
 
 When you encounter `@decision(DL-XXX)` in code you're about to modify, use this skill to read the decision. After reading:
 
