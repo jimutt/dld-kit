@@ -26,6 +26,10 @@ Most SDD approaches in practice revolve around specification documents that tend
 
 DLD is implemented as a set of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills. All interaction happens through skill invocations.
 
+### Installation
+
+There's no installer or package distribution yet. To use DLD, manually copy the `.claude/skills/` directory (including `dld-common/` and all `dld-*` skill directories) into your project's `.claude/skills/` folder.
+
 ### Quick start
 
 ```
