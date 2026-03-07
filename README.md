@@ -99,6 +99,7 @@ When an AI agent encounters this annotation, it reads the decision before modify
 | `/dld-lookup` | Query decisions by ID, tag, code path, or keyword |
 | `/dld-status` | Overview of the decision log — counts, recent decisions, run tracking |
 | `/dld-audit` | Scan for drift between decisions and code |
+| `/dld-audit-auto` | Autonomous audit — detects drift, fixes issues, opens a PR (for scheduled/CI use) |
 | `/dld-snapshot` | Generate SNAPSHOT.md (detailed reference) and OVERVIEW.md (narrative synthesis with diagrams) |
 | `/dld-retrofit` | Bootstrap decisions from an existing codebase (broad or detailed mode) |
 
