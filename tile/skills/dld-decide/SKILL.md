@@ -1,6 +1,6 @@
 ---
 name: dld-decide
-description: Record a single development decision. Collects context, rationale, and code references interactively.
+description: Record a single development decision as a markdown file with YAML frontmatter. Collects context, rationale, and code references interactively.
 compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
 ---
 

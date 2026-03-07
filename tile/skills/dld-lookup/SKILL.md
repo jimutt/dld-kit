@@ -1,6 +1,6 @@
 ---
 name: dld-lookup
-description: Look up decisions by ID, tag, code path, or keyword. Used by the agent when encountering `@decision` annotations.
+description: Look up decisions by ID, tag, code path, or keyword. Also used internally by the agent when encountering `@decision` annotations in code.
 compatibility: No external dependencies.
 ---
 
