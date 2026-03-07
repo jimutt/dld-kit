@@ -1,0 +1,186 @@
+# DLD Kit — Decision-Linked Development
+
+> **Early development — not production ready.** This toolkit is under active development and has not been tested extensively in real projects. APIs, file formats, and skill interfaces may change. Use at your own risk, and expect rough edges.
+
+---
+
+DLD is a framework for preserving decision context in AI-assisted software development. It places an **append-only decision log** at the center of the development workflow, with tight coupling between decisions and code via `@decision(DL-XXX)` annotations.
+
+When an AI coding agent encounters an annotation, it looks up the referenced decision *before* modifying the code — turning institutional knowledge from something that lives in people's heads into a mechanical trigger the agent can't miss.
+
+## Why
+
+AI agents are good at writing code. They're bad at knowing *why* your code looks the way it does. That weird rounding logic exists because of 20 customers in a specific EU trade scenario. That suboptimal query pattern is forced by an infrastructure constraint discovered six months ago.
+
+These decisions live in Jira tickets, Slack threads, and departed engineers' heads — not where an LLM can find them. DLD fixes this by recording decisions as structured artifacts linked directly to the code they affect.
+
+### How it differs from Spec-Driven Development
+
+SDD maintains a mutable specification document as the primary artifact. DLD borrows from **event sourcing** instead:
+
+- **Decisions are immutable events** — the log is append-only. Decisions can be superseded but never edited or deleted.
+- **The spec is a derived projection** — generated from the decision log, never manually maintained. Like a read model built from an event stream.
+- **Tight code coupling** — `@decision` annotations in code act as mechanical triggers for AI agents, not just documentation.
+
+## How it works
+
+DLD is implemented as a set of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills. All interaction happens through skill invocations.
+
+### Quick start
+
+```
+/dld-init              # Bootstrap DLD in your repo (run once)
+/dld-decide            # Record a decision
+/dld-implement DL-001  # Implement it — writes code, adds annotations
+```
+
+### The decision record
+
+Each decision is a markdown file with YAML frontmatter:
+
+```markdown
+---
+id: DL-012
+title: "Customer-specific VAT rounding for EU trade"
+timestamp: 2026-02-15T09:20:00Z
+status: accepted
+supersedes: [DL-003]
+tags: [vat, eu-compliance]
+references:
+  - path: src/billing/vat.ts
+    symbol: calculateVAT
+---
+
+## Context
+~20 customers in the Swedish EU trade scenario require banker's rounding...
+
+## Decision
+Apply banker's rounding (IEEE 754 round-half-to-even) for all VAT
+calculations on orders flagged with EU intra-community supply.
+
+## Rationale
+Banker's rounding is the standard recommended by the Swedish Tax Agency...
+
+## Consequences
+VAT amounts may differ by +/-0.005 SEK from the previous implementation...
+```
+
+### The code annotation
+
+```typescript
+// @decision(DL-012)
+function calculateVAT(order: Order): Money {
+  // ...
+}
+```
+
+When an AI agent encounters this annotation, it reads the decision before modifying the code. If the planned change conflicts with the decision, it tells you and suggests recording a new decision.
+
+## Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `/dld-init` | Bootstrap DLD in a repository (run once) |
+| `/dld-decide` | Record a single decision interactively |
+| `/dld-plan` | Break down a feature into multiple grouped decisions |
+| `/dld-implement` | Implement proposed decisions — writes code, adds annotations, updates status |
+| `/dld-lookup` | Query decisions by ID, tag, code path, or keyword |
+| `/dld-status` | Overview of the decision log — counts, recent decisions, run tracking |
+| `/dld-audit` | Scan for drift between decisions and code |
+| `/dld-snapshot` | Generate SNAPSHOT.md (detailed reference) and OVERVIEW.md (narrative synthesis with diagrams) |
+
+### Workflow
+
+```
+/dld-init (once)
+    |
+    +-- /dld-decide  <--------------+
+    |       |                       |
+    |       v                       |
+    |   /dld-implement -------------+
+    |       |              (record more)
+    |       v
+    |   /dld-audit (periodic)
+    |       |
+    |       v
+    |   /dld-snapshot (periodic)
+    |
+    +-- /dld-plan --> creates multiple decisions
+            |         via /dld-decide logic
+            v
+        /dld-implement (for each)
+```
+
+## Project structure
+
+### Flat mode (default)
+
+```
+dld.config.yaml
+decisions/
+  INDEX.md          # Auto-generated decision index
+  SNAPSHOT.md       # Detailed per-decision reference
+  OVERVIEW.md       # Narrative synthesis with Mermaid diagrams
+  PRACTICES.md      # Development practices manifest (optional)
+  DL-001.md
+  DL-002.md
+```
+
+### Namespaced mode (monorepos)
+
+```
+dld.config.yaml
+decisions/
+  INDEX.md
+  SNAPSHOT.md
+  OVERVIEW.md
+  PRACTICES.md
+  billing/
+    DL-001.md
+    DL-004.md
+    PRACTICES.md    # Namespace-specific practices (optional)
+  auth/
+    DL-002.md
+    DL-005.md
+```
+
+IDs are globally sequential across namespaces, so `@decision(DL-012)` is unambiguous regardless of which namespace it belongs to.
+
+## Status lifecycle
+
+```
+proposed --> accepted --> deprecated
+                     --> superseded (by a newer decision)
+```
+
+- **proposed** — recorded but not yet implemented
+- **accepted** — implemented, code references this decision via annotations
+- **deprecated** — no longer relevant, no replacement
+- **superseded** — replaced by a newer decision
+
+## Concepts
+
+### Practices manifest
+
+An optional `decisions/PRACTICES.md` captures project development conventions (testing approach, code style, architecture patterns). The AI agent reads this when making and implementing decisions — it's most useful during `/dld-implement` where it directly influences how code is written.
+
+### Spec as projection
+
+The snapshot and overview documents are **generated, not maintained**. Like event sourcing read models, they're derived from the decision log and can be regenerated at any time. You maintain individual decisions; the framework derives the consolidated view.
+
+### Drift detection
+
+`/dld-audit` detects when code and decisions have drifted apart — orphaned annotations, stale references, modified annotated files that may need decision updates.
+
+## Further reading
+
+- [Concept paper](docs/concept/dld-concept.md) — full rationale and design philosophy
+- [TL;DR](docs/concept/dld-tldr.md) — one-page summary
+- [FAQ](docs/concept/dld-faq.md) — anticipated questions
+- [Decision record format](docs/framework/decision-record-format.md) — schema and field reference
+- [Project configuration](docs/framework/project-configuration.md) — config file and directory layout
+- [Skill design plan](docs/plan/skill-design.md) — detailed skill specifications
+
+## License
+
+TBD
