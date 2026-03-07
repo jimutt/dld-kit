@@ -8,6 +8,10 @@ user_invocable: true
 
 You are helping the developer break down a larger feature into discrete decisions. Each decision gets its own record, and they're grouped by a shared tag.
 
+## Interaction style
+
+Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
+
 ## Script Paths
 
 Shared scripts:
