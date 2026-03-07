@@ -10,13 +10,13 @@ When an AI coding agent encounters an annotation, it looks up the referenced dec
 
 ## Why
 
-AI agents are good at writing code. They're bad at knowing *why* your code looks the way it does. That weird rounding logic exists because of 20 customers in a specific EU trade scenario. That suboptimal query pattern is forced by an infrastructure constraint discovered six months ago.
+AI agents are good at writing code. They're bad at knowing *why* your code looks the way it does. That retry logic with the unusual backoff curve? It's tuned for a specific third-party API's rate limiting behavior. That seemingly redundant validation step? It catches a data inconsistency that only surfaces in production with legacy imports.
 
 These decisions live in Jira tickets, Slack threads, and departed engineers' heads — not where an LLM can find them. DLD fixes this by recording decisions as structured artifacts linked directly to the code they affect.
 
 ### How it differs from Spec-Driven Development
 
-SDD maintains a mutable specification document as the primary artifact. DLD borrows from **event sourcing** instead:
+Most SDD approaches in practice revolve around specification documents that tend to become maintenance burdens as systems evolve. DLD takes a different angle, borrowing from **event sourcing**:
 
 - **Decisions are immutable events** — the log is append-only. Decisions can be superseded but never edited or deleted.
 - **The spec is a derived projection** — generated from the decision log, never manually maintained. Like a read model built from an event stream.
@@ -40,36 +40,37 @@ Each decision is a markdown file with YAML frontmatter:
 
 ```markdown
 ---
-id: DL-012
-title: "Customer-specific VAT rounding for EU trade"
+id: DL-008
+title: "Use exponential backoff for payment gateway retries"
 timestamp: 2026-02-15T09:20:00Z
 status: accepted
-supersedes: [DL-003]
-tags: [vat, eu-compliance]
+supersedes: [DL-002]
+tags: [payments, resilience]
 references:
-  - path: src/billing/vat.ts
-    symbol: calculateVAT
+  - path: src/payments/gateway.ts
+    symbol: retryWithBackoff
 ---
 
 ## Context
-~20 customers in the Swedish EU trade scenario require banker's rounding...
+The payment gateway occasionally returns 503s under load. Our initial
+fixed-interval retry (DL-002) caused retry storms that made things worse.
 
 ## Decision
-Apply banker's rounding (IEEE 754 round-half-to-even) for all VAT
-calculations on orders flagged with EU intra-community supply.
+Use exponential backoff with jitter, capped at 30 seconds, max 5 attempts.
 
 ## Rationale
-Banker's rounding is the standard recommended by the Swedish Tax Agency...
+Exponential backoff prevents retry storms. Jitter avoids thundering herd
+when multiple requests fail simultaneously...
 
 ## Consequences
-VAT amounts may differ by +/-0.005 SEK from the previous implementation...
+Failed payments take longer to resolve (up to ~60s worst case)...
 ```
 
 ### The code annotation
 
 ```typescript
-// @decision(DL-012)
-function calculateVAT(order: Order): Money {
+// @decision(DL-008)
+function retryWithBackoff(fn: () => Promise<Response>): Promise<Response> {
   // ...
 }
 ```
