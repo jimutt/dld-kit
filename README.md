@@ -107,6 +107,11 @@ When an AI agent encounters this annotation, it reads the decision before modify
 ```
 /dld-init (once)
     |
+    +-- /dld-retrofit (existing codebases)
+    |       |
+    |       v
+    |   /dld-snapshot
+    |
     +-- /dld-decide  <--------------+
     |       |                       |
     |       v                       |
