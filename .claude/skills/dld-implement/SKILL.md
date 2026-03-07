@@ -35,6 +35,15 @@ Skill-specific scripts:
 
 ## Implementation
 
+### Batch vs. single implementation
+
+When multiple decisions are requested, decide whether to implement them individually or as a batch:
+
+- **Batch together** decisions that are tightly coupled — they touch the same code, share types, or depend on each other so heavily that implementing one without the others would produce incomplete or throwaway code (e.g., a data model + its validation + its state machine).
+- **Implement separately** decisions that are independent — they touch different areas of the codebase and can stand on their own.
+
+When batching, implement all the code together, add annotations for all decisions, then update each decision record and status individually in step 4.
+
 ### 1. Understand the decision(s)
 
 Read each decision record carefully. Understand:
@@ -46,6 +55,13 @@ Read each decision record carefully. Understand:
 ### 2. Make code changes
 
 Implement the decision(s) by modifying the codebase. Follow the practices manifest if one exists.
+
+**Refining decisions during implementation:** While implementing, you may discover details that weren't anticipated during planning — a specific threshold value, an edge case handling approach, or a refinement to the original design. Since the decision is still in `proposed` status, it is **mutable** and can be updated:
+
+- **Small refinements** (implementation details, specific values, edge cases that don't change the decision's intent) — update the decision record inline. Amend the Decision, Rationale, or Consequences sections as needed. This is expected and encouraged.
+- **Major discoveries** (a fundamentally different approach is needed, or an entirely new design concern surfaces) — stop and suggest the user run `/dld-decide` to record a separate decision. If the new discovery invalidates the current decision, it may need to be superseded instead.
+
+The boundary: if the discovery changes the *intent* of the decision, it's a new decision. If it refines the *implementation details*, update the current one.
 
 ### 3. Add `@decision` annotations
 
@@ -78,20 +94,28 @@ def calculate_vat(order: Order) -> Money:
 
 ### 4. Update decision records
 
-For each implemented decision, write the references to a temp file and pass it to the update script:
-```bash
-cat > /tmp/refs-DL-NNN.yaml << 'EOF'
-- path: src/billing/vat.ts
-  symbol: calculateVAT
-- path: src/billing/vat.test.ts
-EOF
-bash .claude/skills/dld-implement/scripts/update-references.sh DL-NNN /tmp/refs-DL-NNN.yaml
-```
+For each implemented decision:
 
-Then update the status from `proposed` to `accepted`:
-```bash
-bash .claude/skills/dld-common/scripts/update-status.sh DL-NNN accepted
-```
+1. **Update the `references` field** in the decision record's YAML frontmatter. Edit the file directly — add the code paths and symbols that were annotated. Example:
+   ```yaml
+   references:
+     - path: src/billing/vat.ts
+       symbol: calculateVAT
+     - path: src/billing/vat.test.ts
+   ```
+   > **Fallback:** If direct editing is problematic, use the update-references script:
+   > ```bash
+   > cat > /tmp/refs-DL-NNN.yaml << 'EOF'
+   > - path: src/billing/vat.ts
+   >   symbol: calculateVAT
+   > EOF
+   > bash .claude/skills/dld-implement/scripts/update-references.sh DL-NNN /tmp/refs-DL-NNN.yaml
+   > ```
+
+2. **Update status** from `proposed` to `accepted`:
+   ```bash
+   bash .claude/skills/dld-common/scripts/update-status.sh DL-NNN accepted
+   ```
 
 ### 5. Regenerate INDEX.md
 

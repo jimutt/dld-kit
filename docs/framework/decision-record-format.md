@@ -77,12 +77,12 @@ proposed → accepted → deprecated
                     → superseded (by a newer decision)
 ```
 
-- **proposed** — Intent recorded, but no implementation yet. Typically lives on a local branch or in a PR. Useful for decision review workflows where the team evaluates the decision before code is written.
-- **accepted** — Active and in effect. Code references this decision via `@decision` annotations. A decision should transition to `accepted` as soon as implementation referencing it exists — the framework enforces this automatically when code with annotations is committed.
+- **proposed** — Intent recorded, but no implementation yet. Proposed decisions are **mutable** — they can be refined or updated as understanding evolves during implementation. This is the drafting phase where the decision takes shape.
+- **accepted** — Active and in effect. Code references this decision via `@decision` annotations. Once accepted, a decision becomes **immutable** — its content is never modified. If the decision needs to change, record a new decision that supersedes it.
 - **deprecated** — No longer relevant (e.g., the feature was removed). No replacement decision.
 - **superseded** — Replaced by one or more newer decisions. The superseding decision(s) will list this ID in their `supersedes` field.
 
-When a decision is superseded, its status is updated to `superseded` — this is the one exception to the append-only principle. The decision content itself is never modified, only the status field. The superseding decision carries the full context of what changed and why.
+When a decision is superseded, its status is updated to `superseded` — this is the one exception to the append-only principle for accepted decisions. Once a decision reaches `accepted` status, its content is never modified, only the status field. (Decisions in `proposed` status are still mutable and can be freely refined.) The superseding decision carries the full context of what changed and why.
 
 #### Code References
 
