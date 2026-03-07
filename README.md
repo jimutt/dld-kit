@@ -184,4 +184,4 @@ The snapshot and overview documents are **generated, not maintained**. Like even
 
 ## License
 
-TBD
+[MIT](LICENSE)
