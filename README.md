@@ -32,10 +32,17 @@ There's no installer or package distribution yet. To use DLD, manually copy the 
 
 ### Quick start
 
+For a single, well-defined change (a bug fix, a specific design choice):
 ```
 /dld-init              # Bootstrap DLD in your repo (run once)
 /dld-decide            # Record a decision
 /dld-implement DL-001  # Implement it — writes code, adds annotations
+```
+
+For a larger feature that involves multiple design choices:
+```
+/dld-plan              # Break it down into decisions interactively
+/dld-implement DL-001  # Implement each decision (or batch related ones)
 ```
 
 ### The decision record
