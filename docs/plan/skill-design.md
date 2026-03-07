@@ -266,6 +266,8 @@ Utility (anytime):
       scripts/
         collect-active-decisions.sh
         update-snapshot-state.sh
+    dld-audit-auto/
+      SKILL.md
     dld-retrofit/
       SKILL.md
 ```
