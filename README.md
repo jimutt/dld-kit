@@ -154,8 +154,8 @@ proposed --> accepted --> deprecated
                      --> superseded (by a newer decision)
 ```
 
-- **proposed** — recorded but not yet implemented
-- **accepted** — implemented, code references this decision via annotations
+- **proposed** — recorded but not yet implemented (mutable — can be refined during implementation)
+- **accepted** — implemented, code references this decision via annotations (immutable)
 - **deprecated** — no longer relevant, no replacement
 - **superseded** — replaced by a newer decision
 
