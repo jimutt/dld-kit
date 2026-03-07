@@ -1,6 +1,6 @@
 ---
 name: dld-implement
-description: Implement one or more proposed decisions. Makes code changes, adds @decision annotations, and updates decision status.
+description: Implement one or more proposed decisions. Makes code changes, adds `@decision` annotations, and updates decision status.
 user_invocable: true
 ---
 
