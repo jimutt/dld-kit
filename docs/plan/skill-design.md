@@ -266,6 +266,8 @@ Utility (anytime):
       scripts/
         collect-active-decisions.sh
         update-snapshot-state.sh
+    dld-retrofit/
+      SKILL.md
 ```
 
 ### Project Artifacts (created by skills)
