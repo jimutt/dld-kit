@@ -75,6 +75,12 @@ Based on the scope and granularity, analyze the code and identify candidate deci
 
 **Detailed mode:** Aim for decisions wherever there's a meaningful "why" behind the code. Still don't try to cover everything — focus on the decisions a future developer (or AI agent) would most benefit from knowing about.
 
+**Ask when unsure:** If you encounter code that looks like a deliberate design choice but you can't confidently infer the rationale, ask the user. These are often the most valuable decisions to capture — the ones where the "why" isn't obvious from the code alone. For example:
+
+> I see the order service retries with a 7-second delay and max 3 attempts. Is there a specific reason for these values, or is it a general resilience pattern?
+
+Don't ask about everything — focus on cases where the implementation seems intentionally specific and the rationale would be lost without human input.
+
 Present the proposed decisions as a numbered list:
 
 > **Proposed decisions:**
