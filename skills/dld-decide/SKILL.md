@@ -1,7 +1,7 @@
 ---
 name: dld-decide
 description: Record a single development decision as a markdown file with YAML frontmatter. Collects context, rationale, and code references interactively.
-user_invocable: true
+compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
 ---
 
 # /dld-decide — Record a Decision
@@ -16,14 +16,14 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 Shared scripts:
 ```
-.claude/skills/dld-common/scripts/next-id.sh
-.claude/skills/dld-common/scripts/regenerate-index.sh
-.claude/skills/dld-common/scripts/update-status.sh
+../dld-common/scripts/next-id.sh
+../dld-common/scripts/regenerate-index.sh
+../dld-common/scripts/update-status.sh
 ```
 
 Skill-specific scripts:
 ```
-.claude/skills/dld-decide/scripts/create-decision.sh
+scripts/create-decision.sh
 ```
 
 ## Prerequisites
@@ -76,7 +76,7 @@ If the project is namespaced, determine which namespace this decision belongs to
 
 Run the next-id script:
 ```bash
-bash .claude/skills/dld-common/scripts/next-id.sh
+bash ../dld-common/scripts/next-id.sh
 ```
 
 This outputs the next available ID (e.g., `DL-004`).
@@ -87,7 +87,7 @@ Compose the markdown body with the relevant sections (Context, Decision, Rationa
 
 Then run the create-decision script:
 ```bash
-bash .claude/skills/dld-decide/scripts/create-decision.sh \
+bash scripts/create-decision.sh \
   --id "DL-NNN" \
   --title "Short descriptive title" \
   --namespace "billing" \
@@ -114,13 +114,13 @@ Flags `--namespace`, `--tags`, `--supersedes` are optional. The script creates t
 
 If this decision supersedes others, also update their status:
 ```bash
-bash .claude/skills/dld-common/scripts/update-status.sh DL-003 superseded
+bash ../dld-common/scripts/update-status.sh DL-003 superseded
 ```
 
 ### 7. Regenerate INDEX.md
 
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+bash ../dld-common/scripts/regenerate-index.sh
 ```
 
 ### 8. Suggest next steps

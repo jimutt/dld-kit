@@ -1,7 +1,7 @@
 ---
 name: dld-lookup
 description: Look up decisions by ID, tag, code path, or keyword. Also used internally by the agent when encountering `@decision` annotations in code.
-user_invocable: true
+compatibility: No external dependencies.
 ---
 
 # /dld-lookup — Look Up Decisions

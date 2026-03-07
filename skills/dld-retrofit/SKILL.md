@@ -1,7 +1,7 @@
 ---
 name: dld-retrofit
 description: Bootstrap DLD decisions from an existing codebase. Analyzes code to infer rationale, generates decision records, and adds `@decision` annotations.
-user_invocable: true
+compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
 ---
 
 # /dld-retrofit — Retrofit Decisions onto Existing Code
@@ -16,9 +16,9 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 Shared scripts:
 ```
-.claude/skills/dld-common/scripts/next-id.sh
-.claude/skills/dld-common/scripts/regenerate-index.sh
-.claude/skills/dld-decide/scripts/create-decision.sh
+../dld-common/scripts/next-id.sh
+../dld-common/scripts/regenerate-index.sh
+../dld-decide/scripts/create-decision.sh
 ```
 
 ## Prerequisites
@@ -131,8 +131,8 @@ For each approved decision:
 5. Create each record using the create-decision script
 
 ```bash
-ID=$(bash .claude/skills/dld-common/scripts/next-id.sh)
-bash .claude/skills/dld-decide/scripts/create-decision.sh \
+ID=$(bash ../dld-common/scripts/next-id.sh)
+bash ../dld-decide/scripts/create-decision.sh \
   --id "$ID" \
   --title "Title" \
   --tags "tag1, tag2" \
@@ -160,7 +160,7 @@ Then update each decision record's `references` field directly in the YAML front
 Since the code already exists, these decisions go directly to `accepted` status:
 
 ```bash
-bash .claude/skills/dld-common/scripts/update-status.sh DL-NNN accepted
+bash ../dld-common/scripts/update-status.sh DL-NNN accepted
 ```
 
 Do this for each generated decision.
@@ -168,7 +168,7 @@ Do this for each generated decision.
 ## Step 8: Regenerate INDEX.md
 
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+bash ../dld-common/scripts/regenerate-index.sh
 ```
 
 ## Step 9: Summary and next steps

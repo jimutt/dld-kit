@@ -1,7 +1,7 @@
 ---
 name: dld-implement
 description: Implement one or more proposed decisions. Makes code changes, adds `@decision` annotations, and updates decision status.
-user_invocable: true
+compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
 ---
 
 # /dld-implement — Implement Decisions
@@ -12,13 +12,13 @@ You are implementing one or more `proposed` decisions by making code changes, ad
 
 Shared scripts:
 ```
-.claude/skills/dld-common/scripts/regenerate-index.sh
-.claude/skills/dld-common/scripts/update-status.sh
+../dld-common/scripts/regenerate-index.sh
+../dld-common/scripts/update-status.sh
 ```
 
 Skill-specific scripts:
 ```
-.claude/skills/dld-implement/scripts/update-references.sh
+scripts/update-references.sh
 ```
 
 ## Prerequisites
@@ -109,18 +109,18 @@ For each implemented decision:
    > - path: src/billing/vat.ts
    >   symbol: calculateVAT
    > EOF
-   > bash .claude/skills/dld-implement/scripts/update-references.sh DL-NNN /tmp/refs-DL-NNN.yaml
+   > bash scripts/update-references.sh DL-NNN /tmp/refs-DL-NNN.yaml
    > ```
 
 2. **Update status** from `proposed` to `accepted`:
    ```bash
-   bash .claude/skills/dld-common/scripts/update-status.sh DL-NNN accepted
+   bash ../dld-common/scripts/update-status.sh DL-NNN accepted
    ```
 
 ### 5. Regenerate INDEX.md
 
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+bash ../dld-common/scripts/regenerate-index.sh
 ```
 
 ### 6. Suggest next steps
