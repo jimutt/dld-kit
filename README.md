@@ -148,6 +148,11 @@ When an AI agent encounters this annotation, it reads the decision before modify
 
 ### Workflow
 
+<img width="3180" height="2100" alt="dld-diagram" src="https://github.com/user-attachments/assets/fc8b7804-10ce-439b-ba0c-1f431a26a46e" />
+
+<img width="2880" height="2760" alt="dld-passive-mode" src="https://github.com/user-attachments/assets/c6a91503-8b0f-486d-b011-0f4093942b0a" />
+
+
 ```
 /dld-init (once)
     |
