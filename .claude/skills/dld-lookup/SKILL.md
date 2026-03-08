@@ -1,14 +1,14 @@
 ---
 name: dld-lookup
-description: Look up decisions by ID, tag, code path, or keyword. Also used internally by the agent when encountering `@decision` annotations in code.
+description: Look up decisions by ID, tag, code path, or keyword. IMPORTANT — use this proactively whenever you encounter `@decision` annotations in code you are about to read or modify.
 user_invocable: true
 ---
 
 # /dld-lookup — Look Up Decisions
 
-You are looking up decision records. This skill serves two purposes:
-1. The developer queries decisions manually
-2. You (the AI agent) look up decisions when encountering `@decision(DL-XXX)` annotations in code before modifying annotated code
+You are looking up decision records. This skill is used in two ways:
+1. **Proactively by you (the AI agent)** — whenever you encounter `@decision(DL-XXX)` annotations in code you're reading or about to modify, look up the decision to understand the rationale before proceeding. This is not optional.
+2. **On request by the developer** — to query decisions by ID, tag, code path, or keyword.
 
 ## Prerequisites
 
@@ -59,13 +59,15 @@ If the input doesn't match the `DL-NNN`, `tag:`, or `path:` patterns, treat it a
 
 Display results the same way as tag lookup.
 
-## When used by the agent (encountering `@decision` annotations)
+## Proactive usage (encountering `@decision` annotations)
 
-When you encounter `@decision(DL-XXX)` in code you're about to modify, use this skill to read the decision. After reading:
+When you encounter `@decision(DL-XXX)` in code — whether you are reading, modifying, or reviewing it — you MUST look up the referenced decision before proceeding. This applies to all interactions with annotated code, not just when explicitly asked.
 
-1. Understand the rationale behind the annotated code
-2. Consider whether your planned changes conflict with or violate the decision
-3. If they do, inform the user and suggest recording a new decision that supersedes the existing one via `/dld-decide`
-4. If they don't, proceed with the modification
+After reading the decision:
 
-This is the core DLD feedback loop — decisions annotated in code trigger the agent to understand context before making changes.
+1. **Understand** the rationale behind the annotated code
+2. **Assess** whether your planned changes are compatible with the decision
+3. **If they conflict** — stop and inform the user. Explain the conflict and suggest recording a new decision via `/dld-decide` that supersedes the existing one. Do not silently modify code in a way that contradicts an active decision.
+4. **If they're compatible** — proceed with the modification
+
+This is the core DLD feedback loop — `@decision` annotations are mechanical triggers that ensure design rationale is consulted before code is changed.

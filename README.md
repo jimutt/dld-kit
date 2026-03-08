@@ -57,7 +57,11 @@ Then add the following to your project's `CLAUDE.md` (or let `/dld-init` do it f
 
 This project uses Decision-Linked Development. Decisions are recorded in `decisions/` as individual markdown files.
 
+### Rules
+
 - When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
+- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
+- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (via `/dld-decide`) that explicitly supersedes the old one.
 - Use `/dld-decide` to record new decisions
 - Use `/dld-implement` to implement proposed decisions
 - Use `/dld-lookup` to query decisions by ID, tag, or code path
