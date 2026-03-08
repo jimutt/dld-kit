@@ -4,6 +4,25 @@
 
 ---
 
+## Table of contents
+
+- [Why](#why)
+- [How it works](#how-it-works)
+  - [Installation](#installation)
+  - [Quick start](#quick-start)
+  - [The decision record](#the-decision-record)
+  - [The code annotation](#the-code-annotation)
+- [Skills](#skills)
+  - [Active workflow](#active-workflow)
+  - [Passive mode](#passive-mode)
+- [Project structure](#project-structure)
+- [Status lifecycle](#status-lifecycle)
+- [Concepts](#concepts)
+- [Further reading](#further-reading)
+- [Acknowledgements](#acknowledgements)
+
+---
+
 DLD is a framework for preserving decision context in AI-assisted software development. It places an **append-only decision log** at the center of the development workflow, with tight coupling between decisions and code via `@decision(DL-XXX)` annotations.
 
 When an AI coding agent encounters an annotation, it looks up the referenced decision *before* modifying the code — turning institutional knowledge from something that lives in people's heads into a mechanical trigger the agent can't miss.
