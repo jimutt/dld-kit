@@ -146,37 +146,19 @@ When an AI agent encounters this annotation, it reads the decision before modify
 | `/dld-snapshot` | Generate SNAPSHOT.md (detailed reference) and OVERVIEW.md (narrative synthesis with diagrams) |
 | `/dld-retrofit` | Bootstrap decisions from an existing codebase (broad or detailed mode) |
 
-### Workflow
+### Active workflow
 
-<img width="3180" height="2100" alt="dld-diagram" src="https://github.com/user-attachments/assets/fc8b7804-10ce-439b-ba0c-1f431a26a46e" />
+The core DLD loop: developers record decisions via `/dld-decide` or `/dld-plan`, implement them with `/dld-implement`, and the framework maintains tight coupling between the decision log and code through `@decision` annotations. When an AI agent encounters an annotation, it reads the referenced decision before modifying the code. `/dld-audit` periodically checks for drift, and `/dld-snapshot` regenerates the derived specification from the decision log.
 
-<img width="2880" height="2760" alt="dld-passive-mode" src="https://github.com/user-attachments/assets/36bba4e1-e8eb-4390-a484-f18f54638fa1" />
+<img width="3180" height="2100" alt="DLD high-level workflow overview showing the decision log, code annotations, generated specification, and drift detection" src="https://github.com/user-attachments/assets/fc8b7804-10ce-439b-ba0c-1f431a26a46e" />
 
+### Passive mode
 
-```
-/dld-init (once)
-    |
-    +-- /dld-retrofit (existing codebases)
-    |       |
-    |       v
-    |   /dld-snapshot
-    |
-    +-- /dld-decide  <--------------+
-    |       |                       |
-    |       v                       |
-    |   /dld-implement -------------+
-    |       |              (record more)
-    |       v
-    |   /dld-audit (periodic)
-    |       |
-    |       v
-    |   /dld-snapshot (periodic)
-    |
-    +-- /dld-plan --> creates multiple decisions
-            |         via /dld-decide logic
-            v
-        /dld-implement (for each)
-```
+For teams that want living documentation without changing how they work. Run `/dld-init` and `/dld-retrofit` once to bootstrap the decision log from an existing codebase, then schedule `/dld-audit-auto` and `/dld-snapshot` to run automatically (e.g. nightly via CI). The audit detects unreferenced code changes, infers new decisions, back-annotates the code, and the snapshot regenerates the spec — all without developers invoking any DLD commands during their normal workflow.
+
+<img width="2880" height="2760" alt="DLD passive mode showing scheduled automation that keeps decisions and docs in sync without workflow changes" src="https://github.com/user-attachments/assets/36bba4e1-e8eb-4390-a484-f18f54638fa1" />
+
+> **Note:** DLD doesn't include a scheduler. How you trigger the automated runs is up to you — [Claude Code's built-in cron support](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#2171), a CI pipeline step, or any other external scheduler all work.
 
 ## Project structure
 
