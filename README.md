@@ -1,94 +1,40 @@
 # DLD Kit — Decision-Linked Development
 
-> **Early development — not production ready.** This toolkit is under active development and has not been tested extensively in real projects. APIs, file formats, and skill interfaces may change. Use at your own risk, and expect rough edges.
+Stop AI agents from breaking code they don't understand.
+
+> [!NOTE]
+> Early development — not production ready. APIs, file formats, and skill interfaces may change.
 
 ---
 
-## Table of contents
+AI agents write code confidently. They just don't know *why* your code looks the way it does. That retry logic tuned for a specific API's rate limiting? That validation step catching a production-only edge case? Those decisions live in Jira tickets, Slack threads, and departed engineers' heads. DLD aims to fix this with an **append-only decision log** and `@decision(DL-XXX)` annotations that link code directly to the reasoning behind it. When an agent encounters an annotation, it reads the decision *before* modifying anything. No guesswork, no archaeology.
 
-- [Why](#why)
-- [How it works](#how-it-works)
-  - [Installation](#installation)
-  - [Quick start](#quick-start)
-  - [The decision record](#the-decision-record)
-  - [The code annotation](#the-code-annotation)
-- [Skills](#skills)
-  - [Active workflow](#active-workflow)
-  - [Passive mode](#passive-mode)
-- [Project structure](#project-structure)
-- [Status lifecycle](#status-lifecycle)
-- [Concepts](#concepts)
-- [Further reading](#further-reading)
-- [Acknowledgements](#acknowledgements)
+## Get started
 
----
+### Install
 
-DLD is a framework for preserving decision context in AI-assisted software development. It places an **append-only decision log** at the center of the development workflow, with tight coupling between decisions and code via `@decision(DL-XXX)` annotations.
-
-When an AI coding agent encounters an annotation, it looks up the referenced decision *before* modifying the code — turning institutional knowledge from something that lives in people's heads into a mechanical trigger the agent can't miss.
-
-## Why
-
-AI agents are good at writing code. They're bad at knowing *why* your code looks the way it does. That retry logic with the unusual backoff curve? It's tuned for a specific third-party API's rate limiting behavior. That seemingly redundant validation step? It catches a data inconsistency that only surfaces in production with legacy imports.
-
-These decisions are scattered across Jira tickets, Slack threads, and departed engineers' heads. An AI agent *can* search these sources (well, maybe not the departed engineer's head), but without an explicit link from the code to the relevant context, it has to guess what to look for — and it usually doesn't know to look at all. DLD fixes this by recording decisions as structured artifacts linked directly to the code they affect.
-
-### How it differs from Spec-Driven Development
-
-Most SDD approaches in practice revolve around specification documents that tend to become maintenance burdens as systems evolve. DLD takes a different angle, borrowing from **event sourcing**:
-
-- **Decisions are append-only events** — once accepted, decisions are immutable. They can be superseded but never edited or deleted. (Proposed decisions can still be refined during implementation.)
-- **The spec is a derived projection** — generated from the decision log, never manually maintained. Like a read model built from an event stream.
-- **Tight code coupling** — `@decision` annotations in code act as mechanical triggers for AI agents, not just documentation.
-
-## How it works
-
-DLD is implemented as a set of AI agent skills following the [Agent Skills](https://agentskills.io) open standard. All interaction happens through skill invocations.
-
-### Installation
-
-#### Via Tessl
-
-DLD is packaged as a [Tessl](https://tessl.io) tile, which works across multiple AI agents (Claude Code, Cursor, Copilot, etc.):
+**Via [Tessl](https://tessl.io)** (works across Claude Code, Cursor, Copilot, etc.):
 
 ```bash
-# Clone and install locally
 git clone https://github.com/jimutt/dld-kit.git
 tessl install file:./dld-kit
 ```
 
-This installs the skills, shared scripts, and a steering rule that teaches your agent to look up `@decision` annotations automatically.
+> [!TIP]
+> Registry publishing coming soon. Once published, you'll be able to install directly with `tessl install dld-kit/dld`.
 
-> **Registry publishing coming soon.** Once published, you'll be able to install directly with `tessl install dld-kit/dld`.
-
-#### Manual (Claude Code only)
-
-Copy the `.claude/skills/` directory (including `dld-common/` and all `dld-*` skill directories) into your project's `.claude/skills/` folder:
+**Manual** (Claude Code only):
 
 ```bash
 cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
 ```
 
-Then add the following to your project's `CLAUDE.md` (or let `/dld-init` do it for you):
+Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
 
-```markdown
-## DLD (Decision-Linked Development)
+### New feature or change
 
-This project uses Decision-Linked Development. Decisions are recorded in `decisions/` as individual markdown files.
+Use `/dld-plan` to break it down into decisions, then implement:
 
-### Rules
-
-- When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
-- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
-- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (via `/dld-decide`) that explicitly supersedes the old one.
-- Use `/dld-decide` to record new decisions
-- Use `/dld-implement` to implement proposed decisions
-- Use `/dld-lookup` to query decisions by ID, tag, or code path
-```
-
-### Quick start
-
-**New feature or change** — use `/dld-plan` to break it down into decisions, then implement:
 ```
 /dld-init              # Bootstrap DLD in your repo (run once)
 /dld-plan              # Break it down into decisions interactively
@@ -98,14 +44,21 @@ This project uses Decision-Linked Development. Decisions are recorded in `decisi
 
 For a small, isolated change (a bug fix, a single design choice), `/dld-decide` records one decision directly without the planning step.
 
-**Existing codebase** — use `/dld-retrofit` to generate decisions from code that already exists:
+### Existing codebase
+
+Use `/dld-retrofit` to generate decisions from code that already exists:
+
 ```
 /dld-init              # Bootstrap DLD in your repo (run once)
 /dld-retrofit          # Analyze code, generate decisions and annotations
 /dld-snapshot          # Generate overview docs from the decision log
 ```
 
-This works as a standalone "document this codebase" action — you get structured decision records, code annotations, and a generated system overview. From there you can adopt the full workflow for future changes, or just re-run `/dld-audit-auto` and `/dld-snapshot` on a schedule to keep the documentation in sync as code evolves.
+This works as a standalone "document this codebase" action. You get structured decision records, code annotations, and a generated system overview. From there you can adopt the full workflow, or just re-run `/dld-audit-auto` and `/dld-snapshot` on a schedule to keep documentation in sync.
+
+## How it works
+
+DLD is implemented as a set of AI agent skills following the [Agent Skills](https://agentskills.io) open standard.
 
 ### The decision record
 
@@ -150,6 +103,18 @@ function retryWithBackoff(fn: () => Promise<Response>): Promise<Response> {
 
 When an AI agent encounters this annotation, it reads the decision before modifying the code. If the planned change conflicts with the decision, it tells you and suggests recording a new decision.
 
+## How DLD compares to spec-driven development
+
+There are great spec-driven tools out there ([Spec Kit](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/), [OpenSpec](https://openspec.dev/), [Kiro](https://kiro.dev/)) and they work well for many teams, especially for structured greenfield development. If they fit your workflow, use them.
+
+DLD is a different approach for teams that find spec documents hard to maintain over time, or that want decision context embedded closer to the code. It borrows from **event sourcing**:
+
+- **Decisions are append-only events** — once accepted, decisions are immutable. They can be superseded but never edited or deleted. This creates a complete timeline of how the system evolved.
+- **The spec is a derived projection** — generated from the decision log, never manually maintained. Like a read model built from an event stream.
+- **Tight code coupling** — `@decision` annotations in code act as mechanical triggers for AI agents. The decision context lives *where the code is* rather than in a separate document.
+
+DLD is designed for long-lived codebases where decisions accumulate, original authors move on, and AI agents need to safely modify code they didn't write. If that sounds like your situation, give it a try.
+
 ## Skills
 
 | Skill | Purpose |
@@ -167,17 +132,18 @@ When an AI agent encounters this annotation, it reads the decision before modify
 
 ### Active workflow
 
-The core DLD loop: developers record decisions via `/dld-decide` or `/dld-plan`, implement them with `/dld-implement`, and the framework maintains tight coupling between the decision log and code through `@decision` annotations. When an AI agent encounters an annotation, it reads the referenced decision before modifying the code. `/dld-audit` periodically checks for drift, and `/dld-snapshot` regenerates the derived specification from the decision log.
+The core DLD loop: record decisions via `/dld-decide` or `/dld-plan`, implement them with `/dld-implement`, and the framework maintains tight coupling between the decision log and code through `@decision` annotations. `/dld-audit` periodically checks for drift, and `/dld-snapshot` regenerates the derived specification.
 
 <img width="3180" height="2100" alt="DLD high-level workflow overview showing the decision log, code annotations, generated specification, and drift detection" src="https://github.com/user-attachments/assets/fc8b7804-10ce-439b-ba0c-1f431a26a46e" />
 
 ### Passive mode
 
-For teams that want living documentation without changing how they work. Run `/dld-init` and `/dld-retrofit` once to bootstrap the decision log from an existing codebase, then schedule `/dld-audit-auto` and `/dld-snapshot` to run automatically (e.g. nightly via CI). The audit detects unreferenced code changes, infers new decisions, back-annotates the code, and the snapshot regenerates the spec — all without developers invoking any DLD commands during their normal workflow.
+For teams that want living documentation without changing how they work. Run `/dld-init` and `/dld-retrofit` once to bootstrap, then schedule `/dld-audit-auto` and `/dld-snapshot` to run automatically (e.g. nightly via CI). The audit detects unreferenced code changes, infers new decisions, and back-annotates the code — all without developers invoking any DLD commands during their normal workflow.
 
 <img width="2880" height="2760" alt="DLD passive mode showing scheduled automation that keeps decisions and docs in sync without workflow changes" src="https://github.com/user-attachments/assets/36bba4e1-e8eb-4390-a484-f18f54638fa1" />
 
-> **Note:** DLD doesn't include a scheduler. How you trigger the automated runs is up to you — [Claude Code's built-in cron support](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#2171), a CI pipeline step, or any other external scheduler all work.
+> [!NOTE]
+> DLD doesn't include a scheduler. How you trigger the automated runs is up to you — [Claude Code's built-in cron support](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#2171), a CI pipeline step, or any other external scheduler all work.
 
 ## Project structure
 
@@ -264,6 +230,25 @@ DLD builds on ideas from several projects and people:
 - **[ADR community resources](https://adr.github.io)** — The comprehensive collection of ADR tools, templates, and guidance that provided a foundation for DLD's record format.
 
 See the [concept paper](docs/concept/dld-concept.md) for a detailed discussion of how DLD relates to these approaches.
+
+## Manual CLAUDE.md setup
+
+If you installed manually and prefer not to use `/dld-init`, add this to your project's `CLAUDE.md`:
+
+```markdown
+## DLD (Decision-Linked Development)
+
+This project uses Decision-Linked Development. Decisions are recorded in `decisions/` as individual markdown files.
+
+### Rules
+
+- When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
+- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
+- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (via `/dld-decide`) that explicitly supersedes the old one.
+- Use `/dld-decide` to record new decisions
+- Use `/dld-implement` to implement proposed decisions
+- Use `/dld-lookup` to query decisions by ID, tag, or code path
+```
 
 ## License
 
