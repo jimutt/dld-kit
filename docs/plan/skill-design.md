@@ -152,7 +152,7 @@ Provides the AI agent with project-specific development conventions when making 
 ### Location
 
 - **Flat projects**: `decisions/PRACTICES.md`
-- **Namespaced projects**: `decisions/PRACTICES.md` for shared practices, plus optional `decisions/<namespace>/PRACTICES.md` for namespace-specific practices
+- **Namespaced projects**: `decisions/PRACTICES.md` for shared practices, plus optional `decisions/records/<namespace>/PRACTICES.md` for namespace-specific practices
 
 Namespace-level practices extend (not replace) the root-level practices. If both exist, skills read both, with namespace-specific practices taking precedence on conflicts.
 
@@ -282,15 +282,16 @@ decisions/
   OVERVIEW.md                       # narrative synthesis with diagrams
   PRACTICES.md                      # development practices manifest (optional)
   .dld-state.yaml                   # run tracking for audit/snapshot
-  DL-001.md                         # decision records (flat mode)
-  DL-002.md
-  billing/                          # namespace directories (namespaced mode)
-    PRACTICES.md                    # namespace-specific practices (optional)
-    DL-001.md
-    DL-004.md
-  auth/
+  records/                          # decision records subdirectory
+    DL-001.md                       # decision records (flat mode)
     DL-002.md
-    DL-005.md
+    billing/                        # namespace directories (namespaced mode)
+      PRACTICES.md                  # namespace-specific practices (optional)
+      DL-001.md
+      DL-004.md
+    auth/
+      DL-002.md
+      DL-005.md
 ```
 
 ---

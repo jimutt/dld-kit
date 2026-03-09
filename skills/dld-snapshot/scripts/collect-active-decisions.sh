@@ -10,15 +10,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../dld-common/scripts/common.sh"
 
-DECISIONS_DIR="$(get_decisions_dir)"
+RECORDS_DIR="$(get_records_dir)"
 
-if [[ ! -d "$DECISIONS_DIR" ]]; then
-  echo "Error: decisions directory not found at $DECISIONS_DIR" >&2
+if [[ ! -d "$RECORDS_DIR" ]]; then
+  echo "Error: records directory not found at $RECORDS_DIR" >&2
   exit 1
 fi
 
 # Find all decision files, sorted by numeric ID ascending
-FILES=$(find "$DECISIONS_DIR" -name 'DL-*.md' -type f \
+FILES=$(find "$RECORDS_DIR" -name 'DL-*.md' -type f \
   | awk -F/ '{file=$0; basename=$NF; gsub(/^DL-/,"",basename); gsub(/\.md$/,"",basename); print basename "\t" file}' \
   | sort -n \
   | cut -f2)

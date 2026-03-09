@@ -37,6 +37,11 @@ get_decisions_dir() {
   echo "$root/$dir"
 }
 
+# Get the records directory where DL-*.md files live (absolute path)
+get_records_dir() {
+  echo "$(get_decisions_dir)/records"
+}
+
 # Get project mode (flat or namespaced)
 get_mode() {
   config_get mode

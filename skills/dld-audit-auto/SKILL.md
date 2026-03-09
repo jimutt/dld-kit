@@ -45,7 +45,7 @@ Perform all the same checks as `/dld-audit`:
 bash ../dld-audit/scripts/find-annotations.sh
 ```
 
-Read all `DL-*.md` files. Note each decision's ID, status, and code references.
+Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references.
 
 ### b) Detect issues
 

@@ -12,7 +12,7 @@ You are generating a quick overview of the decision log state for the developer.
 
 This skill has no dedicated scripts. It reads decision files and state files directly:
 - `dld.config.yaml` — project configuration (decisions directory, mode)
-- `decisions/DL-*.md` — all decision records (scan YAML frontmatter for status, tags, timestamp, namespace)
+- `decisions/records/DL-*.md` — all decision records (scan YAML frontmatter for status, tags, timestamp, namespace)
 - `decisions/.dld-state.yaml` — run tracking state for audit and snapshot (may not exist)
 
 ## Prerequisites
@@ -22,13 +22,13 @@ Check that `dld.config.yaml` exists at the repo root. If not, tell the user to r
 ## Read project context
 
 1. Read `dld.config.yaml` to understand the project structure (flat vs namespaced, decisions directory)
-2. Read all decision files in the decisions directory to gather statistics
+2. Read all decision files in the records subdirectory (`decisions/records/`) to gather statistics
 
 ## Generate the overview
 
 ### 1. Count decisions by status
 
-Scan all `DL-*.md` files in the decisions directory (and all subdirectories). Read the `status` field from each file's YAML frontmatter. Count:
+Scan all `DL-*.md` files in the records subdirectory (`decisions/records/`, including namespace subdirectories). Read the `status` field from each file's YAML frontmatter. Count:
 - `proposed`
 - `accepted`
 - `deprecated`

@@ -1,6 +1,6 @@
 # DLD (Decision-Linked Development)
 
-This project uses Decision-Linked Development. Decisions are recorded in `decisions/` as individual markdown files.
+This project uses Decision-Linked Development. Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in `decisions/`.
 
 ## Rules
 

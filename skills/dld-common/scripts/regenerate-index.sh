@@ -8,11 +8,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 DECISIONS_DIR="$(get_decisions_dir)"
+RECORDS_DIR="$(get_records_dir)"
 MODE="$(get_mode)"
 INDEX_FILE="$DECISIONS_DIR/INDEX.md"
 
-if [[ ! -d "$DECISIONS_DIR" ]]; then
-  echo "Error: decisions directory not found at $DECISIONS_DIR" >&2
+if [[ ! -d "$RECORDS_DIR" ]]; then
+  echo "Error: records directory not found at $RECORDS_DIR" >&2
   exit 1
 fi
 
@@ -43,7 +44,7 @@ extract_array_field() {
 
 # Collect all decision files
 # Sort by numeric ID descending: extract ID number, sort, reconstruct
-DECISION_FILES=$(find "$DECISIONS_DIR" -name 'DL-*.md' -type f \
+DECISION_FILES=$(find "$RECORDS_DIR" -name 'DL-*.md' -type f \
   | awk -F/ '{file=$0; basename=$NF; gsub(/^DL-/,"",basename); gsub(/\.md$/,"",basename); print basename "\t" file}' \
   | sort -n -r \
   | cut -f2)

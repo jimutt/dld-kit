@@ -34,7 +34,7 @@ Check that `dld.config.yaml` exists at the repo root. If not, tell the user to r
 
 1. Read `dld.config.yaml` to understand the project structure (flat vs namespaced, decisions directory, namespaces list)
 2. Read `decisions/PRACTICES.md` if it exists — be aware of project conventions when helping structure the decision
-3. For namespaced projects, also read `decisions/<namespace>/PRACTICES.md` if it exists for the relevant namespace
+3. For namespaced projects, also read `decisions/records/<namespace>/PRACTICES.md` if it exists for the relevant namespace
 
 ## Conversation flow
 

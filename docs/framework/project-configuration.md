@@ -18,7 +18,7 @@ decisions_dir: decisions
 mode: flat
 
 # Namespaces (only used when mode is "namespaced")
-# Each namespace maps to a subdirectory under decisions_dir
+# Each namespace maps to a subdirectory under decisions_dir/records/
 namespaces:
   - billing
   - auth
@@ -50,7 +50,7 @@ namespaces:
 
 ### ID Assignment
 
-The next available ID is derived by scanning existing decision files rather than tracked in config. This avoids merge conflicts when multiple people create decisions concurrently. The framework scans all `DL-NNN.md` filenames across all namespace directories, finds the highest existing ID, and increments by one.
+The next available ID is derived by scanning existing decision files rather than tracked in config. This avoids merge conflicts when multiple people create decisions concurrently. The framework scans all `DL-NNN.md` filenames in the `records/` subdirectory (including namespace subdirectories), finds the highest existing ID, and increments by one.
 
 ## The `/dld-init` Skill
 
@@ -59,7 +59,7 @@ The `/dld-init` skill bootstraps DLD in a repository:
 1. Asks whether the project is flat or namespaced
 2. If namespaced, asks for the initial namespace list
 3. Creates `dld.config.yaml` at the repo root
-4. Creates the `decisions/` directory (and namespace subdirectories if applicable)
+4. Creates the `decisions/` directory with a `records/` subdirectory (and namespace subdirectories under `records/` if applicable)
 5. Adds DLD instructions to `CLAUDE.md` — specifically, the instruction for the AI agent to look up `@decision` references before modifying annotated code
 
 ## Decision Log Index

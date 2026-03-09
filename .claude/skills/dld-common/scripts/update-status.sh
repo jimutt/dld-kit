@@ -18,10 +18,10 @@ case "$NEW_STATUS" in
   *) echo "Error: invalid status '$NEW_STATUS'. Must be: proposed, accepted, deprecated, superseded." >&2; exit 1 ;;
 esac
 
-DECISIONS_DIR="$(get_decisions_dir)"
+RECORDS_DIR="$(get_records_dir)"
 
 # Find the decision file
-FILE=$(find "$DECISIONS_DIR" -name "$ID.md" -type f | head -1)
+FILE=$(find "$RECORDS_DIR" -name "$ID.md" -type f | head -1)
 
 if [[ -z "$FILE" ]]; then
   echo "Error: decision $ID not found." >&2
