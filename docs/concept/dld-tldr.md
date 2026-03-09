@@ -18,14 +18,10 @@ In practice, `@decision(DL-XXX)` annotations on methods and classes act as mecha
 
 Three additional design choices support this:
 
-1. **The decision log is append-only.** Decisions can supersede previous ones — including multiple at once — but nothing is edited or deleted. This creates a complete timeline of how the system evolved, borrowing directly from event sourcing.
+1. **The decision log is append-only.** Decisions can supersede previous ones — including multiple at once — but the content (reasoning and intent) is never rewritten. Metadata like `status` and `references` can be updated mechanically (e.g., after code refactors). This creates a complete timeline of how the system evolved, borrowing directly from event sourcing.
 
 2. **The spec is a generated projection**, not a manually maintained document. Just like event sourcing builds read models from event streams, an LLM periodically generates a consolidated "current state" snapshot from the decision log. Humans never maintain the spec — only the individual decisions.
 
 3. **One flat log, no abstraction layers.** High-level product decisions and low-level implementation details live in the same sequential log. Different views (summary, detailed, changelog) are derived, not manually managed.
 
 **Built on established ground:** The decision record format aligns closely with Architecture Decision Records (ADRs), a well-established practice. DLD extends ADRs with the event-sourcing model, code-level coupling, and AI-agent-aware design.
-
----
-
-*Interested? The full concept paper covers the detailed rationale, how this would work with Claude Code, bootstrapping for existing codebases, and open questions. Feedback very welcome — especially poke holes in it.*

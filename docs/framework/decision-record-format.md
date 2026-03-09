@@ -91,11 +91,11 @@ proposed → accepted → deprecated
 ```
 
 - **proposed** — Intent recorded, but no implementation yet. Proposed decisions are **mutable** — they can be refined or updated as understanding evolves during implementation. This is the drafting phase where the decision takes shape.
-- **accepted** — Active and in effect. Code references this decision via `@decision` annotations. Once accepted, a decision becomes **immutable** — its content is never modified. If the decision needs to change, record a new decision that supersedes it.
+- **accepted** — Active and in effect. Code references this decision via `@decision` annotations. Once accepted, the decision's *content* (Context, Decision, Rationale, Consequences) is **immutable** — it is never modified. If the decision needs to change, record a new decision that supersedes it. However, *metadata* fields — specifically `status` and `references` — can be updated mechanically (e.g., when code is refactored and file paths change, or when the decision is superseded).
 - **deprecated** — No longer relevant (e.g., the feature was removed). No replacement decision.
 - **superseded** — Replaced by one or more newer decisions. The superseding decision(s) will list this ID in their `supersedes` field.
 
-When a decision is superseded, its status is updated to `superseded` — this is the one exception to the append-only principle for accepted decisions. Once a decision reaches `accepted` status, its content is never modified, only the status field. (Decisions in `proposed` status are still mutable and can be freely refined.) The superseding decision carries the full context of what changed and why.
+The immutability principle applies to the decision's *content* — the reasoning and intent captured in the markdown body. Metadata fields like `status` and `references` are maintainable: status changes when a decision is superseded or deprecated, and references are updated when code is refactored (files renamed, functions moved). This keeps the reverse index (decision → code) accurate without requiring a new decision for every rename. The `@decision` annotations in code are the authoritative link and naturally survive refactors since they move with the code.
 
 #### Code References
 

@@ -105,7 +105,7 @@ There are great spec-driven tools out there ([Spec Kit](https://github.blog/ai-a
 
 DLD is a different approach for teams that find spec documents hard to maintain over time, or that want decision context embedded closer to the code. It borrows from **event sourcing**:
 
-- **Decisions are append-only events** — once accepted, decisions are immutable. They can be superseded but never edited or deleted. This creates a complete timeline of how the system evolved.
+- **Decisions are append-only events** — once accepted, a decision's content is immutable. Metadata (`status`, `references`) can be updated mechanically (e.g., after refactors), but the reasoning is never rewritten. Decisions can be superseded but never edited or deleted. This creates a complete timeline of how the system evolved.
 - **The spec is a derived projection** — generated from the decision log, never manually maintained. Like a read model built from an event stream.
 - **Tight code coupling** — `@decision` annotations in code act as mechanical triggers for AI agents. The decision context lives *where the code is* rather than in a separate document.
 
@@ -184,7 +184,7 @@ proposed --> accepted --> deprecated
 ```
 
 - **proposed** — recorded but not yet implemented (mutable — can be refined during implementation)
-- **accepted** — implemented, code references this decision via annotations (immutable)
+- **accepted** — implemented, code references this decision via annotations (content immutable, metadata like `status` and `references` can be updated)
 - **deprecated** — no longer relevant, no replacement
 - **superseded** — replaced by a newer decision
 
@@ -227,6 +227,15 @@ DLD builds on ideas from several projects and people:
 
 See the [concept paper](docs/concept/dld-concept.md) for a detailed discussion of how DLD relates to these approaches.
 
+## Roadmap
+
+DLD is under active development. Some planned additions:
+
+- **`/dld-reindex`** — Sync decision `references` after code refactors by scanning `@decision` annotations ([#8](https://github.com/jimutt/dld-kit/issues/8))
+- **Extended snapshot artifacts** — Custom documentation outputs from `/dld-snapshot` via configuration ([#2](https://github.com/jimutt/dld-kit/issues/2))
+
+Feature requests and ideas are welcome — [open an issue](https://github.com/jimutt/dld-kit/issues).
+
 ## Manual CLAUDE.md setup
 
 If you installed manually and prefer not to use `/dld-init`, add this to your project's `CLAUDE.md`:
@@ -234,7 +243,7 @@ If you installed manually and prefer not to use `/dld-init`, add this to your pr
 ```markdown
 ## DLD (Decision-Linked Development)
 
-This project uses Decision-Linked Development. Decisions are recorded in `decisions/` as individual markdown files.
+This project uses Decision-Linked Development. Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in `decisions/`.
 
 ### Rules
 

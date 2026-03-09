@@ -48,7 +48,7 @@ It is extremely naïve to believe that the challenges of managing how a system's
 
 Instead of treating a specification document as the primary artifact, DLD places an append-only **decision log** at the center. Each entry in this log captures a discrete decision: what was decided, why, when, what it supersedes, and what code it relates to.
 
-The key insight is borrowed from **event sourcing**: rather than maintaining a mutable "current state" document (a traditional spec) that loses its history with each edit, we maintain the full stream of decisions as immutable events. The "current specification" becomes a **derived projection** — generated from the decision log, never manually maintained.
+The key insight is borrowed from **event sourcing**: rather than maintaining a mutable "current state" document (a traditional spec) that loses its history with each edit, we maintain the full stream of decisions as events whose content is immutable once accepted (metadata like status and code references can be updated mechanically). The "current specification" becomes a **derived projection** — generated from the decision log, never manually maintained.
 
 ### The Decision Record
 
