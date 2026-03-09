@@ -16,12 +16,8 @@ AI agents write code confidently. They just don't know *why* your code looks the
 **Via [Tessl](https://tessl.io)** (works across Claude Code, Cursor, Copilot, etc.):
 
 ```bash
-git clone https://github.com/jimutt/dld-kit.git
-tessl install file:./dld-kit
+tessl install dld-kit/dld
 ```
-
-> [!TIP]
-> Registry publishing coming soon. Once published, you'll be able to install directly with `tessl install dld-kit/dld`.
 
 **Manual** (Claude Code only):
 
