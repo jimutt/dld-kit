@@ -132,18 +132,11 @@ For each approved decision:
 
 ```bash
 ID=$(bash ../dld-common/scripts/next-id.sh)
-bash ../dld-decide/scripts/create-decision.sh \
+printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n..." | bash ../dld-decide/scripts/create-decision.sh \
   --id "$ID" \
   --title "Title" \
   --tags "tag1, tag2" \
-  --body "## Context
-...
-
-## Decision
-...
-
-## Rationale
-..."
+  --body-stdin
 ```
 
 ## Step 6: Add annotations and references

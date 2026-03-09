@@ -85,32 +85,20 @@ This outputs the next available ID (e.g., `DL-004`).
 
 Compose the markdown body with the relevant sections (Context, Decision, Rationale, Consequences). Omit sections that aren't relevant, but always include Context and Decision.
 
-Then run the create-decision script:
+Then run the create-decision script, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body argument — use `\n` escape sequences so the entire command stays on one logical line):
 ```bash
-bash scripts/create-decision.sh \
+printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was decided.\n\n## Rationale\n\nWhy this choice.\n\n## Consequences\n\nWhat becomes easier or harder." | bash scripts/create-decision.sh \
   --id "DL-NNN" \
   --title "Short descriptive title" \
   --namespace "billing" \
   --tags "tag1, tag2" \
   --supersedes "DL-003, DL-007" \
-  --body "## Context
-
-What prompted this decision.
-
-## Decision
-
-What was decided.
-
-## Rationale
-
-Why this choice.
-
-## Consequences
-
-What becomes easier or harder."
+  --body-stdin
 ```
 
 Flags `--namespace`, `--tags`, `--supersedes` are optional. The script creates the file with YAML frontmatter and the body content, and outputs the file path.
+
+> **Note:** If the body contains literal `%` characters, escape them as `%%` (printf format string requirement).
 
 If this decision supersedes others, also update their status:
 ```bash

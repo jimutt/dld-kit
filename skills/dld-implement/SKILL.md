@@ -18,13 +18,16 @@ Shared scripts:
 
 Skill-specific scripts:
 ```
-scripts/update-references.sh
+scripts/verify-annotations.sh
 ```
 
 ## Prerequisites
 
 1. Check that `dld.config.yaml` exists at the repo root. If not, tell the user to run `/dld-init` first and stop.
-2. Parse the user's input to identify which decision(s) to implement (e.g., `DL-005`, `DL-005 DL-006`, or a tag like `tag:payment-gateway`).
+2. Parse the user's input to identify which decision(s) to implement:
+   - Specific IDs: `DL-005`, `DL-005 DL-006`
+   - By tag: `tag:payment-gateway`
+   - **No arguments:** If the user runs `/dld-implement` without specifying decisions, find all decisions with `status: proposed` in the decisions directory and implement all of them.
 3. Read each referenced decision file. Verify they exist and have `status: proposed`. If a decision is already `accepted`, tell the user and skip it. If it doesn't exist, report the error.
 
 ## Read project context
@@ -65,6 +68,8 @@ The boundary: if the discovery changes the *intent* of the decision, it's a new 
 
 ### 3. Add `@decision` annotations
 
+**This step is mandatory.** Every implemented decision MUST have at least one `@decision(DL-NNN)` annotation in the source code. Updating the decision record's `references` field alone is not sufficient. The annotation in code is what triggers AI agents to look up the decision before modifying the annotated code.
+
 Add `@decision(DL-NNN)` annotations to the code you modified or created. Place annotations in comments near the relevant code.
 
 **Where to annotate:**
@@ -103,27 +108,29 @@ For each implemented decision:
        symbol: calculateVAT
      - path: src/billing/vat.test.ts
    ```
-   > **Fallback:** If direct editing is problematic, use the update-references script:
-   > ```bash
-   > cat > /tmp/refs-DL-NNN.yaml << 'EOF'
-   > - path: src/billing/vat.ts
-   >   symbol: calculateVAT
-   > EOF
-   > bash scripts/update-references.sh DL-NNN /tmp/refs-DL-NNN.yaml
-   > ```
 
 2. **Update status** from `proposed` to `accepted`:
    ```bash
    bash ../dld-common/scripts/update-status.sh DL-NNN accepted
    ```
 
-### 5. Regenerate INDEX.md
+### 5. Verify annotations
+
+After updating all decision records, run the verification script to confirm every implemented decision has at least one `@decision` annotation in the codebase:
+
+```bash
+bash scripts/verify-annotations.sh DL-005 DL-006
+```
+
+Pass all the decision IDs that were implemented. If any are missing annotations, the script will report them and exit with an error. Go back and add the missing annotations before proceeding.
+
+### 6. Regenerate INDEX.md
 
 ```bash
 bash ../dld-common/scripts/regenerate-index.sh
 ```
 
-### 6. Suggest next steps
+### 7. Suggest next steps
 
 > Implemented and accepted: **DL-NNN** (<title>)
 >
