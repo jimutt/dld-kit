@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Create a decision record file.
-# Usage: create-decision.sh --id <DL-NNN> --title <title> --namespace <ns> --tags <t1,t2> --supersedes <DL-X,DL-Y> --body <body>
+# Usage: create-decision.sh --id <DL-NNN> --title <title> [--namespace <ns>] [--tags <t1,t2>] [--supersedes <DL-X,DL-Y>] [--body-stdin]
 # All flags except --id and --title are optional.
-# --body should be the markdown body (Context, Decision, Rationale, Consequences sections).
+# --body-stdin reads the markdown body (Context, Decision, Rationale, Consequences sections) from stdin.
 
 set -euo pipefail
 
@@ -15,6 +15,7 @@ NAMESPACE=""
 TAGS=""
 SUPERSEDES=""
 BODY=""
+READ_STDIN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,10 +24,14 @@ while [[ $# -gt 0 ]]; do
     --namespace) NAMESPACE="$2"; shift 2 ;;
     --tags) TAGS="$2"; shift 2 ;;
     --supersedes) SUPERSEDES="$2"; shift 2 ;;
-    --body) BODY="$2"; shift 2 ;;
+    --body-stdin) READ_STDIN=true; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+if [[ "$READ_STDIN" == true ]]; then
+  BODY="$(cat)"
+fi
 
 if [[ -z "$ID" || -z "$TITLE" ]]; then
   echo "Error: --id and --title are required." >&2

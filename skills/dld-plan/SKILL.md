@@ -94,29 +94,15 @@ First, get the next ID:
 bash ../dld-common/scripts/next-id.sh
 ```
 
-Then create the record:
+Then create the record, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body — use `\n` escape sequences):
 ```bash
-bash ../dld-decide/scripts/create-decision.sh \
+printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n...\n\n## Consequences\n\n..." | bash ../dld-decide/scripts/create-decision.sh \
   --id "DL-NNN" \
   --title "Short descriptive title" \
   --namespace "billing" \
   --tags "payment-gateway" \
   --supersedes "DL-003" \
-  --body "## Context
-
-...
-
-## Decision
-
-...
-
-## Rationale
-
-...
-
-## Consequences
-
-..."
+  --body-stdin
 ```
 
 Repeat for each decision, incrementing the ID each time. Run `next-id.sh` before each creation to ensure correct sequencing.
@@ -146,5 +132,5 @@ bash ../dld-common/scripts/regenerate-index.sh
 > | DL-012 | Idempotency key format | proposed |
 >
 > Next steps:
-> - `/dld-implement DL-010` — start implementing (in dependency order)
+> - `/dld-implement` — implement all proposed decisions (or `/dld-implement DL-NNN` for a specific one)
 > - `/dld-lookup tag:<tag>` — review all decisions in this group
