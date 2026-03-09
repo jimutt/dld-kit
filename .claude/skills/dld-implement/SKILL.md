@@ -27,14 +27,14 @@ Skill-specific scripts:
 2. Parse the user's input to identify which decision(s) to implement:
    - Specific IDs: `DL-005`, `DL-005 DL-006`
    - By tag: `tag:payment-gateway`
-   - **No arguments:** If the user runs `/dld-implement` without specifying decisions, find all decisions with `status: proposed` in the decisions directory and implement all of them.
+   - **No arguments:** If the user runs `/dld-implement` without specifying decisions, find all decisions with `status: proposed` in the records subdirectory (`decisions/records/`) and implement all of them.
 3. Read each referenced decision file. Verify they exist and have `status: proposed`. If a decision is already `accepted`, tell the user and skip it. If it doesn't exist, report the error.
 
 ## Read project context
 
 1. Read `dld.config.yaml` for project structure
 2. Read `decisions/PRACTICES.md` if it exists — **this is where practices guidance is most important**. Apply the project's testing approach, code style, error handling patterns, and architecture conventions when writing code.
-3. For namespaced projects, also read `decisions/<namespace>/PRACTICES.md` for namespace-specific practices
+3. For namespaced projects, also read `decisions/records/<namespace>/PRACTICES.md` for namespace-specific practices
 
 ## Implementation
 

@@ -38,7 +38,7 @@ This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation oc
 
 ### 2. Collect all decision records
 
-Read all `DL-*.md` files in the decisions directory. For each, note:
+Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). For each, note:
 - The ID
 - The status
 - The code references listed in the frontmatter

@@ -9,12 +9,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../dld-common/scripts/common.sh"
 
 DECISIONS_DIR="$(get_decisions_dir)"
+RECORDS_DIR="$(get_records_dir)"
 STATE_FILE="$DECISIONS_DIR/.dld-state.yaml"
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 # Find the highest accepted decision ID by checking status in frontmatter
 HIGHEST_NUM=0
-for file in $(find "$DECISIONS_DIR" -name 'DL-*.md' -type f); do
+for file in $(find "$RECORDS_DIR" -name 'DL-*.md' -type f); do
   STATUS=$(sed -n '/^---$/,/^---$/p' "$file" \
     | grep "^status:" \
     | head -1 \

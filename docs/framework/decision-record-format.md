@@ -17,22 +17,35 @@ Determined by project configuration (see `dld.config.yaml`).
 **Flat (small projects):**
 ```
 decisions/
-  DL-001.md
-  DL-002.md
-  DL-003.md
+  INDEX.md
+  OVERVIEW.md
+  SNAPSHOT.md
+  PRACTICES.md
+  .dld-state.yaml
+  records/
+    DL-001.md
+    DL-002.md
+    DL-003.md
 ```
 
 **Namespaced (monorepos / multi-component projects):**
 ```
 decisions/
-  billing/
-    DL-001.md
-    DL-004.md
-  auth/
-    DL-002.md
-    DL-005.md
-  shared/
-    DL-003.md
+  INDEX.md
+  OVERVIEW.md
+  SNAPSHOT.md
+  PRACTICES.md
+  .dld-state.yaml
+  records/
+    billing/
+      PRACTICES.md
+      DL-001.md
+      DL-004.md
+    auth/
+      DL-002.md
+      DL-005.md
+    shared/
+      DL-003.md
 ```
 
 In namespaced mode, each decision belongs to exactly one namespace. The namespace is organizational — it does not affect the ID or how the decision is referenced in code.

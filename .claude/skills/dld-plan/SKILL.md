@@ -47,7 +47,7 @@ If the user provided context with the skill invocation, use it. Otherwise ask:
 
 If the project is namespaced, determine which namespace(s) this feature belongs to early — infer from the description if possible, otherwise ask. They can span multiple namespaces if the feature crosses boundaries.
 
-Once determined, also read `decisions/<namespace>/PRACTICES.md` if it exists for namespace-specific conventions.
+Once determined, also read `decisions/records/<namespace>/PRACTICES.md` if it exists for namespace-specific conventions.
 
 ### 3. Check for related existing decisions
 

@@ -14,7 +14,7 @@ You are looking up decision records. This skill is used in two ways:
 
 Check that `dld.config.yaml` exists at the repo root. If not, tell the user to run `/dld-init` first and stop.
 
-Read `dld.config.yaml` to understand the project structure (flat vs namespaced, decisions directory). The decisions directory path can be resolved by reading the `decisions_dir` field from `dld.config.yaml`.
+Read `dld.config.yaml` to understand the project structure (flat vs namespaced, decisions directory). The decisions directory path can be resolved by reading the `decisions_dir` field from `dld.config.yaml`. Decision records (DL-*.md) live in the `records/` subdirectory under the decisions directory.
 
 ## Query modes
 
@@ -22,7 +22,7 @@ Parse the user's input to determine the query type:
 
 ### By ID: `/dld-lookup DL-047`
 
-Find and read the decision file `DL-047.md`. Search the decisions directory (and all subdirectories for namespaced projects) for the file.
+Find and read the decision file `DL-047.md`. Search the records subdirectory (`decisions/records/`, including namespace subdirectories) for the file.
 
 Display the full decision record.
 

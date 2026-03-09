@@ -38,16 +38,17 @@ if [[ -z "$ID" || -z "$TITLE" ]]; then
   exit 1
 fi
 
-DECISIONS_DIR="$(get_decisions_dir)"
+RECORDS_DIR="$(get_records_dir)"
 MODE="$(get_mode)"
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 # Determine output path
 if [[ "$MODE" == "namespaced" && -n "$NAMESPACE" ]]; then
-  OUTPUT_DIR="$DECISIONS_DIR/$NAMESPACE"
+  OUTPUT_DIR="$RECORDS_DIR/$NAMESPACE"
   mkdir -p "$OUTPUT_DIR"
 else
-  OUTPUT_DIR="$DECISIONS_DIR"
+  OUTPUT_DIR="$RECORDS_DIR"
+  mkdir -p "$OUTPUT_DIR"
 fi
 
 OUTPUT_FILE="$OUTPUT_DIR/$ID.md"

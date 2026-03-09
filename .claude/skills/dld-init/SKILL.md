@@ -101,7 +101,7 @@ Write `decisions/PRACTICES.md` with their answers in simple markdown format:
 - ...
 ```
 
-For namespaced projects, this is the root-level shared practices. Mention they can create namespace-specific practices later at `decisions/<namespace>/PRACTICES.md`.
+For namespaced projects, this is the root-level shared practices. Mention they can create namespace-specific practices later at `decisions/records/<namespace>/PRACTICES.md`.
 
 ### 6. Add DLD instructions to `CLAUDE.md`
 
@@ -111,7 +111,7 @@ Append the following block to `CLAUDE.md` at the repo root (create the file if i
 
 ## DLD (Decision-Linked Development)
 
-This project uses Decision-Linked Development. Decisions are recorded in `decisions/` as individual markdown files.
+This project uses Decision-Linked Development. Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in `decisions/`.
 
 ### Rules
 
