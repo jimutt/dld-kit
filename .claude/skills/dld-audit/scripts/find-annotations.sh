@@ -21,6 +21,7 @@ MATCHES=$(grep -Ern --binary-files=without-match \
   --exclude-dir="$(basename "$DECISIONS_DIR")" \
   --exclude-dir='.claude' \
   --exclude-dir='.git' \
+  --exclude-dir='.tessl' \
   --exclude-dir='node_modules' \
   --exclude-dir='vendor' \
   --exclude-dir='.venv' \
