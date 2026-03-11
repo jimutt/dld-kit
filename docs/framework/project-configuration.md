@@ -27,6 +27,19 @@ namespaces:
 # Decision annotation pattern used in code comments
 # Default: @decision(DL-XXX)
 annotation_prefix: "@decision"
+
+# Custom snapshot artifacts (optional)
+# Additional documents generated alongside SNAPSHOT.md and OVERVIEW.md
+# by the /dld-snapshot skill. Each entry defines a filename and a prompt
+# that steers how decisions are synthesized into the artifact.
+snapshot_artifacts:
+  - title: ONBOARDING.md
+    prompt: >
+      Generate a developer onboarding guide that explains the system
+      from scratch, assuming no prior context.
+  - title: API-CONTRACTS.md
+    prompt: >
+      Summarize all API-related decisions into a single API contract reference.
 ```
 
 ### Minimal Config (flat project)
@@ -47,6 +60,17 @@ namespaces:
   - api-gateway
   - shared
 ```
+
+### Snapshot Artifacts
+
+The optional `snapshot_artifacts` key lets you define custom documentation artifacts that are generated alongside `SNAPSHOT.md` and `OVERVIEW.md` when running `/dld-snapshot`. Each artifact is synthesized from the current set of accepted decisions using a prompt you provide.
+
+Each entry has two fields:
+
+- **`title`** — The filename for the artifact. Must end in `.md`. Also used as the document's H1 heading (without the `.md` extension). Must not collide with the reserved filenames `SNAPSHOT.md`, `OVERVIEW.md`, or `INDEX.md` (case-insensitive).
+- **`prompt`** — A natural-language description that steers how the decisions are synthesized into the artifact. The agent uses this as the generation instruction, with the collected decisions as context.
+
+Artifacts are written to the `decisions/` directory alongside the built-in snapshot files.
 
 ### ID Assignment
 

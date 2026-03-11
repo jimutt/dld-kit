@@ -6,10 +6,12 @@ compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
 
 # /dld-snapshot — Generate Spec Projection
 
-You are generating two documents that project the current state of the decision log into readable formats:
+You are generating documents that project the current state of the decision log into readable formats. The two built-in documents are always generated:
 
 1. **`decisions/SNAPSHOT.md`** — Detailed per-decision reference. Every active decision with its rationale and code references.
 2. **`decisions/OVERVIEW.md`** — High-level narrative synthesis with Mermaid diagrams. The document you'd hand to someone who needs to understand the system.
+
+If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional custom documents are generated as well (see Step 4).
 
 ## Script Paths
 
@@ -173,17 +175,55 @@ When creating Mermaid diagrams:
 - Label edges with the nature of the relationship
 - Reference relevant decision IDs in node labels or notes where helpful
 
-## Step 4: Update snapshot state
+## Step 4: Generate custom artifacts
+
+Read the `snapshot_artifacts` key from `dld.config.yaml`. If the key is absent or the list is empty, skip this step entirely.
+
+For each entry in `snapshot_artifacts`:
+
+1. **Validate the `title`:**
+   - Must end in `.md`. If not, warn the user and skip this artifact.
+   - Must not collide (case-insensitive) with reserved filenames: `SNAPSHOT.md`, `OVERVIEW.md`, `INDEX.md`. If it collides, warn the user and skip this artifact.
+
+2. **Generate `decisions/<title>`** using the collected decisions (from Step 1) as context and the `prompt` field as the generation instruction. The file must begin with this standard header:
+
+   ```markdown
+   # <Title without .md extension>
+
+   > Auto-generated from the decision log on YYYY-MM-DD. Do not edit manually.
+   > Use `/dld-snapshot` to regenerate.
+   ```
+
+   Followed by the content generated according to the prompt.
+
+Keep track of which custom artifacts were successfully generated — you will need the list for Step 5 and Step 6.
+
+## Step 5: Update snapshot state
+
+Pass any successfully generated custom artifact filenames as arguments:
+
+```bash
+bash scripts/update-snapshot-state.sh [ARTIFACT_NAME...]
+```
+
+For example, if custom artifacts `ONBOARDING.md` and `API-CONTRACTS.md` were generated:
+
+```bash
+bash scripts/update-snapshot-state.sh ONBOARDING.md API-CONTRACTS.md
+```
+
+If no custom artifacts were generated, run without arguments:
 
 ```bash
 bash scripts/update-snapshot-state.sh
 ```
 
-## Step 5: Suggest next steps
+## Step 6: Suggest next steps
 
 > Snapshot generated:
 > - `decisions/SNAPSHOT.md` — detailed reference (N active decisions)
 > - `decisions/OVERVIEW.md` — narrative synthesis with diagrams
+> - `decisions/<ARTIFACT>.md` — <one line per custom artifact generated, if any>
 >
 > Next steps:
 > - Review the generated documents for accuracy

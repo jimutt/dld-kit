@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # Update the snapshot tracking state in .dld-state.yaml.
-# Records the current timestamp and highest accepted decision ID.
-# Usage: update-snapshot-state.sh
+# Records the current timestamp, highest accepted decision ID,
+# and per-artifact timestamps.
+# Usage: update-snapshot-state.sh [ARTIFACT_NAME...]
+#
+# Without arguments, records timestamps for the built-in artifacts
+# (SNAPSHOT.md and OVERVIEW.md). With arguments, also records timestamps
+# for the named custom artifacts.
+#
+# Example: update-snapshot-state.sh ONBOARDING.md API-CONTRACTS.md
 
 set -euo pipefail
 
@@ -28,9 +35,21 @@ for file in $(find "$RECORDS_DIR" -name 'DL-*.md' -type f); do
   fi
 done
 
+# Build the artifacts block — always includes SNAPSHOT.md and OVERVIEW.md
+ARTIFACTS_BLOCK="    SNAPSHOT.md: $TIMESTAMP
+    OVERVIEW.md: $TIMESTAMP"
+
+# Append any custom artifact names passed as arguments
+for artifact in "$@"; do
+  ARTIFACTS_BLOCK="$ARTIFACTS_BLOCK
+    $artifact: $TIMESTAMP"
+done
+
 SNAPSHOT_BLOCK="snapshot:
   last_run: $TIMESTAMP
-  decisions_included: $HIGHEST_NUM"
+  decisions_included: $HIGHEST_NUM
+  artifacts:
+$ARTIFACTS_BLOCK"
 
 if [[ ! -f "$STATE_FILE" ]]; then
   echo "$SNAPSHOT_BLOCK" > "$STATE_FILE"
