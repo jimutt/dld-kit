@@ -124,6 +124,7 @@ DLD is designed for long-lived codebases where decisions accumulate, original au
 | `/dld-audit` | Scan for drift between decisions and code |
 | `/dld-audit-auto` | Autonomous audit — detects drift, fixes issues, opens a PR (for scheduled/CI use) |
 | `/dld-snapshot` | Generate SNAPSHOT.md (detailed reference) and OVERVIEW.md (narrative synthesis with diagrams) |
+| `/dld-deep-audit` | Full from-scratch audit with semantic verification of decision-code alignment |
 | `/dld-retrofit` | Bootstrap decisions from an existing codebase (broad or detailed mode) |
 
 ### Active workflow

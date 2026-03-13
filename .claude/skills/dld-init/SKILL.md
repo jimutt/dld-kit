@@ -126,6 +126,7 @@ This project uses Decision-Linked Development. Decision records (DL-*.md) live i
 - Use `/dld-snapshot` to regenerate SNAPSHOT.md and OVERVIEW.md from the decision log
 - Use `/dld-status` for a quick overview of the decision log state
 - Use `/dld-retrofit` to generate decisions from an existing codebase
+- Use `/dld-deep-audit` for a thorough from-scratch audit with semantic verification
 ```
 
 ### 7. Suggest next steps

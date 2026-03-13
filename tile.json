@@ -41,6 +41,9 @@
     },
     "dld-retrofit": {
       "path": "skills/dld-retrofit/SKILL.md"
+    },
+    "dld-deep-audit": {
+      "path": "skills/dld-deep-audit/SKILL.md"
     }
   }
 }

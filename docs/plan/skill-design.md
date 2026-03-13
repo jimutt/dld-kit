@@ -220,6 +220,8 @@ Utility (anytime):
     /dld-status — overview of decision log state
     /dld-lookup — query specific decisions (also used automatically
                   by the agent when encountering @decision annotations)
+    /dld-deep-audit — full from-scratch audit with semantic verification
+                      (after rewritten history or burst of changes)
 ```
 
 ---
@@ -267,6 +269,8 @@ Utility (anytime):
         collect-active-decisions.sh
         update-snapshot-state.sh
     dld-audit-auto/
+      SKILL.md
+    dld-deep-audit/
       SKILL.md
     dld-retrofit/
       SKILL.md
@@ -327,3 +331,4 @@ decisions/
 ### V3
 
 8. `/dld-snapshot` — generated spec projection
+9. `/dld-deep-audit` — full from-scratch audit with semantic verification
