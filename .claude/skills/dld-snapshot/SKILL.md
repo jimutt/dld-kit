@@ -174,6 +174,10 @@ When creating Mermaid diagrams:
 - Keep diagrams focused — show the relationships that decisions actually govern, not a complete system map
 - Label edges with the nature of the relationship
 - Reference relevant decision IDs in node labels or notes where helpful
+- **Always quote node labels** with `["..."]` to avoid parse errors from special characters
+- **Escape `@` as `#64;`** inside node labels and edge labels — raw `@` breaks Mermaid parsing
+- **Use `<br/>` for line breaks** inside quoted labels — do not use `\n` or literal newlines
+- **Avoid special characters** (`(`, `)`, `[`, `]`, `{`, `}`, `|`, `#`, `&`) in unquoted labels — use quoted labels or HTML entities instead
 
 ## Step 4: Generate custom artifacts
 
