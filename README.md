@@ -202,6 +202,27 @@ The snapshot and overview documents are **generated, not maintained**. Like even
 
 `/dld-audit` detects when code and decisions have drifted apart — orphaned annotations, stale references, modified annotated files that may need decision updates.
 
+## Advanced configuration
+
+### Custom snapshot artifacts
+
+By default, `/dld-snapshot` generates `SNAPSHOT.md` and `OVERVIEW.md`. You can define additional documentation artifacts in `dld.config.yaml` — each one synthesized from the decision log using a prompt you provide:
+
+```yaml
+snapshot_artifacts:
+  - title: ONBOARDING.md
+    prompt: >
+      Generate a developer onboarding guide that explains the system
+      from scratch, assuming no prior context. Focus on what a new
+      contributor needs to know to start working.
+  - title: API-CONTRACTS.md
+    prompt: >
+      Summarize all API-related decisions into a single API contract
+      reference. Include endpoints, payload shapes, and auth requirements.
+```
+
+Custom artifacts are written to `decisions/` alongside the built-in files and regenerated every time `/dld-snapshot` runs. The `title` serves as both the filename and the document heading. See [project configuration](docs/framework/project-configuration.md#snapshot-artifacts) for details.
+
 ## Further reading
 
 - [Concept paper](docs/concept/dld-concept.md) — full rationale and design philosophy
@@ -232,7 +253,7 @@ See the [concept paper](docs/concept/dld-concept.md) for a detailed discussion o
 DLD is under active development. Some planned additions:
 
 - **`/dld-reindex`** — Sync decision `references` after code refactors by scanning `@decision` annotations ([#8](https://github.com/jimutt/dld-kit/issues/8))
-- **Extended snapshot artifacts** — Custom documentation outputs from `/dld-snapshot` via configuration ([#2](https://github.com/jimutt/dld-kit/issues/2))
+- **Extended snapshot artifacts** — Custom documentation outputs from `/dld-snapshot` via configuration ([#2](https://github.com/jimutt/dld-kit/issues/2)) ✅
 
 Feature requests and ideas are welcome — [open an issue](https://github.com/jimutt/dld-kit/issues).
 
