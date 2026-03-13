@@ -1,6 +1,7 @@
 ---
 name: dld-audit-auto
 description: Autonomous audit — detects drift, fixes issues, and opens a PR. Designed for scheduled/CI execution without human interaction.
+compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
 ---
 
 # /dld-audit-auto — Autonomous Audit & Fix
