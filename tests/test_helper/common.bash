@@ -12,6 +12,8 @@ setup_flat_project() {
   TEST_PROJECT="$(mktemp -d)"
   cd "$TEST_PROJECT"
   git init --quiet
+  git config user.email "test@test.com"
+  git config user.name "Test"
   git commit --allow-empty -m "init" --quiet
 
   cat > dld.config.yaml <<'YAML'
@@ -28,6 +30,8 @@ setup_namespaced_project() {
   TEST_PROJECT="$(mktemp -d)"
   cd "$TEST_PROJECT"
   git init --quiet
+  git config user.email "test@test.com"
+  git config user.name "Test"
   git commit --allow-empty -m "init" --quiet
 
   cat > dld.config.yaml <<'YAML'

@@ -9,6 +9,8 @@ setup() {
   TEST_PROJECT="$(mktemp -d)"
   cd "$TEST_PROJECT"
   git init --quiet
+  git config user.email "test@test.com"
+  git config user.name "Test"
   git commit --allow-empty -m "init" --quiet
 }
 
