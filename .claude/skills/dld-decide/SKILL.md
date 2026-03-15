@@ -64,9 +64,9 @@ Good reasons to ask:
 Scan existing decision files for potential relationships:
 - Decisions that reference the same code paths
 - Decisions with overlapping tags
-- Decisions that this one might supersede
+- Decisions that this one might supersede or amend
 
-If you find related decisions, mention them and ask whether this decision supersedes any of them.
+If you find related decisions, mention them and ask whether this decision **supersedes** (fully replaces) or **amends** (partially modifies) any of them. A superseded decision gets marked as `superseded` and is no longer active. An amended decision stays `accepted` — the amendment changes part of its scope while the rest remains in effect.
 
 ### 4. Determine namespace (namespaced projects only)
 
@@ -93,10 +93,11 @@ printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was de
   --namespace "billing" \
   --tags "tag1, tag2" \
   --supersedes "DL-003, DL-007" \
+  --amends "DL-005" \
   --body-stdin
 ```
 
-Flags `--namespace`, `--tags`, `--supersedes` are optional. The script creates the file with YAML frontmatter and the body content, and outputs the file path.
+Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. The script creates the file with YAML frontmatter and the body content, and outputs the file path.
 
 > **Note:** If the body contains literal `%` characters, escape them as `%%` (printf format string requirement).
 
@@ -104,6 +105,8 @@ If this decision supersedes others, also update their status:
 ```bash
 bash .claude/skills/dld-common/scripts/update-status.sh DL-003 superseded
 ```
+
+**Do not** update the status of amended decisions — they stay `accepted`.
 
 ### 7. Regenerate INDEX.md
 

@@ -54,7 +54,7 @@ Once determined, also read `decisions/records/<namespace>/PRACTICES.md` if it ex
 Before proposing the breakdown, scan existing decision files for:
 - Decisions that reference the same code areas
 - Decisions with overlapping tags or topics
-- Decisions that the new feature might supersede
+- Decisions that the new feature might supersede or amend
 
 Mention any related decisions to the developer so the breakdown accounts for them.
 
@@ -102,6 +102,7 @@ printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n...\n\n## Con
   --namespace "billing" \
   --tags "payment-gateway" \
   --supersedes "DL-003" \
+  --amends "DL-005" \
   --body-stdin
 ```
 
@@ -111,6 +112,8 @@ If any decision supersedes an existing one, also update the old decision's statu
 ```bash
 bash .claude/skills/dld-common/scripts/update-status.sh DL-003 superseded
 ```
+
+**Do not** update the status of amended decisions — they stay `accepted`.
 
 For each decision, compose a focused body. Keep it concise — the full feature context is captured across the group. Each individual decision should capture its own specific rationale.
 

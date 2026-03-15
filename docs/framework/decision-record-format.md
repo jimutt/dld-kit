@@ -61,6 +61,7 @@ title: "Short descriptive title"
 timestamp: 2026-03-07T14:30:00Z
 status: accepted          # proposed | accepted | deprecated | superseded
 supersedes: []            # e.g. [DL-003, DL-007] — decisions this one replaces
+amends: []                # e.g. [DL-003] — decisions this one partially modifies
 namespace: billing        # optional — only in namespaced projects
 tags: []                  # optional — used for grouping, filtering, and search
 references:               # code areas this decision affects
@@ -79,6 +80,7 @@ references:               # code areas this decision affects
 | `timestamp` | yes | ISO 8601 timestamp of when the decision was made |
 | `status` | yes | One of: `proposed`, `accepted`, `deprecated`, `superseded` |
 | `supersedes` | no | List of decision IDs this one replaces |
+| `amends` | no | List of decision IDs this one partially modifies (amended decisions stay `accepted`) |
 | `namespace` | no | Namespace this decision belongs to (namespaced projects only) |
 | `tags` | no | Tags for grouping related decisions, categorization, and filtering. When a larger feature is planned as multiple decisions, a shared tag (e.g., `payment-gateway`) groups them together. |
 | `references` | no | Code locations this decision affects |
@@ -94,6 +96,8 @@ proposed → accepted → deprecated
 - **accepted** — Active and in effect. Code references this decision via `@decision` annotations. Once accepted, the decision's *content* (Context, Decision, Rationale, Consequences) is **immutable** — it is never modified. If the decision needs to change, record a new decision that supersedes it. However, *metadata* fields — specifically `status` and `references` — can be updated mechanically (e.g., when code is refactored and file paths change, or when the decision is superseded).
 - **deprecated** — No longer relevant (e.g., the feature was removed). No replacement decision.
 - **superseded** — Replaced by one or more newer decisions. The superseding decision(s) will list this ID in their `supersedes` field.
+
+Note: A decision can also be *amended* by a newer decision without being superseded. When a decision is amended, it stays `accepted` — the amendment modifies part of the original decision's scope while the rest remains in effect. The amending decision lists the original in its `amends` field. This is distinct from supersession, which fully replaces the original.
 
 The immutability principle applies to the decision's *content* — the reasoning and intent captured in the markdown body. Metadata fields like `status` and `references` are maintainable: status changes when a decision is superseded or deprecated, and references are updated when code is refactored (files renamed, functions moved). This keeps the reverse index (decision → code) accurate without requiring a new decision for every rename. The `@decision` annotations in code are the authoritative link and naturally survive refactors since they move with the code.
 
@@ -151,6 +155,7 @@ title: "Customer-specific VAT rounding for EU trade"
 timestamp: 2026-02-15T09:20:00Z
 status: accepted
 supersedes: [DL-003]
+amends: []
 namespace: billing
 tags: [vat, eu-compliance, rounding]
 references:

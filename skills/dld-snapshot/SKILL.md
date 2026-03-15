@@ -60,6 +60,8 @@ Write `decisions/SNAPSHOT.md` — the detailed per-decision reference.
 
 ### DL-NNN: <Title>
 *Supersedes: DL-XXX* ← only if applicable
+*Amends: DL-XXX* ← only if applicable
+*Amended by: DL-YYY* ← only if another decision amends this one
 
 <The Decision section from the record — what was decided. Copy verbatim or lightly condense.>
 
@@ -84,6 +86,7 @@ Write `decisions/SNAPSHOT.md` — the detailed per-decision reference.
 - Only include `accepted` decisions
 - Skip `superseded`, `deprecated`, and `proposed` decisions entirely
 - When a decision supersedes another (check the `supersedes` field in the YAML frontmatter), include a `*Supersedes: DL-XXX*` note
+- When a decision amends another (check the `amends` field), include an `*Amends: DL-XXX*` note on the amending decision and an `*Amended by: DL-YYY*` note on the original decision
 - The **Decision** section content should be copied directly or lightly condensed — this is the authoritative statement
 - The **Rationale** should be condensed to 1-3 sentences — enough to understand *why*, not every detail
 - **Code** references should list paths and symbols from the frontmatter `references` field
@@ -135,12 +138,13 @@ sequenceDiagram
 
 ## Decision Relationships
 
-<Only include this section if there are supersession chains or closely related decision groups.
-If no decisions supersede others and there are no meaningful relationship clusters, omit this section entirely.>
+<Only include this section if there are supersession chains, amendment relationships, or closely related decision groups.
+If no decisions supersede or amend others and there are no meaningful relationship clusters, omit this section entirely.>
 
 ```mermaid
 graph LR
     DL-003 -->|superseded by| DL-012
+    DL-012 -.->|amends| DL-005
     DL-012 -.->|related| DL-014
 ```
 
@@ -160,7 +164,7 @@ belong to a single area. E.g., "PostgreSQL for primary data store (DL-001)",
 - **Include Mermaid diagrams where they add clarity.** Good candidates:
   - Architecture/component diagrams when decisions span multiple components
   - Sequence diagrams when decisions describe flows or protocols
-  - Relationship diagrams when there are supersession chains
+  - Relationship diagrams when there are supersession chains or amendment relationships
   - Don't force diagrams if the decisions are simple or unrelated
 - **Keep it proportional.** A project with 5 decisions needs a short overview. A project with 50 needs more structure. Scale the document to the content.
 - **Group by namespace (namespaced projects) or by domain theme (flat projects).** For flat projects, identify natural domain groupings from tags and decision content.

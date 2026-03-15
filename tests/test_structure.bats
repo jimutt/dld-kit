@@ -121,7 +121,7 @@ setup() {
     assert_equal "$first_line" "---" "Missing opening --- in $skill_name"
 
     # Check name field matches directory
-    name_field="$(sed -n '/^---$/,/^---$/{ /^name:/p }' "$skill_md" | head -1 | sed 's/^name:[[:space:]]*//')"
+    name_field="$(awk '/^---$/{n++; next} n==1 && /^name:/{print; exit}' "$skill_md" | sed 's/^name:[[:space:]]*//')"
     assert_equal "$name_field" "$skill_name" "name mismatch in $skill_name"
 
     # Check description field exists

@@ -22,6 +22,7 @@ Shared scripts:
 Skill-specific scripts:
 ```
 ../dld-audit/scripts/find-annotations.sh
+../dld-audit/scripts/find-missing-amends.sh
 ../dld-audit/scripts/update-audit-state.sh
 ```
 
@@ -57,6 +58,7 @@ Check for all drift categories:
 3. **Stale references in decisions** — frontmatter references to files that no longer exist
 4. **Unreferenced code changes** — annotated files modified since last audit (if previous audit state exists)
 5. **Decisions without annotations** — accepted decisions with code references but no corresponding annotations in code
+6. **Missing amendment relationships** — decisions whose body references modifying part of a previous decision but have an empty `amends` field
 
 For check (4), if `decisions/.dld-state.yaml` exists with an `audit.commit_hash`, first verify reachability:
 ```bash
@@ -75,6 +77,10 @@ Apply fixes for each issue category. Use judgment on what can be safely fixed au
 **Stale references in decisions** — Remove file paths from the decision's `references` field that no longer exist. If the file was renamed/moved (detectable via `git log --follow --diff-filter=R`), update the path instead of removing.
 
 **Annotations referencing superseded decisions** — Update the annotation to reference the superseding decision (read the `supersedes` field of the newer decision to find the chain). For deprecated decisions, remove the annotation.
+
+**Annotations referencing amended decisions** — Do **not** rewrite or remove these annotations. The original decision is still active. Instead, note the amendment relationship in the PR description so reviewers can verify the code aligns with the amendment.
+
+**Missing amendment relationships** — Run `bash ../dld-audit/scripts/find-missing-amends.sh` to get candidates. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
 
 **Decisions without annotations** — If an accepted decision has code references but no annotations, and the referenced files exist, add the missing `@decision(DL-NNN)` annotations to the referenced code locations.
 

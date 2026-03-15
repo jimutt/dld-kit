@@ -60,7 +60,8 @@ Building on the established terminology and concepts from Architecture Decision 
 - **Decision** — what was decided
 - **Rationale** — why this choice over alternatives
 - **Consequences** — what becomes easier or harder
-- **Supersedes** — references to previous decisions that this one replaces. A single new decision may supersede one or several older decisions.
+- **Supersedes** — references to previous decisions that this one fully replaces. A single new decision may supersede one or several older decisions.
+- **Amends** — references to previous decisions that this one partially modifies. Unlike supersession, amended decisions stay active — the amendment changes part of the original's scope while the rest remains in effect.
 - **Code references** — explicit links to the areas of the codebase this decision affects
 
 By aligning with ADR conventions and terminology, DLD lowers the adoption barrier for teams already familiar with architectural decision records, while extending the concept to cover not just architectural but also functional, product, and implementation-level decisions.
