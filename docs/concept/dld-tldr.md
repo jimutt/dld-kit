@@ -18,7 +18,7 @@ In practice, `@decision(DL-XXX)` annotations on methods and classes act as mecha
 
 Three additional design choices support this:
 
-1. **The decision log is append-only.** Decisions can supersede previous ones — including multiple at once — but the content (reasoning and intent) is never rewritten. Metadata like `status` and `references` can be updated mechanically (e.g., after code refactors). This creates a complete timeline of how the system evolved, borrowing directly from event sourcing.
+1. **The decision log is append-only.** Decisions can supersede (fully replace) or amend (partially modify) previous ones — but the content (reasoning and intent) is never rewritten. Metadata like `status` and `references` can be updated mechanically (e.g., after code refactors). This creates a complete timeline of how the system evolved, borrowing directly from event sourcing.
 
 2. **The spec is a generated projection**, not a manually maintained document. Just like event sourcing builds read models from event streams, an LLM periodically generates a consolidated "current state" snapshot from the decision log. Humans never maintain the spec — only the individual decisions.
 

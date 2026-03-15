@@ -26,6 +26,7 @@ teardown() {
   assert_output --partial 'title: "Test decision"'
   assert_output --partial 'status: proposed'
   assert_output --partial 'supersedes: []'
+  assert_output --partial 'amends: []'
   assert_output --partial 'tags: []'
   assert_output --partial 'references: []'
 }
@@ -44,6 +45,14 @@ teardown() {
 
   run cat decisions/records/DL-002.md
   assert_output --partial 'supersedes: [DL-001]'
+}
+
+@test "create-decision includes amends" {
+  run bash "$SCRIPT" --id DL-002 --title "Amender" --amends "DL-001"
+  assert_success
+
+  run cat decisions/records/DL-002.md
+  assert_output --partial 'amends: [DL-001]'
 }
 
 @test "create-decision reads body from stdin" {

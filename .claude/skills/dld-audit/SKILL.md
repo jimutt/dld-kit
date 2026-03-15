@@ -55,6 +55,10 @@ Annotations in code that reference non-existent decision IDs. These indicate dec
 
 Annotations referencing decisions with status `deprecated` or `superseded`. Code is still tied to a decision that's no longer active.
 
+#### b2) Annotations referencing amended decisions
+
+Annotations referencing decisions that have been amended by a newer decision (check all decisions for `amends` fields that reference this ID). This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
+
 #### c) Stale references in decisions
 
 Decision records whose `references` list code paths that no longer exist in the repository. Use file existence checks.
@@ -80,7 +84,11 @@ git diff --name-only <commit_hash>..HEAD
 
 Cross-reference this list with annotated files. Files that changed but whose associated decisions weren't updated may indicate undocumented drift.
 
-#### e) Decisions without annotations
+#### e) Missing amendment relationships
+
+Decisions whose Context or Decision sections reference modifying a specific aspect of a previous decision (e.g., mentioning another decision ID in the body and describing a partial change) but have an empty `amends` field. This suggests the `amends` relationship wasn't captured in the frontmatter.
+
+#### f) Decisions without annotations
 
 `accepted` decisions that have code references in their frontmatter but no corresponding `@decision` annotations found in the code. The references claim code is linked, but the annotations are missing.
 
@@ -101,6 +109,9 @@ Present findings grouped by severity:
 
 #### Deprecated/Superseded References
 - `src/auth/login.ts:15` references `DL-003` (status: superseded by DL-012)
+
+#### Amended Decisions (informational)
+- `src/billing/vat.ts:42` references `DL-003` — amended by DL-012. Verify code aligns with the amendment.
 
 #### Modified Annotated Files (since last audit)
 - `src/billing/vat.ts` — modified, contains `@decision(DL-012)`. Review if decision needs updating.

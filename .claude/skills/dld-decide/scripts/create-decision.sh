@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Create a decision record file.
-# Usage: create-decision.sh --id <DL-NNN> --title <title> [--namespace <ns>] [--tags <t1,t2>] [--supersedes <DL-X,DL-Y>] [--body-stdin]
+# Usage: create-decision.sh --id <DL-NNN> --title <title> [--namespace <ns>] [--tags <t1,t2>] [--supersedes <DL-X,DL-Y>] [--amends <DL-X,DL-Y>] [--body-stdin]
 # All flags except --id and --title are optional.
 # --body-stdin reads the markdown body (Context, Decision, Rationale, Consequences sections) from stdin.
 
@@ -14,6 +14,7 @@ TITLE=""
 NAMESPACE=""
 TAGS=""
 SUPERSEDES=""
+AMENDS=""
 BODY=""
 READ_STDIN=false
 
@@ -24,6 +25,7 @@ while [[ $# -gt 0 ]]; do
     --namespace) NAMESPACE="$2"; shift 2 ;;
     --tags) TAGS="$2"; shift 2 ;;
     --supersedes) SUPERSEDES="$2"; shift 2 ;;
+    --amends) AMENDS="$2"; shift 2 ;;
     --body-stdin) READ_STDIN=true; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -76,6 +78,15 @@ format_supersedes() {
   fi
 }
 
+# Format amends as YAML inline array
+format_amends() {
+  if [[ -z "$1" ]]; then
+    echo "[]"
+  else
+    echo "[$1]"
+  fi
+}
+
 {
   echo "---"
   echo "id: $ID"
@@ -83,6 +94,7 @@ format_supersedes() {
   echo "timestamp: $TIMESTAMP"
   echo "status: proposed"
   echo "supersedes: $(format_supersedes "$SUPERSEDES")"
+  echo "amends: $(format_amends "$AMENDS")"
   if [[ "$MODE" == "namespaced" && -n "$NAMESPACE" ]]; then
     echo "namespace: $NAMESPACE"
   fi

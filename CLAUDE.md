@@ -52,6 +52,16 @@ Scripts live in `skills/<skill>/scripts/` (tessl) and `.claude/skills/<skill>/sc
 
 Scripts use `set -euo pipefail` and source `common.sh` via `BASH_SOURCE` path resolution.
 
+## Testing
+
+Tests use [bats-core](https://github.com/bats-core/bats-core) installed as a git submodule at `tests/bats/`. Run tests with:
+
+```bash
+tests/bats/bin/bats tests/
+```
+
+If tests fail with "Could not find bats-support", init submodules first: `git submodule update --init --recursive`
+
 ## Conventions
 
 - Commit messages: concise, no buzzwords

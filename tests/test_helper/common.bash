@@ -73,6 +73,7 @@ title: "$title"
 timestamp: 2026-01-15T10:00:00Z
 status: $status
 supersedes: []
+amends: []
 ${ns_line:+$ns_line
 }tags: [test, example]
 references: []

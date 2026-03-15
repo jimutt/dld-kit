@@ -53,7 +53,7 @@ Read each decision record carefully. Understand:
 - What was decided
 - The rationale and constraints
 - The code areas referenced
-- Any superseded decisions (read those too for context on what changed)
+- Any superseded or amended decisions (read those too for context on what changed)
 
 ### 2. Make code changes
 
