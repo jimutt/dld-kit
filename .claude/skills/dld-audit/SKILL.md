@@ -18,6 +18,7 @@ Shared scripts:
 Skill-specific scripts:
 ```
 .claude/skills/dld-audit/scripts/find-annotations.sh
+.claude/skills/dld-audit/scripts/find-missing-amends.sh
 .claude/skills/dld-audit/scripts/update-audit-state.sh
 ```
 
@@ -86,7 +87,15 @@ Cross-reference this list with annotated files. Files that changed but whose ass
 
 #### e) Missing amendment relationships
 
-Decisions whose Context or Decision sections reference modifying a specific aspect of a previous decision (e.g., mentioning another decision ID in the body and describing a partial change) but have an empty `amends` field. This suggests the `amends` relationship wasn't captured in the frontmatter.
+**This check is mandatory — do not skip it.** Run the find-missing-amends script to get initial candidates:
+
+```bash
+bash .claude/skills/dld-audit/scripts/find-missing-amends.sh
+```
+
+This outputs lines in the format `<source-id>:<referenced-id>` — decisions whose body references another decision ID that isn't listed in their `supersedes` or `amends` fields. Not every candidate is a missing amendment — some are just informational references (e.g., "this is similar to DL-005").
+
+For each candidate, read the source decision's body and evaluate whether the reference describes a partial modification of the referenced decision. Look for language like: "supersedes the X portions of", "changes the Y behavior from DL-Z", "replaces the approach in DL-Z for...", "modifies how DL-Z handles...". If so, flag it as a missing amendment.
 
 #### f) Decisions without annotations
 

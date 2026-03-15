@@ -9,7 +9,7 @@ SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/skills"
 
 # Create a temporary git repo with a flat dld config
 setup_flat_project() {
-  TEST_PROJECT="$(mktemp -d)"
+  TEST_PROJECT="$(cd "$(mktemp -d)" && pwd -P)"
   cd "$TEST_PROJECT"
   git init --quiet
   git config user.email "test@test.com"
@@ -27,7 +27,7 @@ YAML
 
 # Create a temporary git repo with a namespaced dld config
 setup_namespaced_project() {
-  TEST_PROJECT="$(mktemp -d)"
+  TEST_PROJECT="$(cd "$(mktemp -d)" && pwd -P)"
   cd "$TEST_PROJECT"
   git init --quiet
   git config user.email "test@test.com"

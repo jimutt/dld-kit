@@ -22,6 +22,7 @@ Shared scripts:
 Skill-specific scripts:
 ```
 ../dld-audit/scripts/find-annotations.sh
+../dld-audit/scripts/find-missing-amends.sh
 ../dld-audit/scripts/update-audit-state.sh
 ```
 
@@ -79,7 +80,7 @@ Apply fixes for each issue category. Use judgment on what can be safely fixed au
 
 **Annotations referencing amended decisions** — Do **not** rewrite or remove these annotations. The original decision is still active. Instead, note the amendment relationship in the PR description so reviewers can verify the code aligns with the amendment.
 
-**Missing amendment relationships** — If a decision's body mentions modifying part of a previous decision (references another DL-ID and describes a partial change) but has an empty `amends` field, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
+**Missing amendment relationships** — Run `bash ../dld-audit/scripts/find-missing-amends.sh` to get candidates. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
 
 **Decisions without annotations** — If an accepted decision has code references but no annotations, and the referenced files exist, add the missing `@decision(DL-NNN)` annotations to the referenced code locations.
 
