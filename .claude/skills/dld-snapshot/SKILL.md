@@ -23,6 +23,7 @@ Shared scripts (used indirectly via skill scripts):
 Skill-specific scripts:
 ```
 .claude/skills/dld-snapshot/scripts/collect-active-decisions.sh
+.claude/skills/dld-snapshot/scripts/collect-proposed-decisions.sh
 .claude/skills/dld-snapshot/scripts/update-snapshot-state.sh
 ```
 
@@ -30,15 +31,23 @@ Skill-specific scripts:
 
 Check that `dld.config.yaml` exists at the repo root. If not, tell the user to run `/dld-init` first and stop.
 
-There must be at least one `accepted` decision. If all decisions are `proposed`, tell the user there's nothing to snapshot yet and suggest `/dld-implement`.
+There must be at least one `accepted` or `proposed` decision. If all decisions are `superseded` or `deprecated`, tell the user there's nothing to snapshot yet and suggest `/dld-decide`.
 
-## Step 1: Collect active decisions
+## Step 1: Collect decisions
 
 ```bash
 bash .claude/skills/dld-snapshot/scripts/collect-active-decisions.sh
 ```
 
 This outputs the full content of all `accepted` decisions, separated by `===DLD_DECISION_BOUNDARY===` markers. Parse the output to extract each decision's frontmatter and body. Use the project mode from `dld.config.yaml` (already checked in prerequisites) to determine the organization strategy.
+
+Also collect proposed decisions:
+
+```bash
+bash .claude/skills/dld-snapshot/scripts/collect-proposed-decisions.sh
+```
+
+This outputs the full content of all `proposed` decisions, separated by the same boundary markers. Keep proposed decisions separate from accepted decisions — they are used in later steps to generate clearly marked sections.
 
 ## Step 2: Generate SNAPSHOT.md
 
@@ -53,6 +62,7 @@ Write `decisions/SNAPSHOT.md` — the detailed per-decision reference.
 > Use `/dld-snapshot` to regenerate. Source of truth: individual decision records.
 >
 > **Active decisions:** N (DL-001 through DL-XXX, excluding superseded/deprecated)
+> **Proposed decisions:** M
 
 ---
 
@@ -71,6 +81,23 @@ Write `decisions/SNAPSHOT.md` — the detailed per-decision reference.
 
 ### DL-NNN: <Title>
 ...
+
+---
+
+## Proposed Decisions
+
+> These decisions are proposed but not yet accepted. They represent planned
+> direction, not current state. Use `/dld-implement` to accept and implement them.
+
+### <Namespace or Tag Group> (proposed)
+
+#### DL-NNN: <Title>
+
+<The Decision section from the record.>
+
+**Rationale:** <1-3 sentence summary.>
+
+---
 ```
 
 ### Organization rules
@@ -81,14 +108,22 @@ Write `decisions/SNAPSHOT.md` — the detailed per-decision reference.
 
 ### Content rules
 
-- Only include `accepted` decisions
-- Skip `superseded`, `deprecated`, and `proposed` decisions entirely
+**Accepted decisions (main body):**
+- Include all `accepted` decisions in the main sections
+- Skip `superseded` and `deprecated` decisions entirely
 - When a decision supersedes another (check the `supersedes` field in the YAML frontmatter), include a `*Supersedes: DL-XXX*` note
 - The **Decision** section content should be copied directly or lightly condensed — this is the authoritative statement
 - The **Rationale** should be condensed to 1-3 sentences — enough to understand *why*, not every detail
 - **Code** references should list paths and symbols from the frontmatter `references` field
 - If a decision has no Rationale section, omit the Rationale line
 - If a decision has no references, omit the Code line
+
+**Proposed decisions (bottom section):**
+- Include all `proposed` decisions in a separate "Proposed Decisions" section at the bottom
+- Use the same organization rules (by namespace or tag) within the proposed section
+- Use H3 (`###`) for group headings and H4 (`####`) for individual decisions within the proposed section, to visually distinguish from accepted decisions
+- Omit the Code line — proposed decisions typically don't have code references yet
+- If there are no proposed decisions, omit the "Proposed Decisions" section entirely
 
 ## Step 3: Generate OVERVIEW.md
 
@@ -149,6 +184,17 @@ graph LR
 <Bullet-point summary of the most impactful cross-cutting decisions that don't
 belong to a single area. E.g., "PostgreSQL for primary data store (DL-001)",
 "All API input validated with Zod schemas (DL-008)".>
+
+## Planned Direction
+
+> The following summarizes proposed decisions that have not yet been accepted.
+> This section describes intended future direction, not current system state.
+
+<Narrative prose summarizing proposed decisions. Use future tense ("will", "plans to")
+rather than present tense. Group by namespace or domain theme, same as the main sections.
+Reference decision IDs parenthetically, e.g., (DL-015, proposed).
+Keep this section proportional — a few proposed decisions need only a short paragraph.
+If there are no proposed decisions, omit this section entirely.>
 ```
 
 ### Narrative guidelines
@@ -164,6 +210,7 @@ belong to a single area. E.g., "PostgreSQL for primary data store (DL-001)",
   - Don't force diagrams if the decisions are simple or unrelated
 - **Keep it proportional.** A project with 5 decisions needs a short overview. A project with 50 needs more structure. Scale the document to the content.
 - **Group by namespace (namespaced projects) or by domain theme (flat projects).** For flat projects, identify natural domain groupings from tags and decision content.
+- **Separate proposed from accepted.** Proposed decisions go in a "Planned Direction" section at the bottom, written in future tense. Never mix proposed decisions into the main narrative — the main sections describe what the system *does*, the planned section describes what it *will do*. If there are no proposed decisions, omit the section entirely.
 
 ### Diagram guidelines
 
@@ -225,11 +272,12 @@ bash .claude/skills/dld-snapshot/scripts/update-snapshot-state.sh
 ## Step 6: Suggest next steps
 
 > Snapshot generated:
-> - `decisions/SNAPSHOT.md` — detailed reference (N active decisions)
+> - `decisions/SNAPSHOT.md` — detailed reference (N active decisions, M proposed)
 > - `decisions/OVERVIEW.md` — narrative synthesis with diagrams
 > - `decisions/<ARTIFACT>.md` — <one line per custom artifact generated, if any>
 >
 > Next steps:
 > - Review the generated documents for accuracy
+> - `/dld-implement` — accept and implement proposed decisions
 > - `/dld-decide` — record new decisions
 > - `/dld-audit` — check for drift between decisions and code
