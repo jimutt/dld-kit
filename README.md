@@ -224,6 +224,18 @@ snapshot_artifacts:
 
 Custom artifacts are written to `decisions/` alongside the built-in files and regenerated every time `/dld-snapshot` runs. The `title` serves as both the filename and the document heading. See [project configuration](docs/framework/project-configuration.md#snapshot-artifacts) for details.
 
+### Implementation review
+
+`/dld-implement` includes a built-in review step that launches a subagent to check all code changes before finalizing. The reviewer scans for correctness, security issues, type safety problems, and consistency with existing patterns — then reports findings grouped by severity (critical, moderate, minor).
+
+This is enabled by default. To disable it, set `implement_review` to `false` in `dld.config.yaml`:
+
+```yaml
+implement_review: false
+```
+
+The review subagent operates with limited context and may flag false positives. The implementing agent uses its own judgment and asks for user input when uncertain about a finding.
+
 ## Further reading
 
 - [Concept paper](docs/concept/dld-concept.md) — full rationale and design philosophy
