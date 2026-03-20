@@ -126,7 +126,9 @@ Pass all the decision IDs that were implemented. If any are missing annotations,
 
 ### 6. Review code changes
 
-Before finalizing, launch a subagent to review all code changes for correctness and security. Use the `Agent` tool with a prompt constructed from the template below, replacing all `{{placeholders}}` with actual values:
+Check `dld.config.yaml` for the `implement_review` key. If it is set to `false`, skip this step entirely. If it is `true` or absent (default: enabled), proceed.
+
+Launch a subagent to review all code changes for correctness and security. Use the `Agent` tool with a prompt constructed from the template below, replacing all `{{placeholders}}` with actual values:
 
 ```
 You are reviewing code changes for the {{project_name}} project before committing. The changes implement {{decision_count}} decisions ({{decision_range}}) covering:
