@@ -35,11 +35,18 @@ fi
 # Read previous snapshot state
 PREV_INCLUDED=$(sed -n '/^snapshot:/,/^[^[:space:]]/{ s/^  decisions_included:[[:space:]]*//p; }' "$STATE_FILE" | head -1)
 PREV_COMMIT=$(sed -n '/^snapshot:/,/^[^[:space:]]/{ s/^  commit_hash:[[:space:]]*//p; }' "$STATE_FILE" | head -1)
+PREV_RUN=$(sed -n '/^snapshot:/,/^[^[:space:]]/{ s/^  last_run:[[:space:]]*//p; }' "$STATE_FILE" | head -1)
 
 # If no decisions_included recorded, do full
 if [[ -z "$PREV_INCLUDED" ]]; then
   echo "mode: full"
   exit 0
+fi
+
+# If no commit_hash but we have last_run, derive a baseline commit from timestamp
+if [[ -z "$PREV_COMMIT" || "$PREV_COMMIT" == "unknown" ]] && [[ -n "$PREV_RUN" ]]; then
+  # Find the most recent commit at or before last_run timestamp
+  PREV_COMMIT=$(git log --until="$PREV_RUN" --format='%h' -1 2>/dev/null || true)
 fi
 
 # Find new accepted decisions (ID > decisions_included)

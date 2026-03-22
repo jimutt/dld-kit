@@ -160,7 +160,7 @@ YAML
   assert_output --regexp "commit_range: [a-f0-9]+\.\."
 }
 
-@test "detect-changes works with old state format (no commit_hash)" {
+@test "detect-changes works with old state format (no commit_hash) for new decisions" {
   create_decision "DL-001" "accepted"
   touch decisions/SNAPSHOT.md
   touch decisions/OVERVIEW.md
@@ -181,6 +181,40 @@ YAML
   assert_success
   assert_output --partial "mode: incremental"
   assert_output --partial "DL-002"
-  # No commit range since old state has no commit_hash
-  assert_line --partial "commit_range: "
+}
+
+@test "detect-changes uses last_run timestamp fallback when no commit_hash" {
+  # Create initial state with a backdated commit
+  create_decision "DL-001" "accepted"
+  create_decision "DL-002" "accepted"
+  touch decisions/SNAPSHOT.md
+  touch decisions/OVERVIEW.md
+  git add -A
+  GIT_AUTHOR_DATE="2026-01-10T10:00:00Z" GIT_COMMITTER_DATE="2026-01-10T10:00:00Z" \
+    git commit -m "initial snapshot" --quiet
+
+  # Write old-format state with last_run after the initial commit
+  cat > decisions/.dld-state.yaml <<'YAML'
+snapshot:
+  last_run: 2026-01-10T12:00:00Z
+  decisions_included: 2
+  artifacts:
+    SNAPSHOT.md: 2026-01-10T12:00:00Z
+    OVERVIEW.md: 2026-01-10T12:00:00Z
+YAML
+  git add -A
+  GIT_AUTHOR_DATE="2026-01-10T12:00:00Z" GIT_COMMITTER_DATE="2026-01-10T12:00:00Z" \
+    git commit -m "state" --quiet
+
+  # Now modify DL-001 well after last_run
+  create_decision "DL-001" "superseded"
+  git add -A
+  GIT_AUTHOR_DATE="2026-01-11T10:00:00Z" GIT_COMMITTER_DATE="2026-01-11T10:00:00Z" \
+    git commit -m "supersede DL-001" --quiet
+
+  run bash "$SCRIPT"
+  assert_success
+  assert_output --partial "mode: incremental"
+  assert_output --partial "modified_decisions:"
+  assert_output --partial "DL-001"
 }
