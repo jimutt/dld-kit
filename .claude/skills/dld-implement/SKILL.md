@@ -124,13 +124,61 @@ bash .claude/skills/dld-implement/scripts/verify-annotations.sh DL-005 DL-006
 
 Pass all the decision IDs that were implemented. If any are missing annotations, the script will report them and exit with an error. Go back and add the missing annotations before proceeding.
 
-### 6. Regenerate INDEX.md
+### 6. Review code changes
+
+Check `dld.config.yaml` for the `implement_review` key. If it is set to `false`, skip this step entirely. If it is `true` or absent (default: enabled), proceed.
+
+Launch a subagent to review all code changes for correctness and security. Use the `Agent` tool with a prompt constructed from the template below, replacing all `{{placeholders}}` with actual values:
+
+```
+You are reviewing code changes for the {{project_name}} project before committing. The changes implement {{decision_count}} decisions ({{decision_range}}) covering:
+
+{{decision_summaries}}
+
+The project uses:
+{{tech_stack_summary}}
+
+Review these files for:
+- Correctness (logic errors, edge cases)
+- Security (SQL injection, directory traversal, XSS, etc.)
+- Consistency with existing patterns and conventions
+- Type safety issues
+- Missing error handling
+- Any code that could be simplified
+
+Files to review (read all of them):
+{{file_list}}
+
+Also read the practices doc at {{practices_path}}
+
+Do NOT make any changes. Only report findings. Be concise — focus on actual issues, not style preferences ({{linter_name}} handles style). Group findings by severity: critical (must fix), moderate (should fix), and minor (nice to have).
+```
+
+**Filling in the placeholders:**
+- `{{project_name}}` — from `dld.config.yaml` or the repo directory name
+- `{{decision_count}}` and `{{decision_range}}` — count and IDs of the decisions just implemented (e.g., "3 decisions (DL-005 – DL-007)")
+- `{{decision_summaries}}` — one-line summary of each decision's title and intent
+- `{{tech_stack_summary}}` — languages, frameworks, and key libraries from the project (infer from `dld.config.yaml`, `package.json`, or equivalent)
+- `{{file_list}}` — all files you created or modified during steps 2–4
+- `{{practices_path}}` — path to `decisions/PRACTICES.md` (or namespace-specific practices if applicable). Omit the line if no practices file exists.
+- `{{linter_name}}` — the project's linter (e.g., ESLint, Ruff). If unknown, use "the project linter"
+
+**Acting on findings:**
+- **Critical** — fix before proceeding
+- **Moderate** — fix unless you disagree with the finding (use your judgment)
+- **Minor** — skip unless trivial to address
+
+**Note:** The review subagent operates with limited context and may flag false positives or misunderstand project-specific patterns. Use your own judgment — you have fuller context from having just written the code. If you're uncertain whether a finding warrants a fix, ask the user before making changes.
+
+If you made fixes, re-run the verification script from step 5 to ensure annotations are still intact.
+
+### 7. Regenerate INDEX.md
 
 ```bash
 bash .claude/skills/dld-common/scripts/regenerate-index.sh
 ```
 
-### 7. Suggest next steps
+### 8. Suggest next steps
 
 > Implemented and accepted: **DL-NNN** (<title>)
 >

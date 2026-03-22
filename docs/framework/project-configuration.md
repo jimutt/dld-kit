@@ -28,6 +28,10 @@ namespaces:
 # Default: @decision(DL-XXX)
 annotation_prefix: "@decision"
 
+# Whether /dld-implement runs a review subagent before finalizing
+# Default: true
+implement_review: true
+
 # Custom snapshot artifacts (optional)
 # Additional documents generated alongside SNAPSHOT.md and OVERVIEW.md
 # by the /dld-snapshot skill. Each entry defines a filename and a prompt
