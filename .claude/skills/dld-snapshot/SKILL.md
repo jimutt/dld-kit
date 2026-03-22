@@ -11,7 +11,7 @@ You are generating documents that project the current state of the decision log 
 1. **`decisions/SNAPSHOT.md`** — Detailed per-decision reference. Every active decision with its rationale and code references.
 2. **`decisions/OVERVIEW.md`** — High-level narrative synthesis with Mermaid diagrams. The document you'd hand to someone who needs to understand the system.
 
-If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional custom documents are generated as well (see Step 4).
+If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional custom documents are generated as well (see Step 5).
 
 ## Script Paths
 
@@ -23,6 +23,7 @@ Shared scripts (used indirectly via skill scripts):
 Skill-specific scripts:
 ```
 .claude/skills/dld-snapshot/scripts/collect-active-decisions.sh
+.claude/skills/dld-snapshot/scripts/detect-snapshot-changes.sh
 .claude/skills/dld-snapshot/scripts/update-snapshot-state.sh
 ```
 
@@ -32,7 +33,28 @@ Check that `dld.config.yaml` exists at the repo root. If not, tell the user to r
 
 There must be at least one `accepted` decision. If all decisions are `proposed`, tell the user there's nothing to snapshot yet and suggest `/dld-implement`.
 
-## Step 1: Collect active decisions
+Check for uncommitted changes to decision files. Run `git status --porcelain -- <decisions_dir>/records/` and inspect the output. If there are unstaged or staged-but-uncommitted decision files, commit them first with a message like `"Update decision records"` before proceeding. This ensures the change detection script can rely on git history. Tell the user you are committing pending decision changes.
+
+## Step 1: Determine update mode
+
+If the user's message includes `--full` (e.g., `/dld-snapshot --full`), skip change detection and use **full mode** for all documents.
+
+Otherwise, run:
+
+```bash
+bash .claude/skills/dld-snapshot/scripts/detect-snapshot-changes.sh
+```
+
+This outputs:
+- `mode: full` — no prior snapshot state exists, or SNAPSHOT.md/OVERVIEW.md are missing. Proceed with full generation.
+- `mode: incremental` — prior state exists. The output also includes:
+  - `new_decisions:` — comma-separated list of new accepted decision IDs (e.g., `DL-072, DL-073`)
+  - `modified_decisions:` — comma-separated list of existing decisions changed since last snapshot (status changes, content edits)
+  - `commit_range:` — the git range since last snapshot (e.g., `abc1234..HEAD`)
+
+If mode is `incremental` but both `new_decisions` and `modified_decisions` are empty, tell the user nothing has changed since the last snapshot and stop.
+
+## Step 2: Collect active decisions
 
 ```bash
 bash .claude/skills/dld-snapshot/scripts/collect-active-decisions.sh
@@ -40,9 +62,24 @@ bash .claude/skills/dld-snapshot/scripts/collect-active-decisions.sh
 
 This outputs the full content of all `accepted` decisions, separated by `===DLD_DECISION_BOUNDARY===` markers. Parse the output to extract each decision's frontmatter and body. Use the project mode from `dld.config.yaml` (already checked in prerequisites) to determine the organization strategy.
 
-## Step 2: Generate SNAPSHOT.md
+## Step 3: Generate or update SNAPSHOT.md
 
-Write `decisions/SNAPSHOT.md` — the detailed per-decision reference.
+### Full mode
+
+Write `decisions/SNAPSHOT.md` from scratch using the template and rules below.
+
+### Incremental mode
+
+Read the existing `decisions/SNAPSHOT.md` and apply targeted edits:
+
+1. **For each new decision:** Identify which group heading (`## Namespace` or `## Tag Group`) it belongs to. Insert the new `### DL-NNN: Title` section in the correct position (ascending ID order within the group). If the group heading doesn't exist yet, add a new `## Group` section.
+2. **For each modified decision:** Read its current status from the decision file.
+   - If now `superseded` or `deprecated`: remove its `### DL-NNN` section from the file. If the group becomes empty after removal, remove the group heading too.
+   - If still `accepted` but content changed: replace its `### DL-NNN` section with updated content.
+   - If it has a new `amends` relationship: add an `*Amended by: DL-YYY*` line to the target decision's section.
+3. **Update the header:** Adjust the "Active decisions" count, the "DL-001 through DL-XXX" range, and the date.
+
+Do NOT rewrite the entire file. Use targeted edits to insert, remove, or modify only the affected sections.
 
 ### Template
 
@@ -93,11 +130,24 @@ Write `decisions/SNAPSHOT.md` — the detailed per-decision reference.
 - If a decision has no Rationale section, omit the Rationale line
 - If a decision has no references, omit the Code line
 
-## Step 3: Generate OVERVIEW.md
-
-Write `decisions/OVERVIEW.md` — the high-level narrative synthesis.
+## Step 4: Generate or update OVERVIEW.md
 
 This is fundamentally different from SNAPSHOT.md. You are **synthesizing** across decisions to create a readable narrative that explains the system's current design. Think of it as the document you'd give a new team member or use to onboard an AI agent on the project.
+
+### Full mode
+
+Write `decisions/OVERVIEW.md` from scratch using the template and guidelines below.
+
+### Incremental mode
+
+Read the existing `decisions/OVERVIEW.md`. Identify which domain sections are affected by the new and modified decisions — look at their namespaces, tags, and the topics they cover. Then:
+
+1. **Update only the affected sections.** Rewrite each affected section to integrate new decisions or remove references to superseded/deprecated ones. Leave unaffected sections untouched.
+2. **Add new sections** if new decisions introduce a domain area not covered by existing sections.
+3. **Update diagrams** only if the changeset affects the relationships or components they depict.
+4. **Update the header** (decision count, date) and **Key Technical Choices** if any new decisions are cross-cutting.
+
+**Maintaining appropriate abstraction:** The overview should remain a high-level narrative, not grow into a detailed specification. As you update sections, consider whether the overall document still reads as an overview. If adding new decisions makes a section too detailed or the document too long, condense older stable content to make room — summarize established decisions more aggressively to keep focus on what matters for understanding the system. If the document's section structure no longer properly organizes the content (e.g., a new cross-cutting concern spans multiple existing sections), restructure as needed — this may mean a larger rewrite of the document, which is appropriate when the system's shape has meaningfully changed.
 
 ### Template
 
@@ -183,7 +233,7 @@ When creating Mermaid diagrams:
 - **Use `<br/>` for line breaks** inside quoted labels — do not use `\n` or literal newlines
 - **Avoid special characters** (`(`, `)`, `[`, `]`, `{`, `}`, `|`, `#`, `&`) in unquoted labels — use quoted labels or HTML entities instead
 
-## Step 4: Generate custom artifacts
+## Step 5: Generate custom artifacts
 
 Read the `snapshot_artifacts` key from `dld.config.yaml`. If the key is absent or the list is empty, skip this step entirely.
 
@@ -193,7 +243,7 @@ For each entry in `snapshot_artifacts`:
    - Must end in `.md`. If not, warn the user and skip this artifact.
    - Must not collide (case-insensitive) with reserved filenames: `SNAPSHOT.md`, `OVERVIEW.md`, `INDEX.md`. If it collides, warn the user and skip this artifact.
 
-2. **Generate `decisions/<title>`** using the collected decisions (from Step 1) as context and the `prompt` field as the generation instruction. The file must begin with this standard header:
+2. **Generate `decisions/<title>`** using the collected decisions (from Step 2) as context and the `prompt` field as the generation instruction. The file must begin with this standard header:
 
    ```markdown
    # <Title without .md extension>
@@ -204,9 +254,9 @@ For each entry in `snapshot_artifacts`:
 
    Followed by the content generated according to the prompt.
 
-Keep track of which custom artifacts were successfully generated — you will need the list for Step 5 and Step 6.
+Keep track of which custom artifacts were successfully generated — you will need the list for Step 6 and Step 7.
 
-## Step 5: Update snapshot state
+## Step 6: Update snapshot state
 
 Pass any successfully generated custom artifact filenames as arguments:
 
@@ -226,7 +276,7 @@ If no custom artifacts were generated, run without arguments:
 bash .claude/skills/dld-snapshot/scripts/update-snapshot-state.sh
 ```
 
-## Step 6: Suggest next steps
+## Step 7: Suggest next steps
 
 > Snapshot generated:
 > - `decisions/SNAPSHOT.md` — detailed reference (N active decisions)

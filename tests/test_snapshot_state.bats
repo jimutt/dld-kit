@@ -101,6 +101,16 @@ YAML
   assert_output --partial "decisions_included: 1"
 }
 
+@test "update-snapshot-state includes commit hash" {
+  create_decision "DL-001" "accepted"
+  bash "$SCRIPT"
+
+  run cat decisions/.dld-state.yaml
+  assert_output --partial "commit_hash:"
+  # Should be a short git hash (not "unknown" since we're in a git repo)
+  refute_output --partial "commit_hash: unknown"
+}
+
 @test "update-snapshot-state handles zero accepted decisions" {
   create_decision "DL-001" "proposed"
   bash "$SCRIPT"
