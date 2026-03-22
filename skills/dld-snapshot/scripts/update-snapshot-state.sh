@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Update the snapshot tracking state in .dld-state.yaml.
-# Records the current timestamp, highest accepted decision ID,
-# and per-artifact timestamps.
+# Records the current timestamp, HEAD commit hash, highest accepted
+# decision ID, and per-artifact timestamps.
 # Usage: update-snapshot-state.sh [ARTIFACT_NAME...]
 #
 # Without arguments, records timestamps for the built-in artifacts
@@ -19,6 +19,7 @@ DECISIONS_DIR="$(get_decisions_dir)"
 RECORDS_DIR="$(get_records_dir)"
 STATE_FILE="$DECISIONS_DIR/.dld-state.yaml"
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+COMMIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 
 # Find the highest accepted decision ID by checking status in frontmatter
 HIGHEST_NUM=0
@@ -47,6 +48,7 @@ done
 
 SNAPSHOT_BLOCK="snapshot:
   last_run: $TIMESTAMP
+  commit_hash: $COMMIT_HASH
   decisions_included: $HIGHEST_NUM
   artifacts:
 $ARTIFACTS_BLOCK"
@@ -83,4 +85,4 @@ else
   mv "$TMPFILE" "$STATE_FILE"
 fi
 
-echo "Snapshot state updated: $TIMESTAMP (through DL-$(printf '%03d' $HIGHEST_NUM))"
+echo "Snapshot state updated: $TIMESTAMP at $COMMIT_HASH (through DL-$(printf '%03d' $HIGHEST_NUM))"
