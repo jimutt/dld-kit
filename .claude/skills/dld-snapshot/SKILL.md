@@ -33,6 +33,8 @@ Check that `dld.config.yaml` exists at the repo root. If not, tell the user to r
 
 There must be at least one `accepted` decision. If all decisions are `proposed`, tell the user there's nothing to snapshot yet and suggest `/dld-implement`.
 
+Check for uncommitted changes to decision files. Run `git status --porcelain -- <decisions_dir>/records/` and inspect the output. If there are unstaged or staged-but-uncommitted decision files, commit them first with a message like `"Update decision records"` before proceeding. This ensures the change detection script can rely on git history. Tell the user you are committing pending decision changes.
+
 ## Step 1: Determine update mode
 
 If the user's message includes `--full` (e.g., `/dld-snapshot --full`), skip change detection and use **full mode** for all documents.
