@@ -3,7 +3,7 @@
 Stop AI agents from breaking code they don't understand.
 
 > [!NOTE]
-> Early development — not production ready. APIs, file formats, and skill interfaces may change.
+> Early development — APIs, file formats, and skill interfaces may change.
 
 ---
 
