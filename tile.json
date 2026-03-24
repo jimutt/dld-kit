@@ -41,6 +41,9 @@
     },
     "dld-retrofit": {
       "path": "skills/dld-retrofit/SKILL.md"
+    },
+    "dld-adjust": {
+      "path": "skills/dld-adjust/SKILL.md"
     }
   }
 }
