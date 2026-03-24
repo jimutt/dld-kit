@@ -119,5 +119,6 @@ bash .claude/skills/dld-common/scripts/regenerate-index.sh
 > Decision **DL-NNN** recorded as `proposed`.
 >
 > Next steps:
+> - `/dld-adjust` — refine the decision before implementing
 > - `/dld-implement DL-NNN` — implement this decision
 > - `/dld-decide` — record another decision

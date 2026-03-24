@@ -34,6 +34,7 @@ Use `/dld-plan` to break it down into decisions, then implement:
 ```
 /dld-init              # Bootstrap DLD in your repo (run once)
 /dld-plan              # Break it down into decisions interactively
+/dld-adjust DL-001     # Refine decisions if details change before implementing
 /dld-implement DL-001  # Implement each decision (or batch related ones)
 /dld-snapshot          # Generate overview docs from the decision log
 ```
@@ -120,6 +121,7 @@ DLD is designed for long-lived codebases where decisions accumulate, original au
 | `/dld-decide` | Record a single decision interactively |
 | `/dld-plan` | Break down a feature into multiple grouped decisions |
 | `/dld-implement` | Implement proposed decisions — writes code, adds annotations, updates status |
+| `/dld-adjust` | Adjust or update existing decisions — handles permission gating and correct intent interpretation |
 | `/dld-lookup` | Query decisions by ID, tag, code path, or keyword |
 | `/dld-status` | Overview of the decision log — counts, recent decisions, run tracking |
 | `/dld-audit` | Scan for drift between decisions and code |

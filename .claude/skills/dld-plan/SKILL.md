@@ -135,5 +135,6 @@ bash .claude/skills/dld-common/scripts/regenerate-index.sh
 > | DL-012 | Idempotency key format | proposed |
 >
 > Next steps:
+> - `/dld-adjust` — refine any decisions before implementing
 > - `/dld-implement` — implement all proposed decisions (or `/dld-implement DL-NNN` for a specific one)
 > - `/dld-lookup tag:<tag>` — review all decisions in this group
