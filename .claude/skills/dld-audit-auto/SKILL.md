@@ -70,6 +70,14 @@ If unreachable (e.g., after rebase or shallow clone), skip check (4) and note it
 
 Apply fixes for each issue category. Use judgment on what can be safely fixed automatically vs. what should only be flagged in the PR description.
 
+### Hard rule: never edit the body of an accepted decision
+
+The narrative body of an accepted decision (Context, Decision, Rationale, Consequences, and any other prose sections) is **immutable**. An audit must never rewrite, refine, "clean up", or otherwise modify it.
+
+The only changes an audit may make to an accepted decision are housekeeping updates to specific frontmatter fields — `references`, `amends`, `superseded_by`, and similar relational metadata — plus adding or fixing `@decision` annotations in code.
+
+If drift suggests the substance of an accepted decision is no longer accurate, or that code has evolved beyond what the decision describes, **do not modify the original record**. Instead, create a **new decision** (status `accepted`, since the code already exists) that captures the new rationale and uses `supersedes` or `amends` to link back to the prior one. The original stays as-is to preserve the historical record of why things were done that way at the time.
+
 ### Auto-fixable (apply these directly):
 
 **Orphaned annotations** — If the annotation has an obvious typo (e.g., `DL-01` where `DL-001` exists), fix it. If the referenced ID is completely unknown, remove the annotation and note the removal in the commit message.
@@ -92,11 +100,10 @@ Apply fixes for each issue category. Use judgment on what can be safely fixed au
 2. **Look up referenced tickets** — If commit messages reference a ticket (e.g., Jira, Linear, GitHub issue), try to look it up using available tools (MCP servers, `gh` CLI, etc.) to gather additional context about the change.
 3. **Assess the impact** — Read the current code and the associated decision(s). Determine whether:
    - The existing decision is still accurate (the change was compatible — no action needed)
-   - The existing decision needs a minor update (refine the decision record)
-   - A new decision is needed (the change introduced new behavior not covered by existing decisions)
-4. **Create or update decisions** — Based on the assessment, either update the existing decision record or create a new decision using the standard scripts. Add `@decision` annotations to the new/changed code. Mark any new decisions as `accepted` since the code already exists.
+   - The change introduced new or different behavior/rationale that is not fully captured by the existing decision (a **new decision** is needed)
+4. **Create a new decision when needed** — Per the hard rule above, never edit the body of the existing accepted decision to absorb the new behavior. Instead, create a new decision using the standard scripts, mark it `accepted` (the code already exists), and link it to the prior decision via `supersedes` or `amends` as appropriate. Add `@decision` annotations to the new/changed code pointing at the new decision.
 
-**Important:** These best-effort fixes are inferred, not authoritative. In the PR description, clearly mark each one under a **"Inferred Decisions — Review Required"** section. Explain what changed, what context was found (commit messages, tickets), and what decision was created or updated. Reviewers should prioritize checking these for accuracy.
+**Important:** These best-effort fixes are inferred, not authoritative. In the PR description, clearly mark each one under a **"Inferred Decisions — Review Required"** section. Explain what changed, what context was found (commit messages, tickets), and what new decision was created. Reviewers should prioritize checking these for accuracy.
 
 ## Step 4: Regenerate INDEX.md
 
