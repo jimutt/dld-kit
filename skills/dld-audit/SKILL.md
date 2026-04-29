@@ -95,6 +95,12 @@ bash scripts/find-missing-amends.sh
 
 This outputs lines in the format `<source-id>:<referenced-id>` — decisions whose body references another decision ID that isn't listed in their `supersedes` or `amends` fields. Not every candidate is a missing amendment — some are just informational references (e.g., "this is similar to DL-005").
 
+By default the script only emits candidates whose source decision file changed since the last audit (recorded in `.dld-state.yaml`), so references the agent has already evaluated and judged informational don't keep resurfacing. To force a full rescan — useful for cold starts or manual deep audits — pass `--all`:
+
+```bash
+bash scripts/find-missing-amends.sh --all
+```
+
 For each candidate, read the source decision's body and evaluate whether the reference describes a partial modification of the referenced decision. Look for language like: "supersedes the X portions of", "changes the Y behavior from DL-Z", "replaces the approach in DL-Z for...", "modifies how DL-Z handles...". If so, flag it as a missing amendment.
 
 #### f) Decisions without annotations

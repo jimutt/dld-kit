@@ -103,6 +103,123 @@ This modifies parts of DL-001 and DL-002."
   assert_line "DL-003:DL-002"
 }
 
+@test "find-missing-amends skips unchanged source decisions when audit state is set" {
+  create_decision_with_body "DL-001" "" "" "## Decision
+Original."
+  create_decision_with_body "DL-002" "" "" "## Decision
+This changes the caching strategy from DL-001."
+  git add -A && git commit -q -m "decisions"
+  commit=$(git rev-parse --short HEAD)
+  cat > decisions/.dld-state.yaml <<EOF
+audit:
+  last_run: 2026-01-15T10:00:00Z
+  commit_hash: $commit
+EOF
+
+  # Nothing changed since the audit commit — DL-002:DL-001 should not re-surface.
+  run bash "$SCRIPT"
+  assert_success
+  assert_output ""
+}
+
+@test "find-missing-amends re-surfaces a candidate when its source decision is edited" {
+  create_decision_with_body "DL-001" "" "" "## Decision
+Original."
+  create_decision_with_body "DL-002" "" "" "## Decision
+This changes the caching strategy from DL-001."
+  git add -A && git commit -q -m "decisions"
+  commit=$(git rev-parse --short HEAD)
+  cat > decisions/.dld-state.yaml <<EOF
+audit:
+  last_run: 2026-01-15T10:00:00Z
+  commit_hash: $commit
+EOF
+
+  # Edit DL-002 (the source of the reference) — it should re-surface.
+  create_decision_with_body "DL-002" "" "" "## Decision
+This changes the caching strategy from DL-001 (revised)."
+
+  run bash "$SCRIPT"
+  assert_success
+  assert_output "DL-002:DL-001"
+}
+
+@test "find-missing-amends does not re-surface when only the referenced decision is edited" {
+  create_decision_with_body "DL-001" "" "" "## Decision
+Original."
+  create_decision_with_body "DL-002" "" "" "## Decision
+This changes the caching strategy from DL-001."
+  git add -A && git commit -q -m "decisions"
+  commit=$(git rev-parse --short HEAD)
+  cat > decisions/.dld-state.yaml <<EOF
+audit:
+  last_run: 2026-01-15T10:00:00Z
+  commit_hash: $commit
+EOF
+
+  # Edit DL-001 (the referenced decision) — DL-002's reference is unchanged.
+  create_decision_with_body "DL-001" "" "" "## Decision
+Original (revised)."
+
+  run bash "$SCRIPT"
+  assert_success
+  assert_output ""
+}
+
+@test "find-missing-amends surfaces untracked new decisions even with audit state" {
+  create_decision_with_body "DL-001" "" "" "## Decision
+Original."
+  git add -A && git commit -q -m "first decision"
+  commit=$(git rev-parse --short HEAD)
+  cat > decisions/.dld-state.yaml <<EOF
+audit:
+  last_run: 2026-01-15T10:00:00Z
+  commit_hash: $commit
+EOF
+
+  # Add a new (untracked) decision referencing DL-001.
+  create_decision_with_body "DL-002" "" "" "## Decision
+This changes the caching strategy from DL-001."
+
+  run bash "$SCRIPT"
+  assert_success
+  assert_output "DL-002:DL-001"
+}
+
+@test "find-missing-amends --all ignores audit state" {
+  create_decision_with_body "DL-001" "" "" "## Decision
+Original."
+  create_decision_with_body "DL-002" "" "" "## Decision
+This changes the caching strategy from DL-001."
+  git add -A && git commit -q -m "decisions"
+  commit=$(git rev-parse --short HEAD)
+  cat > decisions/.dld-state.yaml <<EOF
+audit:
+  last_run: 2026-01-15T10:00:00Z
+  commit_hash: $commit
+EOF
+
+  run bash "$SCRIPT" --all
+  assert_success
+  assert_output "DL-002:DL-001"
+}
+
+@test "find-missing-amends falls back to scanning all when audit commit is unknown to the repo" {
+  create_decision_with_body "DL-001" "" "" "## Decision
+Original."
+  create_decision_with_body "DL-002" "" "" "## Decision
+This changes the caching strategy from DL-001."
+  cat > decisions/.dld-state.yaml <<EOF
+audit:
+  last_run: 2026-01-15T10:00:00Z
+  commit_hash: deadbeef
+EOF
+
+  run bash "$SCRIPT"
+  assert_success
+  assert_output "DL-002:DL-001"
+}
+
 @test "find-missing-amends works with namespaced decisions" {
   setup_namespaced_project
   mkdir -p decisions/records/billing
