@@ -51,12 +51,19 @@ Once determined, also read `decisions/records/<namespace>/PRACTICES.md` if it ex
 
 ### 3. Check for related existing decisions
 
-Before proposing the breakdown, scan existing decision files for:
-- Decisions that reference the same code areas
-- Decisions with overlapping tags or topics
-- Decisions that the new feature might supersede or amend
+Before proposing the breakdown, find prior decisions the feature must reckon with — same code paths, overlapping concerns, candidates to supersede or amend.
 
-Mention any related decisions to the developer so the breakdown accounts for them.
+**Preferred:** invoke the `dld-search` skill in `mode:plan`, passing the full feature description plus any code paths and tags you've already identified. Example:
+
+```
+/dld-search mode:plan <feature description>; touches <code paths>; possibly related tags: <tag1>, <tag2>
+```
+
+Use the returned ranked list to identify decisions to read in detail. Open only the ones whose "Why relevant" line suggests a real interaction with the planned feature — don't open all of them.
+
+**Fallback** (when `dld-search` is not installed): scan decision files directly using grep/Read for matches on code areas, tags, and titles.
+
+Mention any related decisions to the developer so the breakdown accounts for them. Flag decisions that the new feature might supersede or amend.
 
 ### 4. Break it down
 

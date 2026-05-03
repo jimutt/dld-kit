@@ -55,6 +55,16 @@ Read each decision record carefully. Understand:
 - The code areas referenced
 - Any superseded or amended decisions (read those too for context on what changed)
 
+**Before reading further, gather adjacent context.** For each decision being implemented, invoke the `dld-search` skill in `mode:implement` to surface related commitments (the supersedes/amends chain, decisions touching the same code paths, decisions with overlapping tags). Example:
+
+```
+/dld-search mode:implement DL-NNN — implementing this decision; touches <code paths if known>
+```
+
+This catches prior decisions that constrain how you implement this one. Read the returned candidates only when their "Why relevant" line suggests a real constraint or conflict — not all of them.
+
+**Fallback** (when `dld-search` is not installed): use grep/Read against the decisions directory to find related records.
+
 ### 2. Make code changes
 
 Implement the decision(s) by modifying the codebase. Follow the practices manifest if one exists.
