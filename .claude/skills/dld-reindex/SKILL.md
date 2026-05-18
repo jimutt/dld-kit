@@ -84,8 +84,10 @@ The substitution is digit-aware: renaming `DL-100` will not accidentally rewrite
 
 ## Step 4: Regenerate INDEX.md
 
+Pass `--include-base` so the regenerated INDEX merges in decisions that exist on the base branch but not yet locally. Without this flag, the regenerated INDEX would only contain rows the branch knows about, and the subsequent rebase would conflict with main's INDEX rows for decisions added on main since the branch diverged.
+
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+bash .claude/skills/dld-common/scripts/regenerate-index.sh --include-base "$BASE"
 ```
 
 ## Step 5: Ask about committing
