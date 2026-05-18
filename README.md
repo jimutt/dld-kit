@@ -53,6 +53,18 @@ Use `/dld-retrofit` to generate decisions from code that already exists:
 
 This works as a standalone "document this codebase" action. You get structured decision records, code annotations, and a generated system overview. From there you can adopt the full workflow, or just re-run `/dld-audit-auto` and `/dld-snapshot` on a schedule to keep documentation in sync.
 
+### Working in a team
+
+When multiple developers draft decisions in parallel, two of them can end up picking the same `DL-NNN` ID. Once one of those PRs lands on the base branch, the other can't rebase cleanly — the colliding decision file path appears in both histories.
+
+```
+/dld-reindex           # Renames the local draft(s) to the next free ID,
+                       # rewrites @decision annotations and cross-references,
+                       # squashes the branch into a single rebase-clean commit
+```
+
+Run this before rebasing onto an updated base. The skill resolves the ID against the base branch and, when `gh` is installed and authenticated, also against open PRs so the new IDs don't collide with someone else's in-flight work.
+
 ## How it works
 
 DLD is implemented as a set of AI agent skills following the [Agent Skills](https://agentskills.io) open standard.
@@ -128,6 +140,7 @@ DLD is designed for long-lived codebases where decisions accumulate, original au
 | `/dld-audit-auto` | Autonomous audit — detects drift, fixes issues, opens a PR (for scheduled/CI use) |
 | `/dld-snapshot` | Generate SNAPSHOT.md (detailed reference) and OVERVIEW.md (narrative synthesis with diagrams) |
 | `/dld-retrofit` | Bootstrap decisions from an existing codebase (broad or detailed mode) |
+| `/dld-reindex` | Resolve decision ID collisions with the base branch (and open PRs) before rebasing — renames colliding local drafts, rewrites annotations and cross-references, squashes branch commits into a rebase-clean reindex commit |
 
 ### Active workflow
 
@@ -265,12 +278,7 @@ See the [concept paper](docs/concept/dld-concept.md) for a detailed discussion o
 
 ## Roadmap
 
-DLD is under active development. Some planned additions:
-
-- **`/dld-reindex`** — Sync decision `references` after code refactors by scanning `@decision` annotations ([#8](https://github.com/jimutt/dld-kit/issues/8))
-- **Extended snapshot artifacts** — Custom documentation outputs from `/dld-snapshot` via configuration ([#2](https://github.com/jimutt/dld-kit/issues/2)) ✅
-
-Feature requests and ideas are welcome — [open an issue](https://github.com/jimutt/dld-kit/issues).
+DLD is under active development. Feature requests and ideas are welcome — [open an issue](https://github.com/jimutt/dld-kit/issues).
 
 ## Manual CLAUDE.md setup
 
