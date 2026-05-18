@@ -81,8 +81,14 @@ git mv "$INPUT_PATH" "$NEW_PATH"
 sed_inplace "$NEW_PATH" -e "s/^id:[[:space:]]*${OLD}\$/id: ${NEW}/"
 substitute_in_file "$NEW_PATH"
 
-# 3. Determine the local change set (files added or modified vs the base ref).
-CHANGED_FILES=$(git diff --name-only --diff-filter=AM "$BASE"...HEAD 2>/dev/null || true)
+# 3. Determine the local change set: files added/modified/renamed vs the base ref,
+# INCLUDING uncommitted working-tree state. Using `$BASE` (no `..HEAD`) lets the
+# diff include working-tree changes — so when this script is called repeatedly
+# during a multi-rename run, each invocation sees the renamed files produced by
+# the previous calls (the new paths) instead of the stale committed paths (the
+# old paths, now gone from disk). Without this, only the *last* rename's
+# new-path file would have its cross-references updated to subsequent renames.
+CHANGED_FILES=$(git diff --find-renames --name-only --diff-filter=AMR "$BASE" 2>/dev/null || true)
 
 DECISIONS_DIR_REL="$(config_get decisions_dir)"
 ANNOTATION_PREFIX="$(config_get annotation_prefix)"

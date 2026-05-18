@@ -255,6 +255,61 @@ EOF
   refute_output --partial "@decision(DL-002)"
 }
 
+@test "rename-decision: multi-rename updates cross-refs in EARLIER renamed files" {
+  # Regression: when DL-205 → DL-211 runs first and DL-206 → DL-212 runs second,
+  # the DL-206 → DL-212 invocation must see the already-renamed DL-211.md
+  # (uncommitted at that point) and rewrite its DL-206 references too.
+  # The earlier bug computed CHANGED_FILES from committed state only, missed
+  # the new path, and left stale DL-206 references in DL-211.md's body.
+  cat > decisions/records/DL-205.md <<'EOF'
+---
+id: DL-205
+title: "First"
+timestamp: 2026-01-15T10:00:00Z
+status: proposed
+supersedes: []
+amends: []
+tags: []
+references: []
+---
+
+This decision precedes DL-206. See DL-206 for the follow-up.
+EOF
+  cat > decisions/records/DL-206.md <<'EOF'
+---
+id: DL-206
+title: "Second"
+timestamp: 2026-01-15T10:00:00Z
+status: proposed
+supersedes: []
+amends: [DL-205]
+tags: []
+references: []
+---
+
+Builds on DL-205.
+EOF
+  git add -A
+  git commit --quiet -m "local DL-205 and DL-206"
+
+  # Renames applied in order, mimicking how plan-renames.sh emits them.
+  bash "$REINDEX_DIR/rename-decision.sh" --old DL-205 --new DL-211 \
+    --path decisions/records/DL-205.md --base main >/dev/null
+  bash "$REINDEX_DIR/rename-decision.sh" --old DL-206 --new DL-212 \
+    --path decisions/records/DL-206.md --base main >/dev/null
+
+  # DL-211.md (renamed in pass 1) must reflect the pass-2 rename in its body.
+  run cat decisions/records/DL-211.md
+  assert_output --partial "precedes DL-212"
+  assert_output --partial "See DL-212"
+  refute_output --partial "DL-206"
+
+  # DL-212.md (renamed in pass 2) reflects the pass-1 rename in its frontmatter.
+  run cat decisions/records/DL-212.md
+  assert_output --partial "amends: [DL-211]"
+  assert_output --partial "Builds on DL-211"
+}
+
 @test "rename-decision: rewrites cross-refs in other local decisions" {
   create_decision "DL-002" "proposed"
   cat > decisions/records/DL-003.md <<'EOF'
@@ -335,6 +390,66 @@ EOF
     --base main
   assert_failure
   assert_output --partial "DL-[0-9]+"
+}
+
+# --- find-stale-mentions.sh --------------------------------------------------
+
+@test "find-stale-mentions: surfaces bare DL-OLD mentions in non-decision changed files post-rename" {
+  create_decision "DL-002" "proposed"
+  mkdir -p src
+  cat > src/auth.py <<'EOF'
+# @decision(DL-002)
+# Span-driven batching (DL-002) groups results — see also DL-002 in the design doc.
+def login(): pass
+EOF
+  git add -A
+  git commit --quiet -m "local DL-002 + code"
+
+  bash "$REINDEX_DIR/rename-decision.sh" --old DL-002 --new DL-007 \
+    --path decisions/records/DL-002.md --base main >/dev/null
+
+  PLAN=$'decisions/records/DL-002.md\tDL-002\tDL-007'
+  run bash -c "echo \"$PLAN\" | bash \"$REINDEX_DIR/find-stale-mentions.sh\" --base main"
+  assert_success
+  # The @decision annotation got rewritten by rename-decision.sh, so it doesn't appear.
+  refute_output --partial "@decision(DL-002)"
+  # The bare DL-002 mentions in the comment DO appear for review.
+  assert_output --partial "src/auth.py"
+  assert_output --partial "DL-002"
+  assert_output --partial "DL-007"
+  assert_output --partial "Span-driven batching"
+}
+
+@test "find-stale-mentions: empty output when nothing to review" {
+  create_decision "DL-002" "proposed"
+  mkdir -p src
+  echo "# @decision(DL-002)" > src/auth.py
+  git add -A
+  git commit --quiet -m "local DL-002 + clean annotation"
+
+  bash "$REINDEX_DIR/rename-decision.sh" --old DL-002 --new DL-007 \
+    --path decisions/records/DL-002.md --base main >/dev/null
+
+  PLAN=$'decisions/records/DL-002.md\tDL-002\tDL-007'
+  run bash -c "echo \"$PLAN\" | bash \"$REINDEX_DIR/find-stale-mentions.sh\" --base main"
+  assert_success
+  assert_output ""
+}
+
+@test "find-stale-mentions: digit-aware — does not flag DL-2000 when looking for DL-200" {
+  create_decision "DL-200" "proposed"
+  mkdir -p src
+  echo "# unrelated DL-2000 token here" > src/auth.py
+  git add -A
+  git commit --quiet -m "local DL-200 + unrelated 2000 mention"
+
+  bash "$REINDEX_DIR/rename-decision.sh" --old DL-200 --new DL-300 \
+    --path decisions/records/DL-200.md --base main >/dev/null
+
+  PLAN=$'decisions/records/DL-200.md\tDL-200\tDL-300'
+  run bash -c "echo \"$PLAN\" | bash \"$REINDEX_DIR/find-stale-mentions.sh\" --base main"
+  assert_success
+  refute_output --partial "DL-2000"
 }
 
 # --- commit-reindex.sh -------------------------------------------------------

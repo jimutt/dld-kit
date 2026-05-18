@@ -33,6 +33,7 @@ Skill-specific scripts:
 .claude/skills/dld-reindex/scripts/find-collisions.sh
 .claude/skills/dld-reindex/scripts/list-taken-ids.sh
 .claude/skills/dld-reindex/scripts/rename-decision.sh
+.claude/skills/dld-reindex/scripts/find-stale-mentions.sh
 .claude/skills/dld-reindex/scripts/commit-reindex.sh
 ```
 
@@ -106,7 +107,28 @@ bash .claude/skills/dld-reindex/scripts/rename-decision.sh --old DL-OLD --new DL
 
 The substitution is digit-aware: renaming `DL-100` will not accidentally rewrite `DL-1000`.
 
-## Step 5: Squash and commit
+**Note on plain-text DL-NNN mentions in code:** In non-decision files (source code, READMEs, etc.) `rename-decision.sh`'s rewrite is **scoped to `` `@decision` ``(DL-NNN) annotations only**. Bare `DL-NNN` references in comments, log strings, or test fixtures are left untouched here to avoid false-positive matches against unrelated identifiers. Step 5 handles them.
+
+## Step 5: Review plain-text DL-OLD mentions
+
+After all renames are applied (but before the squash), find any remaining bare `DL-OLD` references in non-decision changed files:
+
+```bash
+echo "$PLAN" | bash .claude/skills/dld-reindex/scripts/find-stale-mentions.sh --base "$BASE"
+```
+
+Output is tab-separated, one match per line: `<path>\t<line>\t<DL-OLD>\t<DL-NEW>\t<line-content>`. Empty output means nothing to review.
+
+For each match:
+
+1. Read the surrounding context in the file.
+2. Decide whether the reference makes sense as `DL-OLD` or should become `DL-NEW`. A code comment like `// Span-driven batching (DL-207) groups resolutions sharing the same turn context (DL-202)` after a `DL-207 → DL-213` rename almost certainly wants `DL-213` (it's prose alongside an annotation). A test fixture string that's checking historical data may need to stay as `DL-OLD`.
+3. If the line should change, use the `Edit` tool to update that specific occurrence — don't do a blanket find-and-replace.
+4. If the line should stay, leave it.
+
+Surface the list of matches to the user with your verdicts before you finish, so they can sanity-check the judgment calls.
+
+## Step 6: Squash and commit
 
 Pipe the rename plan into `commit-reindex.sh`:
 
@@ -124,7 +146,7 @@ This:
 
 **Do not use `git add -A` or `git commit -a` anywhere in this flow.** Use only `commit-reindex.sh` to commit. Targeting paths explicitly is the whole point of this step.
 
-## Step 6: Push (if the user chose force-push)
+## Step 7: Push (if the user chose force-push)
 
 If step 3's answer was "Rewrite and force-push":
 
@@ -138,7 +160,7 @@ fi
 
 `--force-with-lease` is mandatory over `--force` here — it refuses to push if the remote moved since the last fetch, which protects against overwriting concurrent collaborator pushes.
 
-## Step 7: Report
+## Step 8: Report
 
 Print:
 
