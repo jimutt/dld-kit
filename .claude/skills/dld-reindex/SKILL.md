@@ -120,7 +120,7 @@ Print:
 
 The skill never rebases or merges — that is always the user's call.
 
-## Out of scope (v1)
+## Out of scope
 
 - **Already-conflicted rebases.** This skill is pre-rebase only. If the user is mid-rebase with conflicts, tell them to `git rebase --abort` first and re-run this skill.
 - **Cross-namespace ID reconciliation** in namespaced projects. IDs are assumed globally unique across namespaces, matching `next-id.sh`.
