@@ -556,6 +556,96 @@ EOF
   assert_output --partial "no rename plan"
 }
 
+@test "commit-reindex: restores HEAD if the squash fails after the reset" {
+  # Install a pre-commit hook that always rejects, so commit-reindex.sh fails
+  # AFTER the mixed reset has already moved HEAD. The trap should roll HEAD
+  # back to its pre-run position.
+  git checkout main --quiet
+  create_decision "DL-002" "accepted"
+  git add -A
+  git commit --quiet -m "land DL-002 on main"
+  git checkout feature --quiet
+
+  create_decision "DL-002" "proposed"
+  git add -A
+  git commit --quiet -m "feature: draft DL-002"
+
+  cat > .git/hooks/pre-commit <<'EOF'
+#!/bin/sh
+exit 1
+EOF
+  chmod +x .git/hooks/pre-commit
+
+  PLAN=$(bash "$REINDEX_DIR/plan-renames.sh" --base main 2>/dev/null)
+  echo "$PLAN" | while IFS=$'\t' read -r path old new; do
+    bash "$REINDEX_DIR/rename-decision.sh" --old "$old" --new "$new" --path "$path" --base main
+  done >/dev/null
+
+  BEFORE_HEAD=$(git rev-parse HEAD)
+  run bash -c "echo \"$PLAN\" | bash \"$REINDEX_DIR/commit-reindex.sh\" --base main"
+  assert_failure
+  AFTER_HEAD=$(git rev-parse HEAD)
+  [[ "$BEFORE_HEAD" == "$AFTER_HEAD" ]] || {
+    echo "HEAD drifted: $BEFORE_HEAD -> $AFTER_HEAD" >&2
+    return 1
+  }
+}
+
+
+
+# --- namespaced project ------------------------------------------------------
+
+@test "namespaced project: end-to-end reindex preserves namespace path" {
+  # Replace the flat-mode setup with a namespaced one.
+  teardown_project
+  setup_namespaced_project
+
+  # Seed main with one namespaced decision so origin/main has known state.
+  create_decision "DL-001" "accepted" "auth"
+  bash "$SKILLS_DIR/dld-common/scripts/regenerate-index.sh" >/dev/null
+  git add -A
+  git commit --quiet -m "seed main"
+  git branch -M main
+  git checkout -b feature --quiet
+
+  # main lands DL-002 (in billing namespace) after feature branches.
+  git checkout main --quiet
+  create_decision "DL-002" "accepted" "billing"
+  bash "$SKILLS_DIR/dld-common/scripts/regenerate-index.sh" >/dev/null
+  git add -A
+  git commit --quiet -m "land DL-002 on main"
+  git checkout feature --quiet
+
+  # feature drafts DL-002 in the auth namespace (collides by ID, different path).
+  create_decision "DL-002" "proposed" "auth"
+  git add -A
+  git commit --quiet -m "feature: draft DL-002 in auth namespace"
+
+  # find-collisions picks up the namespaced addition.
+  run bash -c "bash \"$REINDEX_DIR/find-collisions.sh\" --base main 2>/dev/null"
+  assert_success
+  assert_output --partial $'decisions/records/auth/DL-002.md\tDL-002'
+
+  # Full flow.
+  PLAN=$(bash "$REINDEX_DIR/plan-renames.sh" --base main 2>/dev/null)
+  echo "$PLAN" | while IFS=$'\t' read -r path old new; do
+    bash "$REINDEX_DIR/rename-decision.sh" --old "$old" --new "$new" --path "$path" --base main
+  done >/dev/null
+  echo "$PLAN" | bash "$REINDEX_DIR/commit-reindex.sh" --base main >/dev/null
+
+  # The renamed file lives in the same namespace dir as the original.
+  [[ ! -f decisions/records/auth/DL-002.md ]]
+  [[ -f decisions/records/auth/DL-003.md ]]
+
+  # Rebase clean.
+  run git rebase main
+  assert_success
+
+  # Post-rebase: main's billing/DL-002 and feature's auth/DL-003 both exist.
+  [[ -f decisions/records/billing/DL-002.md ]]
+  [[ -f decisions/records/auth/DL-003.md ]]
+}
+
 # --- end-to-end --------------------------------------------------------------
 
 @test "end-to-end: post-reindex branch rebases cleanly onto main" {

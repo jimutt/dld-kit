@@ -47,8 +47,11 @@ fi
 
 DECISIONS_DIR_REL="$(config_get decisions_dir)"
 
-# Locally-changed files (working-tree state included — matches rename-decision.sh).
-CHANGED_FILES=$(git diff --find-renames --name-only --diff-filter=AMR "$BASE" 2>/dev/null || true)
+# Locally-changed files (working-tree state included; diffed against the
+# merge-base for the same reason rename-decision.sh does — avoid conflating
+# main's post-branch-point changes with feature's local work).
+MERGE_BASE=$(git merge-base "$BASE" HEAD)
+CHANGED_FILES=$(git diff --find-renames --name-only --diff-filter=AMR "$MERGE_BASE" 2>/dev/null || true)
 
 if [[ -z "$CHANGED_FILES" ]]; then
   exit 0

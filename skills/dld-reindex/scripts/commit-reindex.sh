@@ -111,6 +111,22 @@ else
   SUBJECT="reindex local decisions: $RENAMES"
 fi
 
+# Capture the original HEAD so a failure after the reset can roll back. Without
+# this, an interrupted commit-reindex leaves the branch at merge-base with the
+# renames floating in the working tree — confusing to recover from.
+ORIG_HEAD=$(git rev-parse HEAD)
+HEAD_RESTORED=0
+restore_head_on_failure() {
+  local rc=$?
+  if [[ "$rc" -ne 0 && "$HEAD_RESTORED" -eq 0 ]]; then
+    if [[ "$(git rev-parse HEAD)" != "$ORIG_HEAD" ]]; then
+      echo "[commit-reindex] failed (exit $rc) — restoring HEAD to $ORIG_HEAD" >&2
+      git reset --quiet --soft "$ORIG_HEAD" || true
+    fi
+  fi
+}
+trap restore_head_on_failure EXIT
+
 # Mixed reset to merge-base — moves HEAD, clears the index, leaves the working tree alone.
 git reset --quiet "$MERGE_BASE"
 
@@ -156,5 +172,6 @@ ${RENAME_LIST%
 fi
 
 git commit --quiet -m "$FULL_MSG"
+HEAD_RESTORED=1  # past the point of no return — don't roll back on later non-zero exits
 NEW_HEAD=$(git rev-parse --short HEAD)
 echo "Created reindex commit $NEW_HEAD on top of $(git rev-parse --short "$MERGE_BASE")"

@@ -46,10 +46,13 @@ PR_BASE="${BASE#origin/}"
   git -C "$PROJECT_ROOT" ls-tree -r --name-only "$BASE" -- "$RECORDS_DIR_REL" 2>/dev/null \
     | grep -oE 'DL-[0-9]+' || true
 
-  # IDs in files touched by open PRs targeting this base
+  # IDs in files touched by open PRs targeting this base. Scope to paths under
+  # the records dir so an unrelated PR touching e.g. notes/DL-007-meeting.md
+  # doesn't poison the taken set.
   if [[ -z "$SKIP_REASON" ]]; then
     gh pr list --state open --base "$PR_BASE" --json files --limit 100 \
       --jq '.[].files[].path' 2>/dev/null \
+      | grep -E "^${RECORDS_DIR_REL}/" \
       | grep -oE 'DL-[0-9]+' || true
   fi
 } | sort -u
