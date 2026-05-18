@@ -83,6 +83,59 @@ teardown() {
   assert_output --partial "records directory not found"
 }
 
+@test "regenerate-index --include-base merges base-only decisions" {
+  # Seed `main` with DL-001 and DL-002, then branch off.
+  create_decision "DL-001" "accepted"
+  create_decision "DL-002" "accepted"
+  git add -A
+  git commit --quiet -m "seed main"
+  git branch -M main
+  git checkout -b feature --quiet
+
+  # Locally drop DL-002 and add DL-005 — simulates a renamed-away decision.
+  rm decisions/records/DL-002.md
+  create_decision "DL-005" "proposed"
+  git add -A
+  git commit --quiet -m "local DL-005"
+
+  run bash "$SCRIPT" --include-base main
+  assert_success
+
+  run cat decisions/INDEX.md
+  # Local DL-005 present
+  assert_output --partial "DL-005"
+  # Base-only DL-002 pulled in
+  assert_output --partial "DL-002"
+  # Shared DL-001 present
+  assert_output --partial "DL-001"
+}
+
+@test "regenerate-index --include-base prefers local content over base" {
+  create_decision "DL-001" "accepted"
+  git add -A
+  git commit --quiet -m "seed main"
+  git branch -M main
+  git checkout -b feature --quiet
+
+  # Edit DL-001 locally so we can detect which side wins.
+  sed -i.bak 's/^status: accepted$/status: superseded/' decisions/records/DL-001.md
+  rm decisions/records/DL-001.md.bak
+  git add -A
+  git commit --quiet -m "local edit"
+
+  bash "$SCRIPT" --include-base main
+  run cat decisions/INDEX.md
+  assert_output --partial "superseded"
+  refute_output --partial "| DL-001 | Test decision DL-001 | accepted |"
+}
+
+@test "regenerate-index --include-base rejects unknown ref" {
+  create_decision "DL-001" "accepted"
+  run bash "$SCRIPT" --include-base does/not/exist
+  assert_failure
+  assert_output --partial "not found"
+}
+
 @test "regenerate-index overwrites existing INDEX.md" {
   echo "old content" > decisions/INDEX.md
   create_decision "DL-001" "accepted"
