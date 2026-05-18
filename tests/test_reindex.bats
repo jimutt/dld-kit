@@ -11,7 +11,10 @@ setup() {
   REINDEX_DIR="$SKILLS_DIR/dld-reindex/scripts"
 
   # Establish a `main` branch with one decision already on it, then branch off.
+  # Seed INDEX.md alongside so the merge-base has it — mirrors a real project
+  # where /dld-init creates INDEX.md before any branch diverges.
   create_decision "DL-001" "accepted"
+  bash "$SKILLS_DIR/dld-common/scripts/regenerate-index.sh" >/dev/null
   git add -A
   git commit --quiet -m "seed main"
   git branch -M main
@@ -86,6 +89,34 @@ teardown() {
   # stderr note is captured into output by bats when stderr is merged; just
   # confirm the command still succeeded with the base-branch IDs.
   assert_output --partial "DL-001"
+}
+
+# --- resolve-base.sh ---------------------------------------------------------
+
+@test "resolve-base: returns upstream when it differs from the current branch" {
+  # Stand up a fake remote so @{upstream} resolves to a different branch.
+  git update-ref refs/remotes/origin/main HEAD
+  git config branch.feature.remote origin
+  git config branch.feature.merge refs/heads/main
+  run bash "$REINDEX_DIR/resolve-base.sh"
+  assert_success
+  assert_output "origin/main"
+}
+
+@test "resolve-base: falls back to origin/main when upstream equals current branch" {
+  # Simulate "the branch's upstream is its own remote copy".
+  git update-ref refs/remotes/origin/feature HEAD
+  git config branch.feature.remote origin
+  git config branch.feature.merge refs/heads/feature
+  run bash "$REINDEX_DIR/resolve-base.sh"
+  assert_success
+  assert_output "origin/main"
+}
+
+@test "resolve-base: falls back to origin/main when no upstream is configured" {
+  run bash "$REINDEX_DIR/resolve-base.sh"
+  assert_success
+  assert_output "origin/main"
 }
 
 # --- plan-renames.sh ---------------------------------------------------------
@@ -304,4 +335,170 @@ EOF
     --base main
   assert_failure
   assert_output --partial "DL-[0-9]+"
+}
+
+# --- commit-reindex.sh -------------------------------------------------------
+
+@test "commit-reindex: squashes branch commits into a single reindex commit" {
+  # Two branch commits, both adding a colliding decision.
+  git checkout main --quiet
+  create_decision "DL-002" "accepted"
+  git add -A
+  git commit --quiet -m "land DL-002 on main"
+  git checkout feature --quiet
+
+  create_decision "DL-002" "proposed"
+  git add -A
+  git commit --quiet -m "feature: draft DL-002"
+
+  mkdir -p src
+  echo "# @decision(DL-002)" > src/foo.txt
+  git add -A
+  git commit --quiet -m "feature: add annotation"
+
+  # Apply the reindex flow as the SKILL would. INDEX.md is deliberately NOT
+  # regenerated here — commit-reindex.sh leaves INDEX.md at merge-base state.
+  PLAN=$(bash "$REINDEX_DIR/plan-renames.sh" --base main 2>/dev/null)
+  echo "$PLAN" | while IFS=$'\t' read -r path old new; do
+    bash "$REINDEX_DIR/rename-decision.sh" --old "$old" --new "$new" --path "$path" --base main
+  done >/dev/null
+  echo "$PLAN" | bash "$REINDEX_DIR/commit-reindex.sh" --base main >/dev/null
+
+  # Exactly one commit on feature above merge-base.
+  MERGE_BASE=$(git merge-base main HEAD)
+  run git log --format='%s' "$MERGE_BASE"..HEAD
+  assert_success
+  assert_line --index 0 --partial "reindex local decisions"
+
+  COMMIT_COUNT=$(git log --format='%s' "$MERGE_BASE"..HEAD | wc -l | tr -d ' ')
+  [[ "$COMMIT_COUNT" -eq 1 ]]
+}
+
+@test "commit-reindex: leaves INDEX.md at merge-base state (not modified by the reindex commit)" {
+  git checkout main --quiet
+  create_decision "DL-002" "accepted"
+  git add -A
+  git commit --quiet -m "land DL-002 on main"
+  git checkout feature --quiet
+
+  create_decision "DL-002" "proposed"
+  bash "$SKILLS_DIR/dld-common/scripts/regenerate-index.sh" >/dev/null
+  git add -A
+  git commit --quiet -m "feature: draft DL-002 + INDEX update"
+
+  PLAN=$(bash "$REINDEX_DIR/plan-renames.sh" --base main 2>/dev/null)
+  echo "$PLAN" | while IFS=$'\t' read -r path old new; do
+    bash "$REINDEX_DIR/rename-decision.sh" --old "$old" --new "$new" --path "$path" --base main
+  done >/dev/null
+  echo "$PLAN" | bash "$REINDEX_DIR/commit-reindex.sh" --base main >/dev/null
+
+  # The reindex commit's INDEX.md must match the merge-base's INDEX.md exactly.
+  MERGE_BASE=$(git merge-base main HEAD)
+  run git diff "$MERGE_BASE" HEAD -- decisions/INDEX.md
+  assert_success
+  assert_output ""
+
+  # Working tree's INDEX.md also matches (so the user doesn't see uncommitted changes).
+  run git status --porcelain decisions/INDEX.md
+  assert_output ""
+}
+
+@test "commit-reindex: does NOT sweep in untracked unrelated paths" {
+  git checkout main --quiet
+  create_decision "DL-002" "accepted"
+  git add -A
+  git commit --quiet -m "land DL-002 on main"
+  git checkout feature --quiet
+
+  create_decision "DL-002" "proposed"
+  git add -A
+  git commit --quiet -m "feature: draft DL-002"
+
+  # Drop an untracked file that should NOT end up in the squashed commit.
+  mkdir -p .claude/worktrees
+  echo "scratch" > .claude/worktrees/random.txt
+  echo "stray" > untracked-stray.txt
+
+  PLAN=$(bash "$REINDEX_DIR/plan-renames.sh" --base main 2>/dev/null)
+  echo "$PLAN" | while IFS=$'\t' read -r path old new; do
+    bash "$REINDEX_DIR/rename-decision.sh" --old "$old" --new "$new" --path "$path" --base main
+  done >/dev/null
+  echo "$PLAN" | bash "$REINDEX_DIR/commit-reindex.sh" --base main >/dev/null
+
+  # The committed tree must NOT contain the untracked stray files.
+  run git ls-tree -r HEAD
+  refute_output --partial ".claude/worktrees/random.txt"
+  refute_output --partial "untracked-stray.txt"
+
+  # They should still be present on disk (we didn't delete them).
+  [[ -f .claude/worktrees/random.txt ]]
+  [[ -f untracked-stray.txt ]]
+}
+
+@test "commit-reindex: errors out when stdin plan is empty" {
+  run bash -c "echo '' | bash \"$REINDEX_DIR/commit-reindex.sh\" --base main"
+  assert_failure
+  assert_output --partial "no rename plan"
+}
+
+# --- end-to-end --------------------------------------------------------------
+
+@test "end-to-end: post-reindex branch rebases cleanly onto main" {
+  # main lands DL-002 + DL-003 + DL-004 after the branch point.
+  git checkout main --quiet
+  create_decision "DL-002" "accepted"
+  create_decision "DL-003" "accepted"
+  create_decision "DL-004" "accepted"
+  bash "$SKILLS_DIR/dld-common/scripts/regenerate-index.sh" >/dev/null
+  git add -A
+  git commit --quiet -m "land DL-002 DL-003 DL-004"
+  git checkout feature --quiet
+
+  # feature drafts DL-002 and DL-003 with annotations.
+  create_decision "DL-002" "proposed"
+  create_decision "DL-003" "proposed"
+  mkdir -p src
+  echo "# @decision(DL-002)" > src/auth.py
+  echo "# @decision(DL-003)" > src/billing.py
+  bash "$SKILLS_DIR/dld-common/scripts/regenerate-index.sh" >/dev/null
+  git add -A
+  git commit --quiet -m "feature: draft DL-002 and DL-003 + annotations"
+
+  # Run the SKILL's flow (no INDEX regen during reindex — commit-reindex.sh
+  # leaves INDEX.md alone so the rebase is conflict-free).
+  PLAN=$(bash "$REINDEX_DIR/plan-renames.sh" --base main 2>/dev/null)
+  echo "$PLAN" | while IFS=$'\t' read -r path old new; do
+    bash "$REINDEX_DIR/rename-decision.sh" --old "$old" --new "$new" --path "$path" --base main
+  done >/dev/null
+  echo "$PLAN" | bash "$REINDEX_DIR/commit-reindex.sh" --base main >/dev/null
+
+  # Now rebase onto main — this used to fail with an add/add conflict.
+  run git rebase main
+  assert_success
+
+  # After rebase: main's DL-002 and DL-003 exist, and the renamed locals exist.
+  [[ -f decisions/records/DL-002.md ]]
+  [[ -f decisions/records/DL-003.md ]]
+  [[ -f decisions/records/DL-005.md ]]
+  [[ -f decisions/records/DL-006.md ]]
+
+  # The DL-002 on disk is main's version (status: accepted), not the draft.
+  run grep '^status:' decisions/records/DL-002.md
+  assert_output --partial "accepted"
+
+  # Annotations were rewritten to the new IDs.
+  run cat src/auth.py
+  assert_output --partial "@decision(DL-005)"
+  run cat src/billing.py
+  assert_output --partial "@decision(DL-006)"
+
+  # INDEX.md post-rebase matches main's INDEX.md (missing rows for renamed
+  # locals — the user needs to regenerate as documented).
+  run grep -c "DL-005\|DL-006" decisions/INDEX.md
+  assert_output "0"
+
+  # Regenerating INDEX.md post-rebase repopulates the renamed rows.
+  bash "$SKILLS_DIR/dld-common/scripts/regenerate-index.sh" >/dev/null
+  run grep -c "DL-005\|DL-006" decisions/INDEX.md
+  refute_output "0"
 }
