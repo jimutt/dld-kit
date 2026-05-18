@@ -14,6 +14,8 @@ You are helping the developer untangle decision ID collisions before they rebase
 
 Use the `AskUserQuestion` tool when prompting for the commit decision at the end. Everything else is deterministic and runs without user input.
 
+**Do not redirect any command output to `/tmp` files.** The scripts in this skill emit only what you need to act on; piping to `/tmp/*.txt`, `tee`-ing into scratch files, or stashing stderr separately is unnecessary and creates clutter outside the repo. If a command's output is too long to read in one go, narrow it (`| tail -N`, `| head -N`, or pass a more specific flag) rather than persisting it.
+
 ## Script Paths
 
 Shared scripts:
@@ -24,6 +26,7 @@ Shared scripts:
 
 Skill-specific scripts:
 ```
+scripts/plan-renames.sh
 scripts/find-collisions.sh
 scripts/list-taken-ids.sh
 scripts/rename-decision.sh
@@ -43,30 +46,29 @@ scripts/rename-decision.sh
    git fetch origin
    ```
 
-## Step 1: Detect collisions
+## Step 1: Plan the renames
 
 ```bash
-bash scripts/find-collisions.sh --base "$BASE"
+bash scripts/plan-renames.sh --base "$BASE"
 ```
 
-The output is one line per collision: `<relative-path>\t<DL-NNN>`. If there is no output, exit with:
+This combines collision detection, the `gh`-aware "taken IDs" scan, and free-ID assignment into a single deterministic plan. Output is tab-separated, one rename per line:
+
+```
+<relative-path>\t<DL-OLD>\t<DL-NEW>
+```
+
+If the output is empty, exit with:
 
 > No ID collisions detected. Safe to rebase onto `$BASE`.
 
-The same script's underlying `list-taken-ids.sh` may print a stderr note like `[dld-reindex] open PRs not scanned: gh CLI not installed`. **Always surface this to the user** so they know the renamed IDs were chosen against base-branch state only and may still collide with an open PR.
+`plan-renames.sh` may print a stderr note like `[dld-reindex] open PRs not scanned: gh CLI not installed` (from the underlying `list-taken-ids.sh`). **Always surface this to the user** so they know the renamed IDs were chosen against base-branch state only and may still collide with an open PR. To read stderr alongside stdout in a single Bash call, append `2>&1` — do not split the output into separate `/tmp` files.
 
-## Step 2: Compute the next free IDs
+The underlying helpers (`find-collisions.sh`, `list-taken-ids.sh`) remain available for debugging, but the SKILL flow always goes through `plan-renames.sh`.
 
-Collect the inputs:
+## Step 2: Apply renames
 
-- `TAKEN` — output of `bash scripts/list-taken-ids.sh --base "$BASE"`. IDs already used on the base branch (and on open PRs when `gh` is available).
-- `LOCAL_KEPT` — local-added decision IDs that are NOT in the collision list. These are IDs the user is keeping; they must not be reassigned to anything else.
-
-Compute the highest numeric ID across `TAKEN ∪ LOCAL_KEPT`. Assign the next sequential IDs (`max + 1`, `max + 2`, …) to the colliding decisions **in numeric order**, padded with `printf "DL-%03d"`.
-
-## Step 3: Apply renames
-
-For each colliding decision (in order), call:
+For each line in the plan output, call:
 
 ```bash
 bash scripts/rename-decision.sh --old DL-OLD --new DL-NEW --path <relative-path> --base "$BASE"
@@ -82,7 +84,7 @@ bash scripts/rename-decision.sh --old DL-OLD --new DL-NEW --path <relative-path>
 
 The substitution is digit-aware: renaming `DL-100` will not accidentally rewrite `DL-1000`.
 
-## Step 4: Regenerate INDEX.md
+## Step 3: Regenerate INDEX.md
 
 Pass `--include-base` so the regenerated INDEX merges in decisions that exist on the base branch but not yet locally. Without this flag, the regenerated INDEX would only contain rows the branch knows about, and the subsequent rebase would conflict with main's INDEX rows for decisions added on main since the branch diverged.
 
@@ -90,7 +92,7 @@ Pass `--include-base` so the regenerated INDEX merges in decisions that exist on
 bash ../dld-common/scripts/regenerate-index.sh --include-base "$BASE"
 ```
 
-## Step 5: Ask about committing
+## Step 4: Ask about committing
 
 Present the rename table to the user (old ID → new ID, one row per rename) and ask via `AskUserQuestion`:
 
@@ -110,7 +112,7 @@ reindex local decisions: DL-OLD1 -> DL-NEW1, DL-OLD2 -> DL-NEW2
 
 For more than three renames, summarize as `reindex N local decisions to avoid base-branch collisions` and put the full table in the body.
 
-## Step 6: Report
+## Step 5: Report
 
 Print:
 

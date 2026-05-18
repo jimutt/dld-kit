@@ -88,6 +88,58 @@ teardown() {
   assert_output --partial "DL-001"
 }
 
+# --- plan-renames.sh ---------------------------------------------------------
+
+@test "plan-renames: empty output when there are no collisions" {
+  create_decision "DL-005" "proposed"
+  git add -A
+  git commit --quiet -m "local DL-005"
+
+  run bash -c "bash \"$REINDEX_DIR/plan-renames.sh\" --base main 2>/dev/null"
+  assert_success
+  assert_output ""
+}
+
+@test "plan-renames: assigns the next free ID above max(taken ∪ local_added)" {
+  # main lands DL-007 after the branch point.
+  git checkout main --quiet
+  create_decision "DL-007" "accepted"
+  git add -A
+  git commit --quiet -m "land DL-007 on main"
+  git checkout feature --quiet
+
+  # Local adds DL-007 (collides with main) and DL-009 (kept).
+  create_decision "DL-007" "proposed"
+  create_decision "DL-009" "proposed"
+  git add -A
+  git commit --quiet -m "local DL-007 and DL-009"
+
+  run bash -c "bash \"$REINDEX_DIR/plan-renames.sh\" --base main 2>/dev/null"
+  assert_success
+  # max(taken ∪ local_added) = max({DL-001, DL-007} ∪ {DL-007, DL-009}) = 9 → next free = DL-010
+  assert_output --partial $'decisions/records/DL-007.md\tDL-007\tDL-010'
+}
+
+@test "plan-renames: multiple collisions get sequential free IDs" {
+  git checkout main --quiet
+  create_decision "DL-002" "accepted"
+  create_decision "DL-003" "accepted"
+  git add -A
+  git commit --quiet -m "land DL-002 and DL-003 on main"
+  git checkout feature --quiet
+
+  create_decision "DL-002" "proposed"
+  create_decision "DL-003" "proposed"
+  git add -A
+  git commit --quiet -m "local DL-002 and DL-003"
+
+  run bash -c "bash \"$REINDEX_DIR/plan-renames.sh\" --base main 2>/dev/null"
+  assert_success
+  # max(taken) = 3, max(local_added) = 3 → next free = DL-004, DL-005
+  assert_output --partial $'decisions/records/DL-002.md\tDL-002\tDL-004'
+  assert_output --partial $'decisions/records/DL-003.md\tDL-003\tDL-005'
+}
+
 # --- rename-decision.sh ------------------------------------------------------
 
 @test "rename-decision: git mv preserves rename history" {
