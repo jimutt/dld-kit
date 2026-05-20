@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "dld-kit",
+  "description": "Decision-Linked Development — skills for recording, linking, and auditing development decisions.",
+  "owner": {
+    "name": "Jimmy Utterström"
+  },
+  "plugins": [
+    {
+      "name": "dld",
+      "description": "Decision-Linked Development skills (init, decide, plan, implement, lookup, audit, snapshot, retrofit, adjust, reindex, status).",
+      "source": "./",
+      "category": "development",
+      "version": "0.7.0",
+      "homepage": "https://github.com/jimutt/dld-kit",
+      "tags": ["decisions", "documentation", "workflow"]
+    }
+  ]
+}
