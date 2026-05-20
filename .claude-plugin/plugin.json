@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "dld",
+  "version": "0.7.0",
+  "description": "Decision-Linked Development — record, link, and maintain development decisions alongside code via @decision annotations. Skills for planning, recording, implementing, auditing, and documenting decisions.",
+  "author": {
+    "name": "Jimmy Utterström",
+    "url": "https://github.com/jimutt"
+  },
+  "homepage": "https://github.com/jimutt/dld-kit",
+  "repository": "https://github.com/jimutt/dld-kit",
+  "license": "MIT",
+  "keywords": [
+    "decisions",
+    "documentation",
+    "workflow",
+    "annotations",
+    "architecture",
+    "context"
+  ]
+}

@@ -13,6 +13,15 @@ AI agents write code confidently. They just don't know *why* your code looks the
 
 ### Install
 
+**Via the Claude Code plugin marketplace** (Claude Code only):
+
+```
+/plugin marketplace add jimutt/dld-kit
+/plugin install dld@dld-kit
+```
+
+Skills are invoked as `/dld:dld-decide`, `/dld:dld-plan`, etc.
+
 **Via [Tessl](https://tessl.io)** (works across Claude Code, Cursor, Copilot, etc.):
 
 ```bash
@@ -25,7 +34,7 @@ tessl install dld-kit/dld
 cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
 ```
 
-Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
+After any of these, run `/dld-init` (or `/dld:dld-init` for the plugin) to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
 
 ### New feature or change
 
