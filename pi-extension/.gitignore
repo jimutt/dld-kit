@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+*.log
+bun.lock
+bun.lockb
+.bun-cache/
+.tsbuildinfo
+dist/
+build/
+.env
+.env.local
+.idea/
+.vscode/

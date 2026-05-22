@@ -1,0 +1,9 @@
+decisions_dir: decisions
+mode: flat
+annotation_prefix: '@decision'
+
+# Pi-extension-specific config. Portable DLD core ignores unknown keys;
+# the dld-kit-pi extension reads this on startup.
+harness:
+  guardrail_mode: surface   # off | surface | strict
+  lookback_turns: 6

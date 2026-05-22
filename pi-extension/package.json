@@ -1,0 +1,38 @@
+{
+  "name": "dld-kit-pi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi extension: Decision-Linked Development as a first-class harness feature (experimental)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jimutt/dld-kit",
+    "directory": "pi-extension"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "install:global": "bash bin/install-global.sh",
+    "uninstall:global": "bash bin/uninstall-global.sh"
+  },
+  "pi": {
+    "extensions": [
+      "./.pi/extensions/dld.ts"
+    ]
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "typebox": "*",
+    "typescript": "^5.6.0"
+  }
+}
