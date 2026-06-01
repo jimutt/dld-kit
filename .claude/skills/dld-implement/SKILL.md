@@ -97,6 +97,17 @@ def calculate_vat(order: Order) -> Money:
 - Multiple decisions can annotate the same code: `// @decision(DL-012) @decision(DL-015)`
 - Use the `annotation_prefix` from `dld.config.yaml` (default: `@decision`)
 
+**Keep annotations lean — the decision record is the single source of truth.**
+
+The point of `@decision(DL-NNN)` is to keep the rich context (rationale, constraints, alternatives, consequences) in the decision record, *not* scattered through the code. The annotation is a pointer, not a summary. Do not let implementing a decision turn into a comment-writing exercise.
+
+- **Default to the bare annotation.** `// @decision(DL-012)` on its own is the norm and is usually all you need.
+- **Do not restate the decision's context.** Don't paraphrase the rationale, the alternatives considered, or the "why" in comments. That duplicates the record, creates a second source of truth, and drifts the moment the decision is adjusted.
+- **Avoid "because" comments paired with the annotation.** `// @decision(DL-012)` already means "the reasoning lives in DL-012." Writing `// We use X because Y (see DL-012)` defeats the purpose — drop the "because Y."
+- **Only add a further comment when the *code itself* is genuinely non-obvious** — a subtle invariant, a non-intuitive workaround, a non-local ordering dependency. Such a comment should explain *what the code is doing*, never *why the decision was made* (that's the record's job).
+
+When in doubt, leave it out — a reader who wants the "why" follows the annotation to the decision record.
+
 ### 4. Update decision records
 
 For each implemented decision:
