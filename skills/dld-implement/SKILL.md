@@ -105,7 +105,6 @@ The point of `@decision(DL-NNN)` is to keep the rich context (rationale, constra
 - **Do not restate the decision's context.** Don't paraphrase the rationale, the alternatives considered, or the "why" in comments. That duplicates the record, creates a second source of truth, and drifts the moment the decision is adjusted.
 - **Avoid "because" comments paired with the annotation.** `// @decision(DL-012)` already means "the reasoning lives in DL-012." Writing `// We use X because Y (see DL-012)` defeats the purpose — drop the "because Y."
 - **Only add a further comment when the *code itself* is genuinely non-obvious** — a subtle invariant, a non-intuitive workaround, a non-local ordering dependency. Such a comment should explain *what the code is doing*, never *why the decision was made* (that's the record's job).
-- **Match the surrounding file's comment density.** If the codebase is sparse on comments, don't introduce a wave of new ones just because you implemented a decision.
 
 When in doubt, leave it out — a reader who wants the "why" follows the annotation to the decision record.
 
