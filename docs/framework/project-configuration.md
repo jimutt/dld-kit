@@ -65,6 +65,14 @@ namespaces:
   - shared
 ```
 
+### Implement Review
+
+When `implement_review` is `true` (the default), `/dld-implement` launches a review subagent over the changed files before finalizing. The point of using a separate agent is that it reads the diff cold — the implementing agent has just spent a long session convincing itself the code is right, and is poor at catching its own baked-in assumptions.
+
+**Harness note:** some harnesses tell agents not to spawn subagents unless the user explicitly asked — Claude Code 2.1.220 ships `Do not call the AgentTool unless the user requested it`. The skill answers this by stating that enabling `implement_review` and running the skill *is* the request. If the subagent still doesn't run, the skill falls back to an inline review and requires the agent to say so; treat those runs as a weaker check.
+
+Set `implement_review: false` to skip the step entirely — appropriate if the project already runs an independent review in CI or on the PR.
+
 ### Snapshot Artifacts
 
 The optional `snapshot_artifacts` key lets you define custom documentation artifacts that are generated alongside `SNAPSHOT.md` and `OVERVIEW.md` when running `/dld-snapshot`. Each artifact is synthesized from the current set of accepted decisions using a prompt you provide.
