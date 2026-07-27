@@ -7,10 +7,11 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 ## Directory structure
 
 ```
-tile.json                  # Tessl tile manifest (packaging for multi-agent distribution)
+.tessl-plugin/
+  plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
 rules/
   dld-workflow.md          # Tessl steering rule (always-on agent guidance)
-skills/                    # Tessl tile skills (used by tessl install)
+skills/                    # Tessl plugin skills (used by tessl install)
   dld-*/                   # Each skill has SKILL.md + optional scripts/
 .claude/skills/            # Claude Code skills (used by manual copy install)
   dld-*/                   # Mirror of skills/ — see "Dual directory" below
@@ -24,7 +25,7 @@ docs/
 
 Skills exist in **two places** that must be kept in sync:
 
-- **`skills/`** — The Tessl tile version. Referenced by `tile.json`. Uses relative script paths (`scripts/create-config.sh`). Has `compatibility` field instead of `user_invocable` in frontmatter. Validated by `tessl tile lint`.
+- **`skills/`** — The Tessl plugin version. Referenced by `.tessl-plugin/plugin.json`. Uses relative script paths (`scripts/create-config.sh`). Has `compatibility` field instead of `user_invocable` in frontmatter. Validated by `tessl plugin lint`.
 - **`.claude/skills/`** — The Claude Code manual-install version. Uses `.claude/skills/dld-*/scripts/` paths. Has `user_invocable: true` in frontmatter.
 
 The content (instructions, logic, templates) must match between the two. The differences are only in:
@@ -36,9 +37,9 @@ When modifying a skill, update **both** copies.
 
 ## Tessl packaging
 
-- `tile.json` defines the tile `dld-kit/dld@0.1.0`
+- `.tessl-plugin/plugin.json` defines the plugin `dld-kit/dld`
 - `rules/dld-workflow.md` is a steering rule (always loaded, ~300 tokens)
-- Validate with: `tessl tile lint`
+- Validate with: `tessl plugin lint`
 - The `@decision` pattern in markdown must be backtick-escaped (`` `@decision` ``) or the linter interprets it as a file reference
 
 ## Shell scripts
@@ -66,5 +67,5 @@ If tests fail with "Could not find bats-support", init submodules first: `git su
 
 - Commit messages: concise, no buzzwords
 - Use PRs for changes (project is maturing)
-- Run `tessl tile lint` before committing skill changes
+- Run `tessl plugin lint` before committing skill changes
 - Skills that involve user interaction should use the `AskUserQuestion` tool
