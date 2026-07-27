@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 # Tier 2: Structural and lint checks
 # Validates consistency between skills/ and .claude/skills/, script path
-# references, frontmatter fields, and tile.json integrity.
+# references, frontmatter fields, and plugin.json integrity.
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
@@ -148,32 +148,56 @@ setup() {
   done
 }
 
-# --- tile.json integrity ---
+# --- plugin.json integrity ---
 
-@test "tile.json references all skill directories" {
+@test "plugin.json exists and tile.json is gone" {
+  [[ -f "$REPO_ROOT/.tessl-plugin/plugin.json" ]] || {
+    echo "missing .tessl-plugin/plugin.json"
+    return 1
+  }
+  [[ ! -f "$REPO_ROOT/tile.json" ]] || {
+    echo "tile.json still present — plugin.json is authoritative, tile.json must be removed"
+    return 1
+  }
+}
+
+@test "plugin.json references all skill directories" {
   for dir in "$REPO_ROOT"/skills/dld-*/; do
     skill_name="$(basename "$dir")"
-    run grep "\"$skill_name\"" "$REPO_ROOT/tile.json"
-    assert_success "tile.json missing skill: $skill_name"
+    run grep "\"skills/$skill_name\"" "$REPO_ROOT/.tessl-plugin/plugin.json"
+    assert_success "plugin.json missing skill: $skill_name"
   done
 }
 
-@test "tile.json skill paths point to existing files" {
-  # Extract paths from tile.json
-  grep '"path":' "$REPO_ROOT/tile.json" | sed 's/.*"path":[[:space:]]*"\(.*\)".*/\1/' | while IFS= read -r path; do
-    if [[ ! -f "$REPO_ROOT/$path" ]]; then
-      echo "tile.json references missing file: $path"
+@test "plugin.json skill entries point to directories containing SKILL.md" {
+  # Read entries into an array first — a `while` loop on the right-hand side of a
+  # pipe runs in a subshell, where a failing return cannot fail the test.
+  mapfile -t paths < <(sed -n '/"skills"/,/]/p' "$REPO_ROOT/.tessl-plugin/plugin.json" \
+    | grep -o '"skills/[^"]*"' | tr -d '"')
+  [[ ${#paths[@]} -gt 0 ]] || {
+    echo "no skill entries parsed from plugin.json"
+    return 1
+  }
+  for path in "${paths[@]}"; do
+    [[ -f "$REPO_ROOT/$path/SKILL.md" ]] || {
+      echo "plugin.json references skill without SKILL.md: $path"
       return 1
-    fi
+    }
   done
 }
 
-@test "tile.json steering rule path exists" {
-  grep '"rules":' "$REPO_ROOT/tile.json" | sed 's/.*"rules":[[:space:]]*"\(.*\)".*/\1/' | while IFS= read -r path; do
-    if [[ ! -f "$REPO_ROOT/$path" ]]; then
-      echo "tile.json steering rule missing: $path"
+@test "plugin.json steering rule paths exist" {
+  mapfile -t rules < <(sed -n '/"rules"/,/]/p' "$REPO_ROOT/.tessl-plugin/plugin.json" \
+    | grep -o '"rules/[^"]*"' | tr -d '"')
+  [[ ${#rules[@]} -gt 0 ]] || {
+    echo "no rule entries parsed from plugin.json"
+    return 1
+  }
+  for path in "${rules[@]}"; do
+    [[ -f "$REPO_ROOT/$path" ]] || {
+      echo "plugin.json steering rule missing: $path"
       return 1
-    fi
+    }
   done
 }
 
