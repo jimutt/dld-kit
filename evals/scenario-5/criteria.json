@@ -1,0 +1,78 @@
+{
+  "context": "Tests whether the agent correctly runs dld-snapshot on a flat DLD project with no prior state, generates SNAPSHOT.md and OVERVIEW.md according to skill rules, handles an invalid custom artifact (OVERVIEW.md collision), generates a valid custom artifact (ONBOARDING.md), uses correct Mermaid syntax in diagrams, and runs update-snapshot-state.sh with the right arguments.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "Full mode triggered",
+      "description": "The agent ran detect-snapshot-changes.sh (or recognized no prior .dld-state.yaml) and used full generation mode rather than incremental mode",
+      "max_score": 8,
+      "category": "DESIGN"
+    },
+    {
+      "name": "SNAPSHOT.md exists",
+      "description": "decisions/SNAPSHOT.md is present and non-empty",
+      "max_score": 7,
+      "category": "INTENT"
+    },
+    {
+      "name": "Only accepted decisions",
+      "description": "SNAPSHOT.md contains entries for all five accepted decisions (DL-001 through DL-005) and does NOT include any proposed, superseded, or deprecated entries",
+      "max_score": 8,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "Grouped by tag",
+      "description": "SNAPSHOT.md groups decisions under tag-based headings (e.g., ## api-design, ## error-handling, ## reliability, ## authentication, ## observability) rather than listing them flat",
+      "max_score": 8,
+      "category": "DESIGN"
+    },
+    {
+      "name": "OVERVIEW.md exists",
+      "description": "decisions/OVERVIEW.md is present and non-empty",
+      "max_score": 7,
+      "category": "INTENT"
+    },
+    {
+      "name": "Mermaid diagram present",
+      "description": "OVERVIEW.md contains at least one Mermaid code block (```mermaid ... ```)",
+      "max_score": 7,
+      "category": "INTENT"
+    },
+    {
+      "name": "Quoted node labels",
+      "description": "All Mermaid node labels in OVERVIEW.md use double-quoted bracket syntax [\"...\"] rather than bare or single-quoted labels",
+      "max_score": 8,
+      "category": "EDGE_CASE"
+    },
+    {
+      "name": "@ escaped as #64;",
+      "description": "Any @ symbol appearing inside a Mermaid node or edge label (e.g., referencing @PaymentGateway) is written as #64; rather than a raw @ character",
+      "max_score": 8,
+      "category": "EDGE_CASE"
+    },
+    {
+      "name": "ONBOARDING.md generated",
+      "description": "decisions/ONBOARDING.md is present — the valid custom artifact from snapshot_artifacts was generated",
+      "max_score": 8,
+      "category": "INTENT"
+    },
+    {
+      "name": "OVERVIEW.md collision skipped",
+      "description": "The agent did NOT overwrite or duplicate OVERVIEW.md as a custom artifact; the collision with the reserved filename was detected and the entry skipped (snapshot-run-log.txt or other output notes the skip)",
+      "max_score": 9,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "State records only the valid artifact",
+      "description": "decisions/.dld-state.yaml has a snapshot: block whose 'artifacts:' list includes ONBOARDING.md and does NOT include OVERVIEW.md - the reserved-filename entry must be excluded from the recorded artifact set, not merely skipped during generation.",
+      "max_score": 12,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": ".dld-state.yaml updated",
+      "description": "decisions/.dld-state.yaml exists after the run and contains a snapshot: section with a commit_hash and decisions_included field",
+      "max_score": 10,
+      "category": "INTEGRATION"
+    }
+  ]
+}

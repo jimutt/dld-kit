@@ -1,0 +1,60 @@
+{
+  "context": "Tests whether the agent follows dld-reindex skill instructions when resolving decision ID collisions: using plan-renames.sh as the main entry point (not the raw helpers), committing via commit-reindex.sh (not git add -A/git commit -a), avoiding scratch-file clutter, surfacing the gh CLI unavailability note to the user, and documenting the correct force-push command for when the developer needs to push.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "plan-renames.sh used",
+      "description": "reindex-summary.md presents a rename plan consistent with plan-renames.sh output (both collisions found in one pass, next free IDs assigned as DL-006 and DL-007), rather than a partial plan from find-collisions.sh or list-taken-ids.sh alone.",
+      "max_score": 12,
+      "category": "REUSE"
+    },
+    {
+      "name": "DL-004 renamed correctly",
+      "description": "The feature branch's DL-004.md (OpenTelemetry decision) is renamed to DL-006.md in the git history or working tree",
+      "max_score": 12,
+      "category": "INTENT"
+    },
+    {
+      "name": "DL-005 renamed correctly",
+      "description": "The feature branch's DL-005.md (structured logging decision) is renamed to DL-007.md in the git history or working tree",
+      "max_score": 12,
+      "category": "INTENT"
+    },
+    {
+      "name": "commit-reindex.sh used",
+      "description": "The reindex commit message follows the template produced by commit-reindex.sh: a 'reindex local decisions: DL-004 -> DL-006, DL-005 -> DL-007' subject, a 'Renames:' section listing both renames, and a 'Squashed from original branch commits:' section listing the two original commit subjects. Verifiable with `git log -1 --format=%B`.",
+      "max_score": 12,
+      "category": "REUSE"
+    },
+    {
+      "name": "No scratch files",
+      "description": "The workspace does not contain any output-redirect scratch files (e.g. plan.txt, renames.txt, collisions.txt, output.txt) outside the decisions directory — no evidence of 'cmd > somefile.txt' pattern",
+      "max_score": 8,
+      "category": "MINIMALITY"
+    },
+    {
+      "name": "Open-PR scan skip surfaced",
+      "description": "reindex-summary.md reports whether the open-PR scan ran. In this fixture origin is a local bare repo, so plan-renames.sh emits '[dld-reindex] open PRs not scanned: origin is not a GitHub remote'; the summary should surface that skip (by either reason - no gh CLI, or non-GitHub remote) and note the IDs were chosen against base-branch state only and may still collide with open PRs. Award full credit for either accurate reason; award nothing if the summary claims the PR scan succeeded or omits the caveat.",
+      "max_score": 14,
+      "category": "EDGE_CASE"
+    },
+    {
+      "name": "Squash commit present",
+      "description": "The feature branch has a single reindex commit replacing the original two commits (git log shows one commit ahead of the merge-base with a dld-reindex message)",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "force-with-lease in next steps",
+      "description": "reindex-summary.md next steps reference git push --force-with-lease (not bare --force) for when the developer needs to push the rewritten branch",
+      "max_score": 10,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "reindex-summary.md completeness",
+      "description": "reindex-summary.md exists and includes: the rename table (DL-004 -> DL-006, DL-005 -> DL-007), the squashed commit hash, and the next steps (rebase then regenerate-index.sh)",
+      "max_score": 10,
+      "category": "INTENT"
+    }
+  ]
+}

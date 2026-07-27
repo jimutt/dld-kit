@@ -1,0 +1,66 @@
+{
+  "context": "Tests whether the agent correctly retrofits DLD onto an existing Python REST API codebase in broad mode: identifying system-framing decisions first, annotating at the file level (not function level), marking all decisions as accepted, and regenerating INDEX.md after creating records.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "System-framing decision exists",
+      "description": "At least one decision record captures a system-framing concern: system purpose/identity (what the service is and why it exists), core domain model, or key integration boundaries — not just an implementation detail like which library to use",
+      "max_score": 14,
+      "category": "DESIGN"
+    },
+    {
+      "name": "System purpose captured",
+      "description": "One decision record explicitly describes what this service/application is and why it exists (e.g. a task/todo management REST API), not merely what technology it uses",
+      "max_score": 8,
+      "category": "INTENT"
+    },
+    {
+      "name": "At least 3 decisions created",
+      "description": "At least 3 DL-*.md files exist under decisions/records/",
+      "max_score": 8,
+      "category": "INTENT"
+    },
+    {
+      "name": "All decisions marked accepted",
+      "description": "Every generated decision record has 'status: accepted' in its YAML frontmatter — none remain at 'status: proposed'",
+      "max_score": 12,
+      "category": "INTENT"
+    },
+    {
+      "name": "update-status.sh used for accepted",
+      "description": "The agent ran update-status.sh (not manual frontmatter edits) to flip status to accepted — evidenced by the script's output or the correct frontmatter produced by that script",
+      "max_score": 8,
+      "category": "REUSE"
+    },
+    {
+      "name": "next-id.sh used before each decision",
+      "description": "Each decision was created using an ID obtained from next-id.sh (IDs are sequential: DL-001, DL-002, DL-003 ...) — no IDs are skipped or invented without consulting the script",
+      "max_score": 8,
+      "category": "REUSE"
+    },
+    {
+      "name": "INDEX.md regenerated",
+      "description": "decisions/INDEX.md lists all created decisions (not empty) — indicates regenerate-index.sh was run after the records were created",
+      "max_score": 10,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "Module-level annotations",
+      "description": "Every @decision(DL-NNN) annotation is placed at module level - either near the top of the file (before or among the imports / module docstring) or immediately above the file's main class or primary exported function. Broad mode produces file-level references, so an annotation attached to one helper among several is wrong; an annotation on the file's single principal class is correct even if it sits well below line 10.",
+      "max_score": 14,
+      "category": "DESIGN"
+    },
+    {
+      "name": "Annotations in source files",
+      "description": "At least 2 source files under src/ contain a @decision(DL-NNN) annotation",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "No incidental function annotations",
+      "description": "No @decision annotation is attached to a secondary helper, method, or nested function - i.e. to anything other than the module header or the file's main class/primary export. Annotating individual implementation details is narrow-mode behaviour and wrong for a broad-mode retrofit.",
+      "max_score": 8,
+      "category": "MUST_NOT"
+    }
+  ]
+}

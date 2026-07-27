@@ -1,0 +1,60 @@
+{
+  "context": "Tests whether the agent correctly runs all mandatory dld-audit steps: collecting annotations via find-annotations.sh, running the mandatory find-missing-amends.sh check, verifying prior audit commit reachability, surfacing amended-decision references as informational notes (not errors), and running update-audit-state.sh after the audit regardless of findings.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "All annotations enumerated in report",
+      "description": "audit-report.md enumerates the @decision annotations found across the codebase, not only the problematic ones - evidence the full sweep ran before issues were triaged.",
+      "max_score": 12,
+      "category": "INTENT"
+    },
+    {
+      "name": "Orphaned annotation reported",
+      "description": "audit-report.md identifies DL-099 as an orphaned annotation (referencing a non-existent decision ID)",
+      "max_score": 14,
+      "category": "INTENT"
+    },
+    {
+      "name": "Stale reference reported",
+      "description": "audit-report.md identifies DL-002 as having a stale reference to `src/old_module.py` (file does not exist)",
+      "max_score": 14,
+      "category": "INTENT"
+    },
+    {
+      "name": "Amendment check performed, not skipped",
+      "description": "audit-report.md covers missing amendment relationships as its own category with an explicit result - the amendment check is mandatory in the audit workflow, so a report that silently omits the category fails this even if no other issue was missed.",
+      "max_score": 10,
+      "category": "REUSE"
+    },
+    {
+      "name": "Missing amend reported",
+      "description": "audit-report.md identifies DL-004 as having a missing amendment relationship with DL-001 (body references DL-001 without declaring amends)",
+      "max_score": 14,
+      "category": "INTENT"
+    },
+    {
+      "name": "Amended decision as note not error",
+      "description": "audit-report.md surfaces the DL-001 + DL-003 amendment relationship as an informational note, NOT as an error or issue",
+      "max_score": 10,
+      "category": "EDGE_CASE"
+    },
+    {
+      "name": "Reachability check noted or skipped correctly",
+      "description": "audit-report.md mentions that the unreferenced-changes check was skipped (no prior .dld-state.yaml with commit hash exists), OR correctly notes no prior audit state was found",
+      "max_score": 8,
+      "category": "EDGE_CASE"
+    },
+    {
+      "name": "decisions/.dld-state.yaml created",
+      "description": "`decisions/.dld-state.yaml` exists in the workspace after the audit (created by update-audit-state.sh)",
+      "max_score": 10,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "audit-report.md summary present",
+      "description": "audit-report.md includes a summary section with counts of issues found (e.g., number of orphaned annotations, stale references)",
+      "max_score": 8,
+      "category": "INTENT"
+    }
+  ]
+}

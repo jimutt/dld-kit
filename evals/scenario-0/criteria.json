@@ -1,0 +1,54 @@
+{
+  "context": "Tests whether the agent correctly initializes DLD by checking for a pre-existing config file, running all three init scripts in the correct order, and appending DLD instructions to CLAUDE.md without destroying existing content.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "dld.config.yaml created",
+      "description": "A dld.config.yaml file exists at the repo root with mode set to flat",
+      "max_score": 12,
+      "category": "INTENT"
+    },
+    {
+      "name": "Config has the exact shape create-config.sh emits",
+      "description": "dld.config.yaml contains 'decisions_dir: decisions', 'mode: flat', and \"annotation_prefix: '@decision'\", and has NO 'namespaces:' block (create-config.sh omits it in flat mode). A hand-written config differing in key set does not earn this.",
+      "max_score": 14,
+      "category": "REUSE"
+    },
+    {
+      "name": "decisions/ directory created",
+      "description": "Both decisions/ and decisions/records/ exist at the repo root (create-directories.sh makes both).",
+      "max_score": 12,
+      "category": "INTENT"
+    },
+    {
+      "name": "INDEX.md created",
+      "description": "decisions/INDEX.md exists and contains a DLD decision table header",
+      "max_score": 12,
+      "category": "INTENT"
+    },
+    {
+      "name": "DLD block appended to CLAUDE.md",
+      "description": "CLAUDE.md contains the DLD section (including 'Decision-Linked Development' heading and DLD slash-command references)",
+      "max_score": 14,
+      "category": "INTENT"
+    },
+    {
+      "name": "Original CLAUDE.md content preserved",
+      "description": "CLAUDE.md still contains the original project notes text that was present before initialization (not replaced or truncated)",
+      "max_score": 18,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "init-log.md created",
+      "description": "An init-log.md file exists documenting the commands run and files created",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "Final CLAUDE.md shown in log",
+      "description": "init-log.md includes the full contents of CLAUDE.md after initialization",
+      "max_score": 8,
+      "category": "INTENT"
+    }
+  ]
+}

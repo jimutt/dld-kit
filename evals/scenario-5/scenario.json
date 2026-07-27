@@ -1,0 +1,1 @@
+{ "description": "DLD snapshot generation with Mermaid diagram syntax", "include": ["./inputs"] }
