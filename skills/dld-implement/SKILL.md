@@ -162,7 +162,21 @@ Files to review (read all of them):
 
 Also read the practices doc at {{practices_path}}
 
-Do NOT make any changes. Only report findings. Be concise — focus on actual issues, not style preferences ({{linter_name}} handles style). Group findings by severity: critical (must fix), moderate (should fix), and minor (nice to have).
+Focus on the changes made for these decisions; report pre-existing issues only where the new code interacts with them. Before reporting consistency findings, examine similar existing code in the repo to learn its conventions.
+
+Do NOT make any changes. Only report findings. Be concise — focus on actual issues, not style preferences ({{linter_name}} handles style).
+
+Report each finding in this format:
+
+### [SEVERITY] Short title
+- Location: `path/to/file.ext:42`
+- Description: what is wrong and why it matters
+- Recommendation: specific, actionable fix
+
+Group findings by severity:
+- Critical (must fix): incorrect behavior, data loss, or an exploitable vulnerability
+- Moderate (should fix): bugs in edge cases, missing error handling that can plausibly trigger
+- Minor (nice to have): simplifications and small improvements
 ```
 
 **Filling in the placeholders:**
