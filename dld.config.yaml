@@ -1,0 +1,3 @@
+decisions_dir: decisions
+mode: flat
+annotation_prefix: '@decision'

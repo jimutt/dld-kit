@@ -259,6 +259,7 @@ The review subagent operates with limited context and may flag false positives. 
 - [Decision record format](docs/framework/decision-record-format.md) — schema and field reference
 - [Project configuration](docs/framework/project-configuration.md) — config file and directory layout
 - [Skill design plan](docs/plan/skill-design.md) — detailed skill specifications
+- [Goal loop design plan](docs/plan/goal-loop.md) — long-running execution: run contracts, completion gating, Pi extension design
 
 ## Acknowledgements
 
