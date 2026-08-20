@@ -2,6 +2,8 @@
 
 ## Overview
 
+> **Status:** decisions recorded as DL-001 through DL-005 (tag `dld-goal`). This document is the narrative design; the decision records are the authoritative log. Where they disagree, the decisions win.
+
 DLD covers decision capture, implementation, and drift detection, but assumes a human paces the work: run `/dld-plan`, then `/dld-implement` per decision or batch. For large features — dozens of decisions, hours of agent work — this pacing is the bottleneck, and generic "goal loop" tooling (Ralph-style prompt re-injection) doesn't know about the decision log.
 
 This plan adds long-running execution to DLD as two components:
@@ -22,7 +24,7 @@ What DLD lacks is purely the loop machinery: continuation, context rotation, pro
 
 ## Core concepts
 
-### Run contract
+### Run contract — [DL-001](../../decisions/records/DL-001.md)
 
 A run is one goal being executed. Its durable state lives in the repo, not in the agent session:
 
@@ -54,7 +56,7 @@ Each work item in `state.json` carries one or more decisions (see [Work items an
 
 Decision hashes pin the item to the decisions' content at contract-authoring time. If a decision is adjusted mid-run, the hash mismatch invalidates the item and any cached verification.
 
-### Work items and batching
+### Work items and batching — [DL-002](../../decisions/records/DL-002.md)
 
 A work item is the unit of execution and verification. It is **one decision by default, but tightly coupled decisions batch into a single item** — the same rule `/dld-implement` already applies: decisions that touch the same code, share types, or depend on each other so heavily that implementing one without the others would produce incomplete or throwaway code are implemented together.
 
@@ -62,7 +64,7 @@ Batching is a property of the item, not an afterthought. A batched item carries 
 
 The trade-off is real: a batched item's verification can't tell you *which* decision's code caused a failure, and the review subagent sees a bigger, colder diff. Keep batches small and only batch when the coupling is genuine. Items that merely share a tag or a namespace are not coupled — they execute separately.
 
-### Completion as a transaction
+### Completion as a transaction — [DL-003](../../decisions/records/DL-003.md)
 
 An item completes only when all four steps pass, in order:
 
@@ -81,7 +83,7 @@ This matters more for DLD than for generic loops: a decision's rationale must ne
 
 The parent session acts as controller: it selects the next item, spawns the child, collects the result, runs the completion transaction, and advances. Between items it can run a scoped `/dld-audit` on touched files as a regression shield — catching cases where implementing DL-015 quietly drifted DL-012.
 
-### Blocked items
+### Blocked items — [DL-004](../../decisions/records/DL-004.md)
 
 An item becomes `blocked` when its completion transaction fails — a check won't pass, the review finds a critical issue the agent can't resolve, or the implementation hits a genuine contradiction with an existing decision.
 
@@ -131,7 +133,7 @@ For each `pending` item, in order:
 
 When no `pending` items remain: append a `run-complete` event, suggest `/dld-snapshot` to refresh the projection, and stop.
 
-## The Pi extension
+## The Pi extension — [DL-005](../../decisions/records/DL-005.md)
 
 The extension implements what a skill can't: harness lifecycle control. It reads the same contract files, so runs can move between manual skill mode and autonomous extension mode.
 
