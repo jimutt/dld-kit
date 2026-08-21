@@ -6,8 +6,12 @@ import { scriptPath } from "./paths.ts";
 // @decision(DL-006) @decision(DL-008)
 export type DldGoalApi = Pick<
 	ExtensionAPI,
-	"registerCommand" | "exec" | "appendEntry" | "on" | "sendUserMessage"
+	"registerCommand" | "exec" | "appendEntry" | "on" | "sendMessage"
 >;
+
+/** Time between agent_end and the deferred dispatch. Long enough for the
+ * session to settle, short enough to feel like a handoff. */
+const CONTINUATION_DELAY_MS = 100;
 
 export default function dldGoalExtension(pi: DldGoalApi): void {
 	const loop = new LoopController((command: string, args: string[], options?: ExecOptions): Promise<ExecResult> =>
@@ -43,27 +47,74 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 	pi.registerCommand("dld-goal", {
 		description: "Drive a goal run: start, pause, resume, stop, or status",
 		handler: async (args, ctx) => {
-			await handleGoalCommand(pi, loop, args, ctx);
+			await handleGoalCommand(pi, loop, args, ctx, scheduleContinuation);
 		},
 	});
 
 	// Event handlers must never throw: a broken continuation path would spam
 	// an error on every turn for the rest of the session. Fail closed — the
 	// worst outcome is that continuation stops, not that the session is flooded.
-	pi.on("agent_end", async (_event, ctx) => {
-		try {
-			const dispatched = await loop.onAgentEnd(loop.currentToken(), contextAdapterFor(ctx), uiAdapterFor(ctx));
-			if (dispatched) {
-				pi.sendUserMessage("Continue the run: work the noted item exactly as the skill describes.", {
-					deliverAs: "followUp",
-				});
-			}
-		} catch (error) {
-			ctx.ui.notify(
-				`dld-goal continuation failed: ${error instanceof Error ? error.message : String(error)}`,
-				"error",
-			);
+	// Continuation is scheduled, never awaited inside the handler. pi
+	// invalidates the extension runtime when the session tears down (print
+	// and RPC modes), and a handler still awaiting script calls at that
+	// point dies with a stale-ctx error. The timer lets the handler return
+	// immediately; the deferred callback re-checks the gates and dispatches
+	// through pi's message queue. Pattern follows pi-goal-pro.
+	let continuationTimer: ReturnType<typeof setTimeout> | null = null;
+	const clearTimer = () => {
+		if (continuationTimer) {
+			clearTimeout(continuationTimer);
+			continuationTimer = null;
 		}
+	};
+
+	// @decision(DL-013)
+	const scheduleContinuation = (ctx: ExtensionContext) => {
+		clearTimer();
+		continuationTimer = setTimeout(async () => {
+			continuationTimer = null;
+			try {
+				if (loop.isSuspended() || ctx.hasPendingMessages()) return;
+				const dispatched = await loop.onAgentEnd(loop.currentToken(), contextAdapterFor(ctx), uiAdapterFor(ctx));
+				if (dispatched) {
+					pi.sendMessage(
+						{
+							customType: "dld-goal:continuation",
+							content:
+								"Continue the goal run: work the item named in the last dld-goal notification, exactly as the dld-goal skill describes.",
+							display: false,
+						},
+						{ triggerTurn: true, deliverAs: "followUp" },
+					);
+				}
+			} catch (error) {
+				// A stale runtime during session teardown is expected; surface
+				// anything else once.
+				const message = error instanceof Error ? error.message : String(error);
+				if (!message.includes("stale")) {
+					ctx.ui.notify(`dld-goal continuation failed: ${message}`, "error");
+				}
+			}
+		}, CONTINUATION_DELAY_MS);
+	};
+
+	pi.on("agent_end", (_event, ctx) => {
+		if (loop.isSuspended() || ctx.hasPendingMessages()) {
+			clearTimer();
+			return;
+		}
+		scheduleContinuation(ctx);
+	});
+
+	// Any user input suspends continuation until the user resumes. This is
+	// what keeps a loop from dispatching over a user who is mid-sentence.
+	pi.on("input", () => {
+		clearTimer();
+		loop.suspend();
+	});
+
+	pi.on("session_shutdown", () => {
+		clearTimer();
 	});
 
 	pi.on("turn_end", async (_event, ctx) => {
@@ -78,7 +129,13 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 	});
 }
 
-async function handleGoalCommand(pi: DldGoalApi, loop: LoopController, args: string, ctx: ExtensionCommandContext): Promise<void> {
+async function handleGoalCommand(
+	pi: DldGoalApi,
+	loop: LoopController,
+	args: string,
+	ctx: ExtensionCommandContext,
+	scheduleContinuation: (ctx: ExtensionContext) => void,
+): Promise<void> {
 	const sub = args.trim().split(/\s+/)[0] || "status";
 	const workspace = ctx.cwd;
 	const exec = (command: string, commandArgs: string[], options?: ExecOptions) => pi.exec(command, commandArgs, options);
@@ -119,8 +176,9 @@ async function handleGoalCommand(pi: DldGoalApi, loop: LoopController, args: str
 				ctx.ui.notify(created.output, "error");
 				return;
 			}
-			loop.invalidate();
+			loop.resume();
 			ctx.ui.notify(`Created and activated run: ${created.output}`, "info");
+			scheduleContinuation(ctx);
 			return;
 		}
 		case "pause":
@@ -135,7 +193,12 @@ async function handleGoalCommand(pi: DldGoalApi, loop: LoopController, args: str
 			const status = sub === "pause" ? "paused" : sub === "resume" ? "active" : "stopped";
 			const result = await runScript("run-state.sh", ["set-status", slug, status]);
 			if (result.ok) {
-				loop.invalidate();
+				if (sub === "resume") {
+					loop.resume();
+					scheduleContinuation(ctx);
+				} else {
+					loop.invalidate();
+				}
 				const past = sub === "stop" ? "Stopped" : sub === "pause" ? "Paused" : "Resumed";
 				ctx.ui.notify(`${past} run ${slug}.`, "info");
 			} else {

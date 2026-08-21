@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-013 | Amend DL-008: continuation is a scheduled dispatch, not an awaited handler | accepted | dld-goal, extension, execution |
 | DL-012 | Amend DL-007: correct the delegated script list | accepted | dld-goal, architecture, state |
 | DL-011 | Run visibility is layered: status line, fixed-height widget, transcript cards, board overlay | proposed | dld-goal, extension, ui |
 | DL-010 | Compaction during a run is assembled deterministically from disk, never model-summarised | proposed | dld-goal, extension, context |

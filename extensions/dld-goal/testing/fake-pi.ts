@@ -249,6 +249,9 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 			for (const handler of handlers) {
 				results.push(await handler(payload, ctx));
 			}
+			// Extensions that defer work past the handler (timers, microtasks)
+			// need a beat for the deferred callback to run before assertions.
+			await new Promise((resolve) => setTimeout(resolve, 250));
 			return results;
 		},
 		async invokeCommand(name, args = "") {

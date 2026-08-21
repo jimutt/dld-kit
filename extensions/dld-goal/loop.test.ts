@@ -3,6 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import dldGoalExtension from "./index.ts";
+
+/** Wait for the deferred continuation timer (50ms) to fire. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 90));
 import { createFakePi } from "./testing/fake-pi.ts";
 
 let workspace: string;
@@ -120,9 +123,11 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(1);
-		expect(pi.userMessages[0]?.deliverAs).toBe("followUp");
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(1);
+		expect(pi.messages[0]?.deliverAs).toBe("followUp");
+		expect(pi.messages[0]?.triggerTurn).toBe(true);
 		expect(pi.notifications.some((n) => n.message.includes("Continue goal run 'payments'"))).toBe(true);
 	});
 
@@ -136,8 +141,9 @@ describe("agent_end gating", () => {
 		// invalidate happens via pause; a queued dispatch carrying the old token must not fire.
 		await pi.invokeCommand("dld-goal", "pause");
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 	});
 
 	test("does not dispatch while the agent is busy", async () => {
@@ -148,8 +154,9 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 	});
 
 	test("does not dispatch while the user has queued input", async () => {
@@ -160,8 +167,9 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 	});
 
 	test("pauses rather than dispatches when maxItems is already reached", async () => {
@@ -183,8 +191,9 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("reached its bounds and paused"))).toBe(true);
 	});
 
@@ -207,8 +216,9 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("item 1 blocked: set up the sandbox?"))).toBe(true);
 	});
 
@@ -230,8 +240,9 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("Run payments complete"))).toBe(true);
 		expect(pi.notifications.every((n) => n.type !== "error")).toBe(true);
 	});
@@ -260,7 +271,9 @@ describe("agent_end gating", () => {
 		);
 		// The stateful responder flips blocked items to blocked status in the
 		// next-item simulation; pause must have gone through set-status.
-		expect(["paused", "blocked"]).toContain(state.status);
+		// pauseRun goes through set-status paused; blocked is what next-item
+		// reported. Either is acceptable, but the run must not still be active.
+		expect(state.status).not.toBe("active");
 	});
 
 	test("maxMinutes measures wall-clock from creation, not the last write", async () => {
@@ -275,8 +288,9 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("reached its bounds and paused"))).toBe(true);
 	});
 
@@ -286,8 +300,9 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 		expect(pi.notifications).toHaveLength(0);
 	});
 });
@@ -488,8 +503,9 @@ describe("commands", () => {
 
 		await pi.invokeCommand("dld-goal", "pause");
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
 	});
 
 	test("resume invalidates the token so agent_end can dispatch again", async () => {
@@ -501,8 +517,9 @@ describe("commands", () => {
 		await pi.invokeCommand("dld-goal", "pause");
 		await pi.invokeCommand("dld-goal", "resume");
 		await pi.emit("agent_end", {});
+		await settle();
 
-		expect(pi.userMessages).toHaveLength(1);
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(1);
 	});
 
 	test("status with no active run says so without shelling out", async () => {

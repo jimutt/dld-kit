@@ -40,11 +40,27 @@ interface ActiveRun {
 
 export class LoopController {
 	private token = 0;
+	/** User input suspends continuation until an explicit resume. */
+	private suspended = false;
 	/** Items already told that they are waiting on review, so turn_end does not
 	 * repeat the warning on every turn while the item stays verifying. */
 	private reviewNagged = new Set<number>();
 
 	constructor(private exec: ExecLike) {}
+
+	suspend(): void {
+		this.suspended = true;
+		this.invalidate();
+	}
+
+	resume(): void {
+		this.suspended = false;
+		this.invalidate();
+	}
+
+	isSuspended(): boolean {
+		return this.suspended;
+	}
 
 	/** Mint a new token. Every queued continuation carrying an older token is void. */
 	invalidate(): number {
