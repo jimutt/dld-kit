@@ -74,11 +74,11 @@ Create a run.
 4. **Propose bounds, don't just ask for them.** Derive a default from the slicing and offer it as the recommended option:
 
    - **Max items** — the number of items in the agreed slicing. The run should not outlive its plan.
-   - **Max minutes** — roughly 20 minutes per decision in scope, so a 3-item run covering 4 decisions defaults to 80 minutes. Round to something readable.
+   - **Max minutes** — roughly 20 minutes per *decision* in scope, not per item. A 3-item run covering 4 decisions defaults to 4 × 20 = 80 minutes. Round to something readable.
 
-   > Bounds for this run — 3 items, 4 decisions:
+   > Bounds for this run — 3 items covering 4 decisions:
    >
-   > - **Recommended:** 3 items, 80 minutes (20 min per decision)
+   > - **Recommended:** 3 items, 80 minutes (4 decisions × 20 min)
    > - Tighter: 3 items, 45 minutes — stops early if work runs long
    > - No time limit: 3 items, unbounded
 
