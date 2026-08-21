@@ -113,6 +113,12 @@ bash scripts/run-state.sh add-item payment-gateway --decisions "DL-013"
 
 Add `--check` for each acceptance command the item needs beyond the project default, and `--annotation <path>` where you already know which file must carry the annotation. Both can be filled in later as implementation reveals them.
 
+Checks run without a shell. A check is split into argv on whitespace, and anything containing shell operators, quoting, or substitution is rejected — put those in a repo script and point the check at it:
+
+```bash
+--check "./scripts/check.sh billing"     # not "npm test && npm run lint"
+```
+
 Report the created run: item count, bounds, and the first item to be worked.
 
 ### Selecting work

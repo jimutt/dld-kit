@@ -380,3 +380,32 @@ annotate() {
   assert_failure
   assert_output --partial "--answer is required"
 }
+
+# --- checks execute without a shell ---
+
+@test "verify-item passes check arguments through literally" {
+  annotate DL-001
+  state add-item run-a --decisions "DL-001" --check "echo one two" >/dev/null
+  verify_item run-a 1
+
+  run jq -r '.items[0].evidence[1].output' .dld/runs/run-a/state.json
+  assert_output "one two"
+}
+
+@test "verify-item stores the check command as argv" {
+  annotate DL-001
+  state add-item run-a --decisions "DL-001" --check "echo hi" >/dev/null
+  verify_item run-a 1
+
+  run jq -c '.items[0].evidence[1].command' .dld/runs/run-a/state.json
+  assert_output '["echo","hi"]'
+}
+
+@test "verify-item reports a check binary that does not exist" {
+  annotate DL-001
+  state add-item run-a --decisions "DL-001" --check "definitely-not-a-real-binary" >/dev/null
+
+  run verify_item run-a 1
+  assert_failure
+  assert_output --partial "FAILED (127)"
+}

@@ -65,11 +65,23 @@ An item is the unit of execution and verification: one decision by default, or s
   "status": "pending",
   "acceptance": {
     "annotations": ["src/billing/vat.ts"],
-    "checks": ["npm test -- src/billing"]
+    "checks": [["npm", "test", "--", "src/billing"]]
   },
   "attempts": 0,
   "evidence": []
 }
+```
+
+### Checks run without a shell
+
+Each check is an argv array, executed directly. No shell parses stored contract content, so a check cannot smuggle in operators, substitution, or redirection. `add-item --check` accepts a plain command string, splits it on whitespace, and rejects anything containing shell metacharacters or quotes.
+
+This matters because checks execute later than they are written — during an unattended loop, in a resumed session, possibly on another machine when `goal_run_artifacts: commit` is set. Deferred execution of stored text is exactly where shell interpretation turns into a laundering path.
+
+Compound commands are not expressible in a contract by design. Put them in a repo script, which is versioned and reviewable:
+
+```bash
+--check "./scripts/check.sh billing"     # instead of "npm test && npm run lint"
 ```
 
 | Field | Type | Meaning |
@@ -78,7 +90,7 @@ An item is the unit of execution and verification: one decision by default, or s
 | `decisions` | array | The decisions this item implements, each pinned by intent hash. |
 | `status` | enum | `pending`, `implementing`, `verifying`, `accepted`, `blocked`, `skipped`, `failed`. |
 | `acceptance.annotations` | array | Paths expected to carry `@decision` annotations when the item completes. May be empty at planning time. |
-| `acceptance.checks` | array | Shell commands that must exit 0. Empty means the project default applies. |
+| `acceptance.checks` | array | Commands that must exit 0, each stored as an argv array. Empty means the project default applies. |
 | `attempts` | integer | Implementation attempts so far. One retry is allowed before an item blocks (DL-004). |
 | `evidence` | array | Verification results collected during completion, appended never rewritten. |
 

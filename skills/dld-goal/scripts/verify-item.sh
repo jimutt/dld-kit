@@ -10,6 +10,10 @@
 # recorded as evidence on the item whether they pass or fail — a failed run
 # leaves a record of what failed, not just that something did.
 #
+# Checks are stored as argv and executed directly. No shell is involved, so
+# contract content cannot be interpreted as shell syntax — a check that needs
+# operators or quoting belongs in a repo script.
+#
 # Exits 0 when everything passes, 1 when anything fails.
 #
 # This script does not decide what happens next. Retry, block, and accept are
@@ -76,30 +80,43 @@ record "$(jq -n \
 
 # --- acceptance checks ---
 
-while IFS= read -r check; do
-  [[ -z "$check" ]] && continue
+while IFS= read -r check_json; do
+  [[ -z "$check_json" ]] && continue
 
-  echo "running: $check"
+  # Rebuild argv. read/append rather than mapfile: bash 3.2 on macOS.
+  cmd=()
+  while IFS= read -r part; do
+    cmd+=("$part")
+  done < <(jq -r '.[]' <<<"$check_json")
+
+  if [[ ${#cmd[@]} -eq 0 ]]; then
+    continue
+  fi
+
+  DISPLAY="$(printf '%s ' "${cmd[@]}")"
+  DISPLAY="${DISPLAY% }"
+
+  echo "running: $DISPLAY"
   set +e
-  CHECK_OUTPUT="$(cd "$ROOT" && eval "$check" 2>&1)"
+  CHECK_OUTPUT="$(cd "$ROOT" && "${cmd[@]}" 2>&1)"
   CHECK_EXIT=$?
   set -e
 
   if [[ $CHECK_EXIT -ne 0 ]]; then
     FAILED=1
-    echo "FAILED ($CHECK_EXIT): $check"
+    echo "FAILED ($CHECK_EXIT): $DISPLAY"
   fi
 
   # Keep the tail: enough to diagnose, bounded so state.json stays readable.
   TAIL_OUTPUT="$(printf '%s' "$CHECK_OUTPUT" | tail -c 2000)"
 
   record "$(jq -n \
-    --arg check "$check" \
+    --argjson command "$check_json" \
     --argjson exit "$CHECK_EXIT" \
     --arg output "$TAIL_OUTPUT" \
     --arg at "$(utc_timestamp)" \
-    '{kind: "check", command: $check, exit: $exit, output: $output, at: $at}')" >/dev/null
-done < <(jq -r --argjson i "$INDEX" '.items[] | select(.index == $i) | .acceptance.checks[]?' "$STATE_FILE")
+    '{kind: "check", command: $command, exit: $exit, output: $output, at: $at}')" >/dev/null
+done < <(jq -c --argjson i "$INDEX" '.items[] | select(.index == $i) | .acceptance.checks[]?' "$STATE_FILE")
 
 if [[ $FAILED -eq 0 ]]; then
   bash "$SCRIPT_DIR/append-event.sh" "$SLUG" item-verified \

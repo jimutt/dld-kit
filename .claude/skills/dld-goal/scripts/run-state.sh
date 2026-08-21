@@ -13,6 +13,8 @@
 #
 #   run-state.sh add-item <slug> --decisions <DL-A,DL-B> [--check <cmd>]...
 #                                [--annotation <path>]...
+#                                Checks are stored as argv and run without a
+#                                shell; shell operators are rejected.
 #   run-state.sh get-item <slug> <index>     Print one item as JSON
 #   run-state.sh set-item-status <slug> <index> <status>
 #   run-state.sh add-evidence <slug> <index> <json>
@@ -62,6 +64,37 @@ validate_path() {
     echo "Error: unsupported jq path '$path'." >&2
     exit 1
   fi
+}
+
+# Split a check command into argv, rejecting anything that needs a shell.
+# Checks are executed directly, never through a shell, so stored contract
+# content cannot be interpreted as shell syntax. @decision(DL-003)
+parse_check() {
+  local raw="$1"
+  local stripped
+  stripped="$(printf '%s' "$raw" | tr -d 'A-Za-z0-9 _./:=+@,-')"
+  if [[ -n "$stripped" ]]; then
+    echo "Error: shell operators and quoting are not allowed in a check: '$raw'" >&2
+    echo "Checks run without a shell. Put compound commands in a repo script, e.g." >&2
+    echo "  --check \"./scripts/check.sh billing\"" >&2
+    exit 1
+  fi
+  local parts=()
+  set -f
+  IFS=' ' read -ra parts <<< "$raw"
+  set +f
+  if [[ ${#parts[@]} -eq 0 ]]; then
+    echo "Error: empty check." >&2
+    exit 1
+  fi
+  # Append one at a time: jq --args treats a literal "--" as end-of-options,
+  # which would silently drop it from commands like "npm test -- src/x".
+  local json="[]"
+  local part
+  for part in "${parts[@]}"; do
+    json="$(jq -c --arg p "$part" '. + [$p]' <<<"$json")"
+  done
+  printf '%s' "$json"
 }
 
 # Fail unless the item index exists in the run.
@@ -149,7 +182,7 @@ case "$COMMAND" in
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --decisions) DECISIONS="$2"; shift 2 ;;
-        --check) CHECKS="$(jq --arg c "$2" '. + [$c]' <<<"$CHECKS")"; shift 2 ;;
+        --check) CHECKS="$(jq --argjson c "$(parse_check "$2")" '. + [$c]' <<<"$CHECKS")"; shift 2 ;;
         --annotation) ANNOTATIONS="$(jq --arg a "$2" '. + [$a]' <<<"$ANNOTATIONS")"; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
       esac
