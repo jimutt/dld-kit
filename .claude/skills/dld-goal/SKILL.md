@@ -71,7 +71,20 @@ Create a run.
 
 3. **Choose a slug.** Lowercase, hyphenated, derived from the objective (`payment-gateway`, not `Payment Gateway`).
 
-4. **Ask for bounds.** Maximum items and maximum minutes. Zero means unbounded; prefer a real limit.
+4. **Propose bounds, don't just ask for them.** Derive a default from the slicing and offer it as the recommended option:
+
+   - **Max items** — the number of items in the agreed slicing. The run should not outlive its plan.
+   - **Max minutes** — roughly 20 minutes per decision in scope, so a 3-item run covering 4 decisions defaults to 80 minutes. Round to something readable.
+
+   > Bounds for this run — 3 items, 4 decisions:
+   >
+   > - **Recommended:** 3 items, 80 minutes (20 min per decision)
+   > - Tighter: 3 items, 45 minutes — stops early if work runs long
+   > - No time limit: 3 items, unbounded
+
+   Adjust the per-decision estimate when the decisions tell you to: wide-reaching changes, unfamiliar code, or heavy test suites justify more; a config change or a constant justifies less. Say which way you adjusted and why.
+
+   Zero means unbounded. Prefer a real limit — a bound that stops a run early costs one resume, while an unbounded run that goes wrong costs the whole session.
 
 5. **Create the run**, piping the objective via `printf` with `\n` escapes. Include the agreed slicing in the contract body — the contract is the immutable record of what was agreed:
 
