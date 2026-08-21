@@ -30,6 +30,17 @@ describe("paths", () => {
 		expect(missingScripts()).toEqual([]);
 	});
 
+	test("script paths are absolute and real, under any loader", () => {
+		// Under bun, import.meta.dir exists; under pi's jiti loader it does not.
+		// paths.ts resolves through import.meta.url, which both provide, so a
+		// regression to import.meta.dir would produce undefined/... paths at
+		// runtime rather than a test failure. Assert the outcome, not the field.
+		const path = scriptPath("run-state.sh");
+		expect(path.startsWith("/")).toBe(true);
+		expect(path.includes("undefined")).toBe(false);
+		expect(existsSync(path)).toBe(true);
+	});
+
 	test("required scripts carry an executable bit", () => {
 		for (const name of REQUIRED_SCRIPTS) {
 			expect(statSync(scriptPath(name)).mode & 0o111).toBeGreaterThan(0);

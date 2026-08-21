@@ -89,8 +89,13 @@ export interface FakePi {
 	readonly userMessages: { content: unknown; deliverAs?: string }[];
 	readonly entries: AppendedEntry[];
 
-	/** Queue a result for the next exec whose command and args match. */
-	onExec(match: { command?: string; argsInclude?: string[] }, result: Partial<ExecResult>): void;
+	/** Queue a result for the next exec whose command and args match.
+	 * argsInclude matches whole elements; argsContain matches substrings of
+	 * elements — useful when the fake cannot know an absolute script path. */
+	onExec(
+		match: { command?: string; argsInclude?: string[]; argsContain?: string[] },
+		result: Partial<ExecResult>,
+	): void;
 	/** Replace the fallback exec responder. */
 	setExec(responder: ExecResponder): void;
 
@@ -126,7 +131,10 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 	const userMessages: { content: unknown; deliverAs?: string }[] = [];
 	const entries: AppendedEntry[] = [];
 
-	const scripted: { match: { command?: string; argsInclude?: string[] }; result: ExecResult }[] = [];
+	const scripted: {
+		match: { command?: string; argsInclude?: string[]; argsContain?: string[] };
+		result: ExecResult;
+	}[] = [];
 	let fallbackExec: ExecResponder = options.exec ?? (() => okResult);
 
 	let idle = options.idle ?? true;
@@ -197,7 +205,9 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 			const hit = scripted.find(
 				(s) =>
 					(s.match.command === undefined || s.match.command === command) &&
-					(s.match.argsInclude === undefined || s.match.argsInclude.every((a) => args.includes(a))),
+					(s.match.argsInclude === undefined || s.match.argsInclude.every((a) => args.includes(a))) &&
+					(s.match.argsContain === undefined ||
+						s.match.argsContain.every((needle) => args.some((arg) => arg.includes(needle)))),
 			);
 			if (hit) return hit.result;
 			return fallbackExec({ command, args, options: execOptions });

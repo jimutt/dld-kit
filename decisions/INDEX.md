@@ -6,7 +6,7 @@
 | DL-011 | Run visibility is layered: status line, fixed-height widget, transcript cards, board overlay | proposed | dld-goal, extension, ui |
 | DL-010 | Compaction during a run is assembled deterministically from disk, never model-summarised | proposed | dld-goal, extension, context |
 | DL-009 | Child-session rotation is a re-entrant controller driven by a typed tool, verified against disk | proposed | dld-goal, extension, architecture |
-| DL-008 | In-session continuation fires on agent_end behind idle, token, and bounds gates | proposed | dld-goal, extension, execution |
+| DL-008 | In-session continuation fires on agent_end behind idle, token, and bounds gates | accepted | dld-goal, extension, execution |
 | DL-007 | The extension reads run state directly but delegates every mutation to the skill scripts | accepted | dld-goal, architecture, state |
 | DL-006 | dld-kit is a Pi package: TypeScript extension, no build step, bun test | accepted | dld-goal, packaging, tooling |
 | DL-005 | The skill owns DLD semantics; a Pi extension owns loop mechanics | accepted | dld-goal, architecture |
