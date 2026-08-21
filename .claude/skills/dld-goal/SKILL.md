@@ -8,7 +8,7 @@ user_invocable: true
 
 You are running a **goal**: a set of `proposed` decisions executed one work item at a time, where each item's completion is verified before the next begins.
 
-> **Build status:** run lifecycle, item planning, and item selection are implemented. Verification and the execution loop land in later slices of this feature — see `docs/plan/goal-loop.md`.
+> **Build status:** Stage 1 is complete — the skill runs a goal as a manually paced loop in any harness. Autonomous continuation, child-session rotation per item, and a status widget arrive with the Pi extension (Stage 2). See `docs/plan/goal-loop.md`.
 
 ## Interaction style
 
@@ -29,6 +29,16 @@ Skill-specific scripts:
 .claude/skills/dld-goal/scripts/decision-hash.sh
 .claude/skills/dld-goal/scripts/next-item.sh
 .claude/skills/dld-goal/scripts/verify-hashes.sh
+.claude/skills/dld-goal/scripts/guard-preconditions.sh
+.claude/skills/dld-goal/scripts/verify-item.sh
+.claude/skills/dld-goal/scripts/block-item.sh
+.claude/skills/dld-goal/scripts/resolve-block.sh
+```
+
+Cross-skill scripts:
+```
+.claude/skills/dld-common/scripts/update-status.sh
+.claude/skills/dld-common/scripts/regenerate-index.sh
 ```
 
 ## Prerequisites
@@ -72,9 +82,17 @@ Create a run.
 
    Iterate until the user agrees. Prefer splitting when the coupling is arguable: a smaller item gives a sharper completion signal, and a batched item cannot tell you which decision caused a failed check. Flag any decision you could not order confidently and ask.
 
-3. **Choose a slug.** Lowercase, hyphenated, derived from the objective (`payment-gateway`, not `Payment Gateway`).
+3. **Check it is safe to start.** A run pins decision IDs and hashes, so anything that rewrites decisions underneath it invalidates the run:
 
-4. **Propose bounds, don't just ask for them.** Derive a default from the slicing and offer it as the recommended option:
+```bash
+bash .claude/skills/dld-goal/scripts/guard-preconditions.sh start --decisions "DL-010,DL-011,DL-012,DL-013"
+```
+
+This checks the working tree is clean, no other run is active, every decision exists and is `proposed`, and no decision IDs collide with the base branch. Any output is a blocker — resolve it before continuing. A collision means `/dld-reindex` first, always.
+
+4. **Choose a slug.** Lowercase, hyphenated, derived from the objective (`payment-gateway`, not `Payment Gateway`).
+
+5. **Propose bounds, don't just ask for them.** Derive a default from the slicing and offer it as the recommended option:
 
    - **Max items** — the number of items in the agreed slicing. The run should not outlive its plan.
    - **Max minutes** — roughly 20 minutes per *decision* in scope, not per item. A 3-item run covering 4 decisions defaults to 4 × 20 = 80 minutes. Round to something readable.
@@ -89,7 +107,7 @@ Create a run.
 
    Zero means unbounded. Prefer a real limit — a bound that stops a run early costs one resume, while an unbounded run that goes wrong costs the whole session.
 
-5. **Create the run**, piping the objective via `printf` with `\n` escapes. Include the agreed slicing in the contract body — the contract is the immutable record of what was agreed:
+6. **Create the run**, piping the objective via `printf` with `\n` escapes. Include the agreed slicing in the contract body — the contract is the immutable record of what was agreed:
 
 ```bash
 printf "Implement the payment gateway decisions...\n\n## Agreed slicing\n\n| # | Decisions | Why grouped |\n..." | bash .claude/skills/dld-goal/scripts/create-run.sh \
@@ -102,7 +120,7 @@ printf "Implement the payment gateway decisions...\n\n## Agreed slicing\n\n| # |
 
 Pass `--review disabled` only when the project sets `implement_review: false`; record that the run has a weaker completion gate.
 
-6. **Create the items**, one per slice, in the agreed order. Each item pins its decisions by intent hash at this moment:
+7. **Create the items**, one per slice, in the agreed order. Each item pins its decisions by intent hash at this moment:
 
 ```bash
 bash .claude/skills/dld-goal/scripts/run-state.sh add-item payment-gateway --decisions "DL-010"
@@ -150,6 +168,109 @@ Refining a still-`proposed` decision *while implementing its own item* is legiti
 bash .claude/skills/dld-goal/scripts/run-state.sh repin-item <slug> <index>
 ```
 
+### `/dld-goal continue`
+
+Work the next item. This is the loop: with no extension installed, each invocation advances the run by one item, and the run state — not this conversation — carries the position.
+
+**Before every item:**
+
+1. Check bounds. Read `bounds` and `createdAt`; count accepted items. If `maxItems` accepted items are done, or `maxMinutes` have elapsed, stop, set the run `paused`, log a `bounds-reached` event, and report. Do not quietly run past a bound the user set.
+2. Check drift with `verify-hashes.sh` (above).
+3. Select the item with `next-item.sh`. No output means the run is finished — go to *Completing the run*.
+
+**Then work the item as a four-part transaction.** Nothing short of all four completes an item.
+
+#### 1. Claim
+
+```bash
+bash .claude/skills/dld-goal/scripts/run-state.sh set-item-status <slug> <index> implementing
+bash .claude/skills/dld-goal/scripts/run-state.sh bump-attempt <slug> <index>
+bash .claude/skills/dld-goal/scripts/append-event.sh <slug> item-started --data '{"item":<index>}'
+```
+
+Read the item's decisions and implement them exactly as `/dld-implement` describes — same practices manifest, same annotation rules, same restraint about comments. A batched item is implemented as one coherent change.
+
+Refining a still-`proposed` decision as you implement it is allowed and expected; changing its *intent* is not. If the intent has to change, stop the item and raise it with the user.
+
+When the code is written, claim the item:
+
+```bash
+bash .claude/skills/dld-goal/scripts/run-state.sh set-item-status <slug> <index> verifying
+```
+
+#### 2. Mechanical check
+
+```bash
+bash .claude/skills/dld-goal/scripts/verify-item.sh <slug> <index>
+```
+
+Annotations must exist for every decision in the item, and every acceptance check must exit 0. Evidence is recorded either way. A non-zero exit sends you to *When an item fails*.
+
+#### 3. Review
+
+Run the review step exactly as `/dld-implement` step 6 describes — same subagent, same prompt template, same severity handling. Do not reinvent it here.
+
+If `review` is `disabled` in the run state, skip this step and say so in the run report: the completion gate is weaker for every item in the run.
+
+Critical findings mean the item has not passed. Fix them and re-run step 2, or treat them as a failure if you cannot.
+
+#### 4. Record
+
+Only once steps 1–3 have all passed:
+
+```bash
+# Update each decision's references, then:
+bash .claude/skills/dld-common/scripts/update-status.sh DL-NNN accepted
+bash .claude/skills/dld-goal/scripts/run-state.sh repin-item <slug> <index>
+bash .claude/skills/dld-goal/scripts/run-state.sh set-item-status <slug> <index> accepted
+bash .claude/skills/dld-goal/scripts/append-event.sh <slug> item-accepted --data '{"item":<index>}'
+bash .claude/skills/dld-common/scripts/regenerate-index.sh
+```
+
+Re-pinning matters: it records the decision as implemented, so later drift checks compare against what was actually built.
+
+Commit the item's work before moving on. One item, one commit, so a run's history is reviewable per unit and a failed later item does not muddy an earlier success.
+
+### When an item fails
+
+One retry, then escalate. The retry gets the failure as context — the point is to give the implementing agent what it lacked, not to roll dice again.
+
+**First failure** (`attempts` is 1): read the evidence, fix the cause, return the item to `implementing`, and repeat the transaction. Say what you are retrying and why.
+
+**Second failure** (`attempts` is 2): escalate. Do not try a third time.
+
+```bash
+bash .claude/skills/dld-goal/scripts/block-item.sh <slug> <index> \
+  --reason "acceptance check fails: 3 tests red after retry" \
+  --question "Relax the check, fix the fixture, or skip this item?"
+```
+
+This blocks the item, pauses the run, and records the question in the run. Surface it to the user with `AskUserQuestion`, including what failed and what you already tried.
+
+`block-item.sh` refuses to block before the retry has been used. Pass `--force` only when retrying genuinely cannot help — a missing dependency, a contradiction with an accepted decision, an environment the run cannot fix.
+
+Record the answer and continue:
+
+```bash
+bash .claude/skills/dld-goal/scripts/resolve-block.sh <slug> <index> --answer "<what the user said>" --action retry
+bash .claude/skills/dld-goal/scripts/resolve-block.sh <slug> <index> --answer "<what the user said>" --action skip
+```
+
+`skip` leaves the item's decisions `proposed` and moves the queue on. Say so in the final report — a run that finishes with skipped items has not finished the plan.
+
+If resolving a blocker needs a real design change, stop and run `/dld-decide` with the user. Never write a decision record from inside a run.
+
+### Completing the run
+
+When `next-item.sh` returns nothing, every item is accepted or skipped:
+
+```bash
+bash .claude/skills/dld-goal/scripts/run-state.sh set-status <slug> complete
+bash .claude/skills/dld-goal/scripts/append-event.sh <slug> run-complete
+```
+
+Report: items accepted, items skipped, decisions now `accepted`, and anything left `proposed`. Suggest `/dld-snapshot` to refresh the projection, and `/dld-audit` if the run skipped anything.
+
 ### `/dld-goal status`
 
 Report the run: status, bounds, item progress, and recent events.
@@ -173,9 +294,30 @@ Valid statuses: `active`, `paused`, `blocked`, `complete`, `stopped`. `stop` is 
 
 Every state change gets an event. The event log is how a later session, or the Pi extension, reconstructs what happened.
 
+**Resuming** re-validates before doing any work:
+
+```bash
+bash .claude/skills/dld-goal/scripts/guard-preconditions.sh resume <slug>
+```
+
+This checks the tree is clean, no ID collisions appeared while the run was idle, the run is resumable, and — including in-flight items — that no decision drifted. Every reported problem must be resolved before continuing; a collision means `/dld-reindex` first, and drift means replanning rather than implementing against changed intent.
+
+Then set the run `active` and go to `/dld-goal continue`.
+
+## Working without the Pi extension
+
+This skill deliberately contains no loop machinery — no continuation after the agent stops, no child sessions, no timers. Those need harness lifecycle control, which lives in the Pi extension. `@decision(DL-005)`
+
+Without the extension the run is *paced by the user*: each `/dld-goal continue` advances one item, and the durable state in `.dld/runs/` carries everything between invocations. That is a real workflow, not a degraded one — the contract, ordering, verification, and reporting all work. What you supply manually is the nudge to keep going.
+
+Because state lives on disk rather than in conversation, a run started by hand can later be driven by the extension, and vice versa.
+
 ## Rules
 
 - Never edit `contract.md` after creation. If the objective changed, stop the run and start a new one.
 - Never hand-edit `state.json`. Use `run-state.sh` so writes stay atomic and `updatedAt` stays accurate.
-- Never mark work complete on the agent's own say-so. Completion is verified mechanically — see `docs/framework/run-contract.md` and DL-003.
+- Never mark work complete on the agent's own say-so. All four transaction steps, every time — see `docs/framework/run-contract.md` and DL-003.
 - Never author decision records from inside a run. Blockers are recorded as run questions; genuine design changes go through `/dld-decide` with the user.
+- Never work past a blocked item. `next-item.sh` exits 2 for a reason.
+- Never exceed the run's bounds. Pause and report instead.
+- Never push, open a PR, or merge from inside a run. Committing per item is expected; publishing is the user's call.

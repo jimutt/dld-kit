@@ -121,6 +121,7 @@ This project uses Decision-Linked Development. Decision records (DL-*.md) live i
 - Use `/dld-decide` to record new decisions
 - Use `/dld-plan` to break down a feature into multiple grouped decisions
 - Use `/dld-implement` to implement proposed decisions
+- Use `/dld-goal` to execute a set of proposed decisions as a long-running run (durable state, verified per-item completion)
 - Use `/dld-lookup` to query decisions by ID, tag, or code path
 - Use `/dld-audit` to scan for drift between decisions and code
 - Use `/dld-snapshot` to regenerate SNAPSHOT.md and OVERVIEW.md from the decision log
