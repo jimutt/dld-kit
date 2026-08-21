@@ -18,6 +18,9 @@ import { readRunFrom, type RunState } from "./run-state.ts";
 
 export interface LoopUi {
 	notify(message: string, type?: "info" | "warning" | "error"): void;
+	/** Append a transcript card for an item outcome. Optional so non-card
+	 * contexts (tests, print mode) can ignore it. */
+	card?(lines: string[]): void;
 }
 
 export interface LoopContext {
@@ -241,6 +244,10 @@ export class LoopController {
 				return;
 			}
 			ui.notify(`Item ${item.index} accepted (verification passed, review disabled).`, "info");
+			ui.card?.([
+				`✔ item ${item.index} accepted · ${item.decisions.map((d) => d.id).join(", ")}`,
+				...item.evidence.slice(0, 4).map((e) => `  ${typeof e === "string" ? e : JSON.stringify(e)}`),
+			]);
 			return;
 		}
 

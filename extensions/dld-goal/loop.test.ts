@@ -483,16 +483,71 @@ describe("turn_end transaction", () => {
 });
 
 describe("commands", () => {
-	test("start creates a run and invalidates the loop token", async () => {
+	test("start creates a run with items and dispatches the first continuation", async () => {
 		const pi = makePi();
 		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
+		pi.onExec({ command: "bash", argsContain: ["guard-preconditions.sh"] }, { stdout: "", code: 0 });
 		pi.onExec({ command: "bash", argsContain: ["create-run.sh"] }, { stdout: "Created run payments\n", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start payments Payment gateway");
+		await pi.invokeCommand("dld-goal", "start payments DL-001 DL-002");
 
+		expect(pi.execCalls.some((c) => c.args.some((a) => a.includes("guard-preconditions.sh")))).toBe(true);
 		expect(pi.execCalls.some((c) => c.args.some((a) => a.includes("create-run.sh")))).toBe(true);
-		expect(pi.notifications.some((n) => n.message.includes("Created and activated run"))).toBe(true);
+		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(2);
+		expect(pi.notifications.some((n) => n.message.includes("Started run payments · 2 items"))).toBe(true);
+	});
+
+	test("start refuses without decisions instead of creating an empty run", async () => {
+		const pi = makePi();
+		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
+		dldGoalExtension(pi.api);
+
+		await pi.invokeCommand("dld-goal", "start payments");
+
+		expect(pi.execCalls.every((c) => !c.args.some((a) => a.includes("create-run.sh")))).toBe(true);
+		expect(pi.notifications.some((n) => n.message.includes("A run needs decisions"))).toBe(true);
+	});
+
+	test("start refuses when preconditions fail", async () => {
+		const pi = makePi();
+		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
+		pi.onExec({ command: "bash", argsContain: ["guard-preconditions.sh"] }, { stdout: "", stderr: "dirty tree", code: 1 });
+		dldGoalExtension(pi.api);
+
+		await pi.invokeCommand("dld-goal", "start payments DL-001");
+
+		expect(pi.execCalls.every((c) => !c.args.some((a) => a.includes("create-run.sh")))).toBe(true);
+		expect(pi.notifications.some((n) => n.message.includes("dirty tree"))).toBe(true);
+	});
+
+	test("start expands a range into items with a derived slug", async () => {
+		const pi = makePi();
+		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
+		pi.onExec({ command: "bash", argsContain: ["guard-preconditions.sh"] }, { stdout: "", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["create-run.sh"] }, { stdout: "Created\n", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
+		dldGoalExtension(pi.api);
+
+		await pi.invokeCommand("dld-goal", "start DL-014..DL-016");
+
+		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(3);
+		expect(pi.execCalls.some((c) => c.args.includes("dl-14-16"))).toBe(true);
+		expect(pi.notifications.some((n) => n.message.includes("Started run dl-14-16 · 3 items"))).toBe(true);
+	});
+
+	test("start tolerates range separators with spaces", async () => {
+		const pi = makePi();
+		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
+		pi.onExec({ command: "bash", argsContain: ["guard-preconditions.sh"] }, { stdout: "", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["create-run.sh"] }, { stdout: "Created\n", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
+		dldGoalExtension(pi.api);
+
+		await pi.invokeCommand("dld-goal", "start DL-014 - DL-015");
+
+		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(2);
 	});
 
 	test("pause invalidates the token so agent_end stops dispatching", async () => {
