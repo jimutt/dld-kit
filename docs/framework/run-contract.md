@@ -140,6 +140,27 @@ The log is the recovery record. When `state.json` is damaged or missing, the run
 - **One writer.** A run has one active writer at a time. Concurrent runs in the same worktree are rejected by the precondition check.
 - **No hand editing.** Use `run-state.sh` (bash) or the extension's state module. Direct edits break the `updatedAt` contract and can corrupt an in-flight run.
 
+## Blocked questions
+
+When an item exhausts its retry, the run raises an operator question rather than writing anything to the decision log. A blocker is operational, not a design choice (DL-004).
+
+```json
+{
+  "item": 2,
+  "reason": "acceptance check fails: 3 tests red after the retry",
+  "question": "Relax the check or fix the fixture?",
+  "raisedAt": "2026-08-20T20:41:02Z",
+  "attempts": 2,
+  "answer": null,
+  "answeredAt": null,
+  "resolution": null
+}
+```
+
+`resolution` is `retry` or `skip` once answered. Questions are never removed — answered ones stay as the record of why the run changed course.
+
+Blocking requires the item to have used its retry (`attempts >= 2`); `block-item.sh --force` overrides for failures retrying cannot fix.
+
 ## Scripts
 
 | Script | Purpose |
@@ -150,3 +171,7 @@ The log is the recovery record. When `state.json` is damaged or missing, the run
 | `decision-hash.sh` | Compute a decision's intent hash |
 | `next-item.sh` | Select the next item to work, refusing to step past a blocker |
 | `verify-hashes.sh` | Detect decisions that changed since the run was planned |
+| `guard-preconditions.sh` | Check that starting or resuming is safe |
+| `verify-item.sh` | Run the mechanical half of the completion transaction and record evidence |
+| `block-item.sh` | Block an item and raise an operator question |
+| `resolve-block.sh` | Record the operator's answer and retry or skip |
