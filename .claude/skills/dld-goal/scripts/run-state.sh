@@ -184,7 +184,7 @@ case "$COMMAND" in
         --decisions) DECISIONS="$2"; shift 2 ;;
         --check) CHECKS="$(jq --argjson c "$(parse_check "$2")" '. + [$c]' <<<"$CHECKS")"; shift 2 ;;
         --annotation) ANNOTATIONS="$(jq --arg a "$2" '. + [$a]' <<<"$ANNOTATIONS")"; shift 2 ;;
-        *) echo "Unknown option: $1" >&2; exit 1 ;;
+        *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
       esac
     done
     if [[ -z "$DECISIONS" ]]; then

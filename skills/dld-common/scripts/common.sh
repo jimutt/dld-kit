@@ -98,6 +98,15 @@ get_run_dir() {
 
 # Fail with a clear message when jq is unavailable.
 # Goal run state is JSON; the dld-goal scripts require jq to read and mutate it.
+# Print the caller script's usage from its header comment, stopping at the
+# first line that is not a comment. Scripts source common.sh, so the script
+# whose usage we want is BASH_SOURCE[1]; BASH_SOURCE[0] is common.sh itself.
+usage() {
+  sed -n '2,$p' "${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}" \
+    | sed -n '/^[^#]/q; p' \
+    | sed 's/^# \{0,1\}//' >&2
+}
+
 require_jq() {
   if ! command -v jq >/dev/null 2>&1; then
     echo "Error: jq is required by the dld-goal scripts but was not found on PATH." >&2

@@ -34,7 +34,13 @@ while [[ $# -gt 0 ]]; do
     --max-minutes) MAX_MINUTES="$2"; shift 2 ;;
     --review) REVIEW="$2"; shift 2 ;;
     --body-stdin) READ_STDIN=true; shift ;;
-    *) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) if [[ "$1" != -* ]]; then
+         usage
+       else
+         echo "Unknown option: $1" >&2
+         usage
+       fi
+       exit 1 ;;
   esac
 done
 

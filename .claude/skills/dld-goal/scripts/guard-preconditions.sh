@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --decisions) DECISIONS="$2"; shift 2 ;;
     --base) BASE="$2"; shift 2 ;;
-    *) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
   esac
 done
 

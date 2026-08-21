@@ -33,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     --reason) REASON="$2"; shift 2 ;;
     --question) QUESTION="$2"; shift 2 ;;
     --force) FORCE=true; shift ;;
-    *) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
   esac
 done
 
