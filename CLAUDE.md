@@ -7,8 +7,14 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 ## Directory structure
 
 ```
+package.json               # Pi package manifest (extensions + skills) — see DL-006
 .tessl-plugin/
   plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
+extensions/
+  dld-goal/                # Pi extension: TypeScript, loaded from source, no build step
+    index.ts               # Entry point — pi loads only index.ts from a subdirectory
+    *.test.ts              # Colocated unit tests (bun)
+    testing/fake-pi.ts     # Faked ExtensionAPI used by the tests
 rules/
   dld-workflow.md          # Tessl steering rule (always-on agent guidance)
 skills/                    # Tessl plugin skills (used by tessl install)
@@ -60,13 +66,25 @@ Scripts use `set -euo pipefail` and source `common.sh` via `BASH_SOURCE` path re
 
 ## Testing
 
-Tests use [bats-core](https://github.com/bats-core/bats-core) installed as a git submodule at `tests/bats/`. Run tests with:
+Two layers, two runners. Both must pass before committing.
+
+**Shell scripts** use [bats-core](https://github.com/bats-core/bats-core), installed as a git submodule at `tests/bats/`:
 
 ```bash
-tests/bats/bin/bats tests/
+tests/run.sh
 ```
 
 If tests fail with "Could not find bats-support", init submodules first: `git submodule update --init --recursive`
+
+**The pi extension** uses `bun test`, plus a typecheck that is part of the definition of done:
+
+```bash
+npm install        # once, for pi type definitions
+bun test
+npx tsc --noEmit
+```
+
+See `decisions/PRACTICES.md` for the conventions each layer follows.
 
 ## Conventions
 
@@ -74,6 +92,7 @@ If tests fail with "Could not find bats-support", init submodules first: `git su
 - Use PRs for changes (project is maturing)
 - Run `tessl plugin lint` before committing skill changes
 - Skills that involve user interaction should use the `AskUserQuestion` tool
+- Changing a skill's scripts or the run contract usually means changing the extension too — they are one package for that reason
 
 ## DLD (Decision-Linked Development)
 

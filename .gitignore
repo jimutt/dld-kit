@@ -2,3 +2,5 @@
 .pi-subagents/
 .dld/
 makerday-*.txt
+
+node_modules/

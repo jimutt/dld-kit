@@ -25,6 +25,12 @@ tessl install dld-kit/dld
 cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
 ```
 
+**Via [pi](https://pi.dev)** (skills plus the `dld-goal` extension):
+
+```bash
+pi install git:github.com/jimutt/dld-kit
+```
+
 Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
 
 ### New feature or change
@@ -266,6 +272,29 @@ implement_review: false
 ```
 
 The review subagent operates with limited context and may flag false positives. The implementing agent uses its own judgment and asks for user input when uncertain about a finding.
+
+## Development
+
+The repository holds two kinds of code, with a test runner for each.
+
+```bash
+git submodule update --init --recursive   # first time only, vendors bats
+
+tests/run.sh        # shell scripts (bats)
+npm install         # once, for the extension's type definitions
+bun test            # pi extension (bun)
+npx tsc --noEmit    # typecheck the extension
+```
+
+Skills and their scripts need no dependencies. The `dld-goal` pi extension is TypeScript, loaded by pi from source with no build step, and is typechecked against the pi API rather than a hand-written stub.
+
+To run the extension against a local checkout:
+
+```bash
+pi install /path/to/dld-kit
+```
+
+Skills live in two synchronized copies — `skills/` for the Tessl plugin and `.claude/skills/` for manual Claude Code installs. Content must match; only frontmatter and script paths differ. Run `tessl plugin lint` before committing skill changes.
 
 ## Further reading
 
