@@ -8,7 +8,11 @@ user_invocable: true
 
 You are running a **goal**: a set of `proposed` decisions executed one work item at a time, where each item's completion is verified before the next begins.
 
-> **Build status:** the run lifecycle below (start, status, pause, resume, stop) is implemented. Item planning, verification, and the execution loop land in later slices of this feature — see `docs/plan/goal-loop.md`.
+> **Build status:** the run lifecycle below (start, status, pause, resume, stop) is implemented, and the agreed slicing is recorded in the contract. Item records in `state.json`, verification, and the execution loop land in later slices of this feature — see `docs/plan/goal-loop.md`.
+
+## Interaction style
+
+Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
 ## Script Paths
 
@@ -45,13 +49,34 @@ Run artifacts are gitignored by default; decisions are the persistent record. Se
 
 Create a run.
 
-1. Determine the goal: a plan-group tag, an explicit list of decision IDs, or a description. Confirm the objective with the user.
-2. Choose a slug — lowercase, hyphenated, derived from the objective (`payment-gateway`, not `Payment Gateway`).
-3. Ask for bounds: maximum items and maximum minutes. Zero means unbounded; prefer a real limit.
-4. Create the run, piping the objective via `printf` with `\n` escapes:
+1. **Determine the goal.** A plan-group tag, an explicit list of decision IDs, or a description. Resolve it to a concrete set of `proposed` decisions and read each one — you cannot slice work you have not read.
+
+2. **Propose a slicing and confirm it.** Present how the decisions group into work items and in what order, before anything is created. Use the `AskUserQuestion` tool.
+
+   An item is one decision by default. Batch decisions into a single item only when they are genuinely coupled — they touch the same code, share types, or one produces throwaway code without the other. A shared tag or namespace is not coupling.
+
+   Present the proposal as a table, with the reason for each grouping and the ordering:
+
+   > Proposed slicing for `payment-gateway` — 3 items:
+   >
+   > | # | Decisions | Why grouped |
+   > |---|-----------|-------------|
+   > | 1 | DL-010 | Adapter interface — stands alone, everything else builds on it |
+   > | 2 | DL-011, DL-012 | Retry strategy and idempotency keys share the request wrapper; splitting them means writing it twice |
+   > | 3 | DL-013 | Error mapping — needs the interface from item 1 |
+   >
+   > Does this look right? Want to split, merge, or reorder any of it?
+
+   Iterate until the user agrees. Prefer splitting when the coupling is arguable: a smaller item gives a sharper completion signal, and a batched item cannot tell you which decision caused a failed check. Flag any decision you could not order confidently and ask.
+
+3. **Choose a slug.** Lowercase, hyphenated, derived from the objective (`payment-gateway`, not `Payment Gateway`).
+
+4. **Ask for bounds.** Maximum items and maximum minutes. Zero means unbounded; prefer a real limit.
+
+5. **Create the run**, piping the objective via `printf` with `\n` escapes. Include the agreed slicing in the contract body — the contract is the immutable record of what was agreed:
 
 ```bash
-printf "Implement the payment gateway decisions...\n" | bash .claude/skills/dld-goal/scripts/create-run.sh \
+printf "Implement the payment gateway decisions...\n\n## Agreed slicing\n\n| # | Decisions | Why grouped |\n..." | bash .claude/skills/dld-goal/scripts/create-run.sh \
   --slug "payment-gateway" \
   --title "Payment gateway" \
   --max-items 8 \
