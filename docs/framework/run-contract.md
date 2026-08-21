@@ -48,8 +48,66 @@ All keys are camelCase.
 | `bounds.maxMinutes` | integer | Wall-clock cap in minutes. `0` means unbounded. |
 | `review` | enum | `enabled` or `disabled`. `disabled` records that the project opted out of the review step, making the completion gate weaker. |
 | `currentItem` | integer or null | Index of the item being worked, or `null` when idle. |
-| `items` | array | Work items. Schema defined in DL-002. |
+| `items` | array | Work items, in execution order. See below. |
 | `blockedQuestions` | array | Open operator questions raised by blocked items. Schema defined in DL-004. |
+
+## Work items
+
+An item is the unit of execution and verification: one decision by default, or several when they are genuinely coupled (DL-002).
+
+```json
+{
+  "index": 1,
+  "decisions": [
+    { "id": "DL-010", "hash": "sha256:9f2b..." },
+    { "id": "DL-011", "hash": "sha256:41ac..." }
+  ],
+  "status": "pending",
+  "acceptance": {
+    "annotations": ["src/billing/vat.ts"],
+    "checks": ["npm test -- src/billing"]
+  },
+  "attempts": 0,
+  "evidence": []
+}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `index` | integer | 1-based position, stable for the life of the run. Events and blocked questions reference items by index. |
+| `decisions` | array | The decisions this item implements, each pinned by intent hash. |
+| `status` | enum | `pending`, `implementing`, `verifying`, `accepted`, `blocked`, `skipped`, `failed`. |
+| `acceptance.annotations` | array | Paths expected to carry `@decision` annotations when the item completes. May be empty at planning time. |
+| `acceptance.checks` | array | Shell commands that must exit 0. Empty means the project default applies. |
+| `attempts` | integer | Implementation attempts so far. One retry is allowed before an item blocks (DL-004). |
+| `evidence` | array | Verification results collected during completion, appended never rewritten. |
+
+### Item status transitions
+
+```
+pending      --> implementing  (selected by next-item)
+implementing --> verifying     (agent claims done)
+verifying    --> accepted      (all four completion steps passed)
+verifying    --> implementing  (first failure: retry with the failure as context)
+verifying    --> blocked       (second failure: operator question raised)
+blocked      --> implementing  (operator answered)
+blocked      --> skipped       (operator chose to move on)
+any          --> failed        (unrecoverable error; treated as blocking)
+```
+
+`accepted` and `skipped` are terminal. `blocked` and `failed` stop item selection entirely — `next-item.sh` exits 2 rather than selecting past them, so a blocker cannot be silently stepped over.
+
+## Decision pinning
+
+Each decision in an item carries the hash it had when the item was planned. The hash covers the fields that carry intent — `title`, `supersedes`, `amends`, and the body — and excludes `status`, `references`, and `timestamp`. Accepting a decision or letting an audit refresh its references must not invalidate a planned item; rewriting what the decision says must.
+
+`verify-hashes.sh` compares pinned hashes against the records on disk:
+
+- **Default scope is `pending` items.** An in-flight item may legitimately refine its own proposed decisions during implementation, which `/dld-implement` explicitly allows.
+- **`--all` includes in-flight items.** Use it on resume, when the run has been idle and any change is suspect.
+- **Accepted and skipped items are never checked.** Their decisions have moved on.
+
+When an item completes, `repin-item` refreshes its hashes so later checks compare against what was actually implemented. A mismatch on a pending item stops the run for replanning rather than being auto-resolved — the decision changed because a human changed it.
 
 ### Run status transitions
 
@@ -87,5 +145,8 @@ The log is the recovery record. When `state.json` is damaged or missing, the run
 | Script | Purpose |
 |---|---|
 | `create-run.sh` | Scaffold a run directory, write the initial state and contract, ensure the gitignore entry |
-| `run-state.sh` | `get`, `set`, `set-status`, `list`, `active` — all writes atomic |
+| `run-state.sh` | `get`, `set`, `set-status`, `list`, `active`, plus item operations: `add-item`, `get-item`, `set-item-status`, `add-evidence`, `bump-attempt`, `repin-item` |
 | `append-event.sh` | Append one event to the log |
+| `decision-hash.sh` | Compute a decision's intent hash |
+| `next-item.sh` | Select the next item to work, refusing to step past a blocker |
+| `verify-hashes.sh` | Detect decisions that changed since the run was planned |

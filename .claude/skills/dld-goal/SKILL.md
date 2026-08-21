@@ -8,7 +8,7 @@ user_invocable: true
 
 You are running a **goal**: a set of `proposed` decisions executed one work item at a time, where each item's completion is verified before the next begins.
 
-> **Build status:** the run lifecycle below (start, status, pause, resume, stop) is implemented, and the agreed slicing is recorded in the contract. Item records in `state.json`, verification, and the execution loop land in later slices of this feature — see `docs/plan/goal-loop.md`.
+> **Build status:** run lifecycle, item planning, and item selection are implemented. Verification and the execution loop land in later slices of this feature — see `docs/plan/goal-loop.md`.
 
 ## Interaction style
 
@@ -26,6 +26,9 @@ Skill-specific scripts:
 .claude/skills/dld-goal/scripts/create-run.sh
 .claude/skills/dld-goal/scripts/run-state.sh
 .claude/skills/dld-goal/scripts/append-event.sh
+.claude/skills/dld-goal/scripts/decision-hash.sh
+.claude/skills/dld-goal/scripts/next-item.sh
+.claude/skills/dld-goal/scripts/verify-hashes.sh
 ```
 
 ## Prerequisites
@@ -98,6 +101,48 @@ printf "Implement the payment gateway decisions...\n\n## Agreed slicing\n\n| # |
 ```
 
 Pass `--review disabled` only when the project sets `implement_review: false`; record that the run has a weaker completion gate.
+
+6. **Create the items**, one per slice, in the agreed order. Each item pins its decisions by intent hash at this moment:
+
+```bash
+bash .claude/skills/dld-goal/scripts/run-state.sh add-item payment-gateway --decisions "DL-010"
+bash .claude/skills/dld-goal/scripts/run-state.sh add-item payment-gateway --decisions "DL-011,DL-012" \
+  --check "npm test -- src/payments"
+bash .claude/skills/dld-goal/scripts/run-state.sh add-item payment-gateway --decisions "DL-013"
+```
+
+Add `--check` for each acceptance command the item needs beyond the project default, and `--annotation <path>` where you already know which file must carry the annotation. Both can be filled in later as implementation reveals them.
+
+Report the created run: item count, bounds, and the first item to be worked.
+
+### Selecting work
+
+Ask for the next item rather than tracking position yourself — the run state is the source of truth, not the conversation:
+
+```bash
+bash .claude/skills/dld-goal/scripts/next-item.sh <slug>
+```
+
+It prints the index of the item to work, or nothing when every item is accepted or skipped. Exit code 2 means the run has a blocked item: stop and surface it to the user rather than moving to later work.
+
+In-flight items win over later pending ones, so a resumed run finishes what it started.
+
+### Checking for decision drift
+
+Before starting an item, and always before resuming a paused run, confirm the decisions still say what they said when the run was planned:
+
+```bash
+bash .claude/skills/dld-goal/scripts/verify-hashes.sh <slug>          # pending items
+bash .claude/skills/dld-goal/scripts/verify-hashes.sh <slug> --all    # on resume, include in-flight items
+```
+
+Any output means a decision changed. Stop the run and tell the user which decision drifted and how — do not replan silently, and do not implement against the new text on the assumption the change was harmless. Starting a fresh run is the normal resolution.
+
+Refining a still-`proposed` decision *while implementing its own item* is legitimate and expected; that is why the default check ignores in-flight items. Re-pin when the item completes:
+
+```bash
+bash .claude/skills/dld-goal/scripts/run-state.sh repin-item <slug> <index>
+```
 
 ### `/dld-goal status`
 

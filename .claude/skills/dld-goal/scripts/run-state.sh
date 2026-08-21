@@ -11,7 +11,16 @@
 #   run-state.sh list                        List runs as "<slug> <status>"
 #   run-state.sh active                      Print the active run's slug, if any
 #
-# Statuses: active, paused, blocked, complete, stopped
+#   run-state.sh add-item <slug> --decisions <DL-A,DL-B> [--check <cmd>]...
+#                                [--annotation <path>]...
+#   run-state.sh get-item <slug> <index>     Print one item as JSON
+#   run-state.sh set-item-status <slug> <index> <status>
+#   run-state.sh add-evidence <slug> <index> <json>
+#   run-state.sh bump-attempt <slug> <index> Increment and print attempt count
+#   run-state.sh repin-item <slug> <index>   Recompute the item's decision hashes
+#
+# Run statuses:  active, paused, blocked, complete, stopped
+# Item statuses: pending, implementing, verifying, accepted, blocked, skipped, failed
 
 set -euo pipefail
 
@@ -21,9 +30,12 @@ source "$SCRIPT_DIR/../../dld-common/scripts/common.sh"
 require_jq
 
 VALID_STATUSES=(active paused blocked complete stopped)
+VALID_ITEM_STATUSES=(pending implementing verifying accepted blocked skipped failed)
+# Statuses that mean the item is being worked right now.
+IN_FLIGHT_STATUSES=(implementing verifying)
 
 usage() {
-  sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit 1
 }
 
@@ -48,6 +60,20 @@ validate_path() {
   stripped="$(printf '%s' "$path" | tr -d 'A-Za-z0-9_.[]"-')"
   if [[ "${path:0:1}" != "." || -n "$stripped" ]]; then
     echo "Error: unsupported jq path '$path'." >&2
+    exit 1
+  fi
+}
+
+# Fail unless the item index exists in the run.
+require_item() {
+  local file="$1"
+  local index="$2"
+  if [[ ! "$index" =~ ^[0-9]+$ ]]; then
+    echo "Error: item index must be a positive integer, got '$index'." >&2
+    exit 1
+  fi
+  if ! jq -e --argjson i "$index" 'any(.items[]; .index == $i)' "$file" >/dev/null; then
+    echo "Error: item $index not found in run." >&2
     exit 1
   fi
 }
@@ -111,6 +137,133 @@ case "$COMMAND" in
       exit 1
     fi
     apply "$FILE" '.status = $__s' --arg __s "$STATUS"
+    ;;
+
+  add-item)
+    SLUG="${1:?Usage: run-state.sh add-item <slug> --decisions <DL-A,DL-B> ...}"
+    shift
+    FILE="$(state_file "$SLUG")"
+    DECISIONS=""
+    CHECKS="[]"
+    ANNOTATIONS="[]"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --decisions) DECISIONS="$2"; shift 2 ;;
+        --check) CHECKS="$(jq --arg c "$2" '. + [$c]' <<<"$CHECKS")"; shift 2 ;;
+        --annotation) ANNOTATIONS="$(jq --arg a "$2" '. + [$a]' <<<"$ANNOTATIONS")"; shift 2 ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+      esac
+    done
+    if [[ -z "$DECISIONS" ]]; then
+      echo "Error: --decisions is required." >&2
+      exit 1
+    fi
+
+    # Pin each decision by its intent hash at planning time.
+    DECISIONS_JSON="[]"
+    IFS=',' read -ra __ids <<< "$DECISIONS"
+    for raw_id in "${__ids[@]}"; do
+      id="$(printf '%s' "$raw_id" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [[ -z "$id" ]] && continue
+      hash="$(bash "$SCRIPT_DIR/decision-hash.sh" "$id")"
+      DECISIONS_JSON="$(jq --arg id "$id" --arg h "$hash" '. + [{id: $id, hash: $h}]' <<<"$DECISIONS_JSON")"
+    done
+    if [[ "$(jq 'length' <<<"$DECISIONS_JSON")" -eq 0 ]]; then
+      echo "Error: no decisions parsed from '$DECISIONS'." >&2
+      exit 1
+    fi
+
+    ITEM="$(jq -n \
+      --argjson decisions "$DECISIONS_JSON" \
+      --argjson checks "$CHECKS" \
+      --argjson annotations "$ANNOTATIONS" \
+      '{index: 0, decisions: $decisions, status: "pending",
+        acceptance: {annotations: $annotations, checks: $checks},
+        attempts: 0, evidence: []}')"
+
+    # Append, then renumber so index always matches position.
+    apply "$FILE" \
+      '.items = ((.items + [$__item]) | [to_entries[] | .value + {index: (.key + 1)}])' \
+      --argjson __item "$ITEM"
+
+    jq -r '.items | length' "$FILE"
+    ;;
+
+  get-item)
+    SLUG="${1:?Usage: run-state.sh get-item <slug> <index>}"
+    INDEX="${2:?Usage: run-state.sh get-item <slug> <index>}"
+    FILE="$(state_file "$SLUG")"
+    require_item "$FILE" "$INDEX"
+    jq --argjson i "$INDEX" '.items[] | select(.index == $i)' "$FILE"
+    ;;
+
+  set-item-status)
+    SLUG="${1:?Usage: run-state.sh set-item-status <slug> <index> <status>}"
+    INDEX="${2:?Usage: run-state.sh set-item-status <slug> <index> <status>}"
+    STATUS="${3:?Usage: run-state.sh set-item-status <slug> <index> <status>}"
+    FILE="$(state_file "$SLUG")"
+    require_item "$FILE" "$INDEX"
+    valid=false
+    for s in "${VALID_ITEM_STATUSES[@]}"; do
+      [[ "$STATUS" == "$s" ]] && valid=true
+    done
+    if [[ "$valid" != true ]]; then
+      echo "Error: invalid item status '$STATUS'. Valid: ${VALID_ITEM_STATUSES[*]}" >&2
+      exit 1
+    fi
+
+    # currentItem tracks the item being worked, and clears when it stops.
+    in_flight=false
+    for s in "${IN_FLIGHT_STATUSES[@]}"; do
+      [[ "$STATUS" == "$s" ]] && in_flight=true
+    done
+
+    apply "$FILE" \
+      '.items |= map(if .index == $__i then .status = $__s else . end)
+       | .currentItem = (if $__flight then $__i else (if .currentItem == $__i then null else .currentItem end) end)' \
+      --argjson __i "$INDEX" --arg __s "$STATUS" --argjson __flight "$in_flight"
+    ;;
+
+  add-evidence)
+    SLUG="${1:?Usage: run-state.sh add-evidence <slug> <index> <json>}"
+    INDEX="${2:?Usage: run-state.sh add-evidence <slug> <index> <json>}"
+    VALUE="${3:?Usage: run-state.sh add-evidence <slug> <index> <json>}"
+    FILE="$(state_file "$SLUG")"
+    require_item "$FILE" "$INDEX"
+    if ! echo "$VALUE" | jq -e . >/dev/null 2>&1; then
+      echo "Error: evidence must be valid JSON, got '$VALUE'." >&2
+      exit 1
+    fi
+    apply "$FILE" \
+      '.items |= map(if .index == $__i then .evidence += [$__e] else . end)' \
+      --argjson __i "$INDEX" --argjson __e "$VALUE"
+    ;;
+
+  bump-attempt)
+    SLUG="${1:?Usage: run-state.sh bump-attempt <slug> <index>}"
+    INDEX="${2:?Usage: run-state.sh bump-attempt <slug> <index>}"
+    FILE="$(state_file "$SLUG")"
+    require_item "$FILE" "$INDEX"
+    apply "$FILE" \
+      '.items |= map(if .index == $__i then .attempts += 1 else . end)' \
+      --argjson __i "$INDEX"
+    jq -r --argjson i "$INDEX" '.items[] | select(.index == $i) | .attempts' "$FILE"
+    ;;
+
+  repin-item)
+    SLUG="${1:?Usage: run-state.sh repin-item <slug> <index>}"
+    INDEX="${2:?Usage: run-state.sh repin-item <slug> <index>}"
+    FILE="$(state_file "$SLUG")"
+    require_item "$FILE" "$INDEX"
+    REPINNED="[]"
+    while IFS= read -r id; do
+      [[ -z "$id" ]] && continue
+      hash="$(bash "$SCRIPT_DIR/decision-hash.sh" "$id")"
+      REPINNED="$(jq --arg id "$id" --arg h "$hash" '. + [{id: $id, hash: $h}]' <<<"$REPINNED")"
+    done < <(jq -r --argjson i "$INDEX" '.items[] | select(.index == $i) | .decisions[].id' "$FILE")
+    apply "$FILE" \
+      '.items |= map(if .index == $__i then .decisions = $__d else . end)' \
+      --argjson __i "$INDEX" --argjson __d "$REPINNED"
     ;;
 
   list)

@@ -120,3 +120,32 @@ validate_slug() {
 utc_timestamp() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
+
+# Locate a decision record by ID across flat and namespaced layouts.
+# Usage: find_decision_file <DL-NNN>
+# @decision(DL-002)
+find_decision_file() {
+  local id="${1:?Usage: find_decision_file <DL-NNN>}"
+  local records_dir
+  records_dir="$(get_records_dir)"
+  local file
+  file="$(find "$records_dir" -name "$id.md" -type f 2>/dev/null | head -1)"
+  if [[ -z "$file" ]]; then
+    echo "Error: decision $id not found under $records_dir." >&2
+    exit 1
+  fi
+  echo "$file"
+}
+
+# Hash stdin with SHA-256, printing the bare hex digest.
+# @decision(DL-002)
+sha256_stdin() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    echo "Error: no SHA-256 tool found (looked for shasum and sha256sum)." >&2
+    exit 1
+  fi
+}
