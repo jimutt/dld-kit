@@ -20,10 +20,7 @@ export type PiSurface = Pick<
 	| "on"
 	| "registerCommand"
 	| "registerEntryRenderer"
-	| "registerMessageRenderer"
-	| "registerTool"
 	| "sendMessage"
-	| "sendUserMessage"
 	| "appendEntry"
 	| "exec"
 >;
@@ -78,15 +75,12 @@ export interface FakePi {
 	readonly commands: Map<string, Omit<RegisteredCommand, "name" | "sourceInfo">>;
 	readonly events: Map<string, ((event: unknown, ctx: unknown) => unknown)[]>;
 	readonly entryRenderers: Map<string, unknown>;
-	readonly messageRenderers: Map<string, unknown>;
-	readonly tools: Map<string, unknown>;
 
 	readonly execCalls: ExecCall[];
 	readonly notifications: Notification[];
 	readonly statuses: Map<string, string | undefined>;
 	readonly widgets: Map<string, string[] | undefined>;
 	readonly messages: SentMessage[];
-	readonly userMessages: { content: unknown; deliverAs?: string }[];
 	readonly entries: AppendedEntry[];
 
 	/** Queue a result for the next exec whose command and args match.
@@ -122,15 +116,12 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 	const commands = new Map<string, Omit<RegisteredCommand, "name" | "sourceInfo">>();
 	const events = new Map<string, ((event: unknown, ctx: unknown) => unknown)[]>();
 	const entryRenderers = new Map<string, unknown>();
-	const messageRenderers = new Map<string, unknown>();
-	const tools = new Map<string, unknown>();
 
 	const execCalls: ExecCall[] = [];
 	const notifications: Notification[] = [];
 	const statuses = new Map<string, string | undefined>();
 	const widgets = new Map<string, string[] | undefined>();
 	const messages: SentMessage[] = [];
-	const userMessages: { content: unknown; deliverAs?: string }[] = [];
 	const entries: AppendedEntry[] = [];
 
 	const scripted: {
@@ -197,20 +188,11 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 		registerEntryRenderer(customType: string, renderer: unknown) {
 			entryRenderers.set(customType, renderer);
 		},
-		registerMessageRenderer(customType: string, renderer: unknown) {
-			messageRenderers.set(customType, renderer);
-		},
-		registerTool(tool: { name: string }) {
-			tools.set(tool.name, tool);
-		},
 		sendMessage(
 			message: { customType: string; content: string | unknown[]; display: boolean; details?: unknown },
 			sendOptions,
 		) {
 			messages.push({ ...message, ...(sendOptions ?? {}) });
-		},
-		sendUserMessage(content, sendOptions) {
-			userMessages.push({ content, deliverAs: sendOptions?.deliverAs });
 		},
 		appendEntry(customType: string, data?: unknown) {
 			entries.push({ customType, data });
@@ -235,14 +217,11 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 		commands,
 		events,
 		entryRenderers,
-		messageRenderers,
-		tools,
 		execCalls,
 		notifications,
 		statuses,
 		widgets,
 		messages,
-		userMessages,
 		entries,
 
 		onExec(match, result) {

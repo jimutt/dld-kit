@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { boardLines, cardLines, statusLine, widgetLines, type CardData } from "./render.ts";
+import { boardLines, statusLine, widgetLines } from "./render.ts";
 import { activeMinutes, type RunState, type WorkItem } from "./run-state.ts";
 
 function item(index: number, status: WorkItem["status"], decisions: string[] = []): WorkItem {
@@ -123,20 +123,6 @@ describe("activeMinutes", () => {
 	});
 });
 
-describe("cardLines", () => {
-	test("accepted card names the decisions", () => {
-		const card: CardData = { kind: "item-accepted", slug: "payments", itemIndex: 2, decisions: ["DL-011", "DL-012"] };
-		expect(cardLines(card)[0]).toContain("item 2 accepted · DL-011, DL-012");
-	});
-
-	test("blocked card carries the detail as indented lines", () => {
-		const card: CardData = { kind: "item-blocked", slug: "payments", itemIndex: 1, decisions: ["DL-010"], detail: "annotations missing\nnpm test failed" };
-		const lines = cardLines(card);
-		expect(lines[0]).toContain("item 1 blocked");
-		expect(lines).toContain("  annotations missing");
-		expect(lines).toContain("  npm test failed");
-	});
-});
 
 describe("boardLines", () => {
 	test("shows every item, evidence, and questions without a height cap", () => {

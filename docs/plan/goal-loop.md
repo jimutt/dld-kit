@@ -163,9 +163,9 @@ On session start with an active run in `.dld/runs/`:
 
 ## Build order
 
-1. **`/dld-goal` skill (manual pacing).** Contract authoring, state files, the execution loop driven by the agent in one session, the four-part completion transaction composed from existing scripts. Works everywhere DLD works today. This is most of the semantics and none of the harness risk.
-2. **Extension v1: in-session continuation.** `/dld-goal` commands, `agent_end` continuation with idle/pending checks and run tokens, status widget, bounds, pause/resume. No child sessions yet — the loop runs in the controller session.
-3. **Extension v2: child sessions + deterministic compaction.** Fresh session per item, disk-backed recovery, deterministic compaction summaries.
+1. **`/dld-goal` skill (manual pacing).** ✅ Done — 10 scripts, 305 bats tests, validated end-to-end.
+2. **Extension v1: in-session continuation.** ✅ Done — `/dld-goal` commands with tolerant start syntax (`DL-014..DL-022`), scheduled `agent_end` continuation with suspension on user input and Esc, completion transaction honouring review mode, layered UI (status line, fixed-height widget, transcript cards, board overlay), active-time bounds. 96 bun tests alongside the bats suite. DL-006 through DL-014 accepted.
+3. **Extension v2: child sessions + deterministic compaction.** Fresh session per item, disk-backed recovery, deterministic compaction summaries (DL-009, DL-010, still proposed).
 4. **Later, if earned:** detached auditor process, regression-shield audit automation, `/dld-audit-auto` integration for fully unattended runs with a PR at the end.
 
 Each stage ships usable; later stages only add autonomy.

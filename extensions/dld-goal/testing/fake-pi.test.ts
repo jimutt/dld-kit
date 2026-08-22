@@ -99,29 +99,7 @@ describe("createFakePi", () => {
 		expect(pi.entries).toEqual([{ customType: "dld-goal-card", data: { item: 2 } }]);
 	});
 
-	test("records tool and renderer registrations", () => {
-		const pi = createFakePi();
-		pi.api.registerEntryRenderer("dld-goal-card", () => ({}) as never);
-		pi.api.registerMessageRenderer("dld-goal", () => ({}) as never);
-		pi.api.registerTool({
-			name: "dld_goal_item_done",
-			label: "Item done",
-			description: "",
-			parameters: { type: "object" } as never,
-			execute: async () => ({}) as never,
-		});
 
-		expect(pi.entryRenderers.has("dld-goal-card")).toBe(true);
-		expect(pi.messageRenderers.has("dld-goal")).toBe(true);
-		expect(pi.tools.has("dld_goal_item_done")).toBe(true);
-	});
-
-	test("records user messages with their delivery mode", () => {
-		const pi = createFakePi();
-		pi.api.sendUserMessage("work item 2", { deliverAs: "followUp" });
-
-		expect(pi.userMessages).toEqual([{ content: "work item 2", deliverAs: "followUp" }]);
-	});
 
 	test("clearing a status or widget is distinguishable from never setting one", () => {
 		const pi = createFakePi();

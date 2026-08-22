@@ -84,7 +84,7 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 	pi.registerCommand("dld-goal", {
 		description: "Drive a goal run: start, pause, resume, stop, status, or board",
 		handler: async (args, ctx) => {
-			await handleGoalCommand(pi, loop, args, ctx, scheduleContinuation);
+			await handleGoalCommand(pi, loop, args, ctx, scheduleContinuation, projectRoot);
 			await refreshSurfaces(ctx);
 		},
 	});
@@ -175,10 +175,6 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		await refreshSurfaces(ctx);
-	});
-
-	pi.on("turn_end", async (_event, ctx) => {
 		await refreshSurfaces(ctx);
 	});
 
@@ -282,6 +278,7 @@ async function handleGoalCommand(
 	args: string,
 	ctx: ExtensionCommandContext,
 	scheduleContinuation: (ctx: ExtensionContext) => void,
+	projectRoot: (ctx: ExtensionContext) => Promise<string>,
 ): Promise<void> {
 	const sub = args.trim().split(/\s+/)[0] || "status";
 	const workspace = ctx.cwd;
@@ -350,6 +347,16 @@ async function handleGoalCommand(
 				ctx.ui.notify(`No ${sub === "resume" ? "resumable" : "active"} run to ${sub}.`, "warning");
 				return;
 			}
+			// Resume re-validates preconditions: the tree may have gone dirty,
+			// collisions may have appeared, or decisions may have drifted while
+			// the run sat idle. DL-004 requires this before resuming.
+			if (sub === "resume") {
+				const guard = await runScript("guard-preconditions.sh", ["resume", slug]);
+				if (!guard.ok) {
+					ctx.ui.notify(guard.output, "error");
+					return;
+				}
+			}
 			const status = sub === "pause" ? "paused" : sub === "resume" ? "active" : "stopped";
 			const result = await runScript("run-state.sh", ["set-status", slug, status]);
 			if (result.ok) {
@@ -376,8 +383,12 @@ async function handleGoalCommand(
 				ctx.ui.notify("No active run.", "info");
 				return;
 			}
-			const result = await runScript("run-state.sh", ["get", slug]);
-			ctx.ui.notify(result.output, result.ok ? "info" : "warning");
+			const read = readRunFrom(`${await projectRoot(ctx)}/.dld/runs/${slug}`);
+			if (!read.ok) {
+				ctx.ui.notify(`Could not read run ${slug}: ${read.error.detail}`, "error");
+				return;
+			}
+			ctx.ui.notify(boardLines(read.state).join("\n"), "info");
 			return;
 		}
 		case "board": {
@@ -397,19 +408,13 @@ async function handleGoalCommand(
 			}
 			await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
 				const lines = boardLines(read.state);
-				let disposed = false;
 				return {
 					render: () => lines.map((line, i) => (i === 0 ? theme.fg("accent", theme.bold(line)) : line)),
 					invalidate: () => {},
 					handleInput: (data: string) => {
-						if (data === "\x1b" || data === "q") {
-							disposed = true;
-							done();
-						}
+						if (data === "\x1b" || data === "q") done();
 					},
-					dispose: () => {
-						disposed = true;
-					},
+					dispose: () => {},
 				};
 			});
 			return;

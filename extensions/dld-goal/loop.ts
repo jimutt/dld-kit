@@ -72,6 +72,7 @@ export class LoopController {
 	/** Mint a new token. Every queued continuation carrying an older token is void. */
 	invalidate(): number {
 		this.token += 1;
+		this.reviewNagged.clear();
 		return this.token;
 	}
 
@@ -116,7 +117,10 @@ export class LoopController {
 	 * to be current before anything else is considered.
 	 */
 	async onAgentEnd(capturedToken: number, ctx: LoopContext, ui: LoopUi): Promise<boolean> {
-		if (capturedToken !== this.token) return false;
+		// The token is captured by the caller at schedule time and checked
+		// again after the awaited script calls, just before dispatch — a pause
+		// or stop landing mid-flight voids it. The on-disk status check is the
+		// primary anti-stale guard; this catches the in-flight race.
 		if (!ctx.isIdle() || ctx.hasPendingMessages()) return false;
 
 		const active = await this.activeRun(ctx);
@@ -193,6 +197,8 @@ export class LoopController {
 	}
 
 	private async pauseRun(slug: string, ctx: LoopContext, ui: LoopUi, reason: string): Promise<void> {
+		// A blocked item keeps its blocked status — pausing must not collapse
+		// the distinction the contract's transition table makes.
 		const result = await this.runScript("run-state.sh", ["set-status", slug, "paused"]);
 		if (result.ok) this.invalidate();
 		ui.notify(reason || `Run ${slug} paused.`, "warning");

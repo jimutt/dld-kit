@@ -98,40 +98,6 @@ export function widgetLines(state: RunState, activeMinutes?: number): string[] {
 	return lines.slice(0, WIDGET_HEIGHT);
 }
 
-export type CardKind = "item-accepted" | "item-blocked" | "item-skipped" | "run-completed";
-
-export interface CardData {
-	kind: CardKind;
-	slug: string;
-	itemIndex?: number;
-	decisions?: string[];
-	detail?: string;
-}
-
-export function cardLines(data: CardData): string[] {
-	const icon = data.kind === "item-accepted" || data.kind === "run-completed" ? "✔" : data.kind === "item-skipped" ? "–" : "✖";
-	const decisions = (data.decisions ?? []).join(", ");
-	const lines: string[] = [];
-	switch (data.kind) {
-		case "item-accepted":
-			lines.push(`${icon} item ${data.itemIndex} accepted · ${decisions}`);
-			break;
-		case "item-blocked":
-			lines.push(`${icon} item ${data.itemIndex} blocked · ${decisions}`);
-			break;
-		case "item-skipped":
-			lines.push(`${icon} item ${data.itemIndex} skipped · ${decisions}`);
-			break;
-		case "run-completed":
-			lines.push(`${icon} run ${data.slug} complete`);
-			break;
-	}
-	if (data.detail) {
-		for (const line of data.detail.split("\n")) lines.push(`  ${line}`);
-	}
-	return lines;
-}
-
 /** Full board content for the overlay. No height cap — scrollback is free here. */
 export function boardLines(state: RunState): string[] {
 	const lines: string[] = [

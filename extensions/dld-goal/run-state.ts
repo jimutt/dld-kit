@@ -123,11 +123,6 @@ export interface ExecLike {
 	(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number; killed?: boolean }>;
 }
 
-interface Mutation {
-	ok: boolean;
-	code: number;
-	output: string;
-}
 
 function validateStateShape(candidate: unknown): candidate is RunState {
 	if (typeof candidate !== "object" || candidate === null) return false;
@@ -211,68 +206,3 @@ export function readEventsFrom(runDir: string): EventParseResult {
 	return parseEventsText(text);
 }
 
-async function runScript(exec: ExecLike, name: string, args: string[]): Promise<Mutation> {
-	const result = await exec("bash", [scriptPath(name), ...args]);
-	const output = result.stdout.length > 0 ? result.stdout.trimEnd() : result.stderr.trimEnd();
-	return { ok: result.code === 0, code: result.code, output };
-}
-
-interface AddItemOptions {
-	decisions: string[];
-	annotations?: string[];
-	checks?: string[][];
-}
-
-export function stateMutations(exec: ExecLike) {
-	const delegate = (name: string, args: string[]) => runScript(exec, name, args);
-
-	return {
-		getStatus: (slug: string): Promise<Mutation> => delegate("run-state.sh", ["get", slug, ".status"]),
-		setStatus: (slug: string, status: RunStatus): Promise<Mutation> =>
-			delegate("run-state.sh", ["set-status", slug, status]),
-		addItem: (slug: string, options: AddItemOptions): Promise<Mutation> => {
-			const args = ["add-item", slug, "--decisions", options.decisions.join(",")];
-			for (const annotation of options.annotations ?? []) args.push("--annotation", annotation);
-			for (const check of options.checks ?? []) args.push("--check", check.join(" "));
-			return delegate("run-state.sh", args);
-		},
-		getItem: (slug: string, index: number): Promise<Mutation> =>
-			delegate("run-state.sh", ["get-item", slug, String(index)]),
-		setItemStatus: (slug: string, index: number, status: ItemStatus): Promise<Mutation> =>
-			delegate("run-state.sh", ["set-item-status", slug, String(index), status]),
-		addEvidence: (slug: string, index: number, evidence: string): Promise<Mutation> =>
-			delegate("run-state.sh", ["add-evidence", slug, String(index), evidence]),
-		bumpAttempt: (slug: string, index: number): Promise<Mutation> =>
-			delegate("run-state.sh", ["bump-attempt", slug, String(index)]),
-		repinItem: (slug: string, index: number): Promise<Mutation> =>
-			delegate("run-state.sh", ["repin-item", slug, String(index)]),
-		verifyHashes: (slug: string, all: boolean): Promise<Mutation> =>
-			delegate("verify-hashes.sh", [slug, ...(all ? ["--all"] : [])]),
-		nextItem: (slug: string): Promise<Mutation> => delegate("next-item.sh", [slug]),
-		// block-item.sh rejects anything that is not a flag, so reason and
-		// question go through flags; positional would be an Unknown option.
-		blockItem: (
-			slug: string,
-			index: number,
-			reason: string,
-			options: { question?: string; force?: boolean } = {},
-		): Promise<Mutation> => {
-			const args = [slug, String(index), "--reason", reason];
-			if (options.question) args.push("--question", options.question);
-			if (options.force) args.push("--force");
-			return delegate("block-item.sh", args);
-		},
-		// resolve-block.sh needs both the operator's text and the chosen
-		// action; --action retry sends the item back to implementing, --action
-		// skip abandons it and moves the run to later items.
-		resolveBlock: (
-			slug: string,
-			index: number,
-			answer: string,
-			action: "retry" | "skip",
-		): Promise<Mutation> =>
-			delegate("resolve-block.sh", [slug, String(index), "--answer", answer, "--action", action]),
-		appendEvent: (slug: string, type: string, data: string): Promise<Mutation> =>
-			delegate("append-event.sh", [slug, type, ...(data ? ["--data", data] : [])]),
-	};
-}
