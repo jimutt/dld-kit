@@ -84,6 +84,41 @@ export interface EventParseResult {
 	errors: EventLineError[];
 }
 
+/**
+ * Minutes the run was actually in `active` status, derived from the event
+ * log's pause/resume/stop/complete markers. Wall-clock since creation counts
+ * overnight pauses; this does not.
+ */
+export function activeMinutes(state: RunState, events: unknown[]): number {
+	const created = Date.parse(state.createdAt);
+	if (!Number.isFinite(created)) return 0;
+
+	interface Marker {
+		timestamp: number;
+		active: boolean;
+	}
+	const markers: Marker[] = [{ timestamp: created, active: true }];
+	for (const event of events) {
+		if (typeof event !== "object" || event === null) continue;
+		const e = event as Record<string, unknown>;
+		const ts = Date.parse(String(e.timestamp ?? ""));
+		if (!Number.isFinite(ts)) continue;
+		const kind = String(e.type ?? e.kind ?? "");
+		if (kind === "run-paused" || kind === "run_paused" || kind === "paused") markers.push({ timestamp: ts, active: false });
+		else if (kind === "run-resumed" || kind === "run_resumed" || kind === "resumed") markers.push({ timestamp: ts, active: true });
+		else if (kind === "run-completed" || kind === "run-stopped") markers.push({ timestamp: ts, active: false });
+	}
+
+	let total = 0;
+	for (let i = 0; i < markers.length; i += 1) {
+		const marker = markers[i]!;
+		if (!marker.active) continue;
+		const end = markers[i + 1]?.timestamp ?? Date.now();
+		total += Math.max(0, end - marker.timestamp);
+	}
+	return total / 60000;
+}
+
 export interface ExecLike {
 	(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number; killed?: boolean }>;
 }

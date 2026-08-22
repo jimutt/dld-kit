@@ -3,7 +3,7 @@ import { formatDoctorReport, runDoctor } from "./doctor.ts";
 import { LoopController, type LoopContext, type LoopUi } from "./loop.ts";
 import { scriptPath } from "./paths.ts";
 import { boardLines, statusLine, widgetLines } from "./render.ts";
-import { readRunFrom } from "./run-state.ts";
+import { activeMinutes, readEventsFrom, readRunFrom } from "./run-state.ts";
 
 // @decision(DL-006) @decision(DL-008) @decision(DL-011)
 export type DldGoalApi = Pick<
@@ -30,22 +30,33 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 
 	// Paint the persistent surfaces from the on-disk state. Called after every
 	// event that can change the run; when nothing is active the surfaces clear.
+	let projectRootCache: string | null = null;
+	const projectRoot = async (ctx: ExtensionContext): Promise<string> => {
+		if (projectRootCache) return projectRootCache;
+		const result = await pi.exec("git", ["-C", ctx.cwd, "rev-parse", "--show-toplevel"]);
+		projectRootCache = result.code === 0 ? result.stdout.trim() : ctx.cwd;
+		return projectRootCache;
+	};
+
 	const refreshSurfaces = async (ctx: ExtensionContext) => {
 		if (!ctx.hasUI) return;
+		const root = await projectRoot(ctx);
 		const active = await (async () => {
 			const result = await pi.exec("bash", [scriptPath("run-state.sh"), "active"]);
 			if (result.code !== 0 || !result.stdout.trim()) return null;
-			const slug = result.stdout.trim();
-			const read = readRunFrom(`${ctx.cwd}/.dld/runs/${slug}`);
-			return read.ok ? read.state : null;
+			const slug = result.stdout.trim().split("\n")[0] ?? "";
+			if (!slug) return null;
+			const read = readRunFrom(`${root}/.dld/runs/${slug}`);
+			return read.ok ? { state: read.state, runDir: `${root}/.dld/runs/${slug}` } : null;
 		})();
 		if (!active) {
 			ctx.ui.setStatus(STATUS_KEY, undefined);
 			ctx.ui.setWidget(WIDGET_KEY, undefined);
 			return;
 		}
-		ctx.ui.setStatus(STATUS_KEY, statusLine(active));
-		ctx.ui.setWidget(WIDGET_KEY, widgetLines(active));
+		const minutes = activeMinutes(active.state, readEventsFrom(active.runDir).events);
+		ctx.ui.setStatus(STATUS_KEY, statusLine(active.state, minutes));
+		ctx.ui.setWidget(WIDGET_KEY, widgetLines(active.state, minutes));
 	};
 	const contextAdapterFor = (ctx: ExtensionContext): LoopContext => ({
 		cwd: ctx.cwd,
@@ -136,8 +147,26 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 		}, CONTINUATION_DELAY_MS);
 	};
 
-	pi.on("agent_end", async (_event, ctx) => {
+	pi.on("agent_end", async (event, ctx) => {
 		await refreshSurfaces(ctx);
+
+		// @decision(DL-014)
+		// An aborted turn is the user pressing Esc — the standard interrupt.
+		// Suspend rather than dispatching again, so Esc actually stops the
+		// loop instead of watching it restart itself immediately.
+		const messages = (event as { messages?: { role?: string; stopReason?: string }[] }).messages ?? [];
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const message = messages[i];
+			if (message?.role === "assistant" && message.stopReason === "aborted") {
+				clearTimer();
+				if (!loop.isSuspended()) {
+					loop.suspend();
+					ctx.ui.notify("Run suspended (interrupted). /dld-goal resume to continue.", "info");
+				}
+				return;
+			}
+		}
+
 		if (loop.isSuspended() || ctx.hasPendingMessages()) {
 			clearTimer();
 			return;
@@ -193,6 +222,8 @@ interface StartArgs {
  *   /dld-goal start my-batch "My title" --decisions DL-014,DL-015
  */
 function parseStartArgs(raw: string): StartArgs | { error: string } {
+	// raw is the args string after the command name, including the subcommand
+	// "start" itself; strip it before parsing.
 	const rest = raw.split(/\s+/).slice(1).filter(Boolean);
 	if (rest.length === 0) {
 		return { error: "Usage: /dld-goal start <DL-NNN..DL-NNN | slug [title] decisions…>" };
@@ -217,24 +248,29 @@ function parseStartArgs(raw: string): StartArgs | { error: string } {
 
 	// Flag form: --decisions DL-A,DL-B
 	const decisionFlag = rest.indexOf("--decisions");
-	let decisionIds: string[] = [];
-	let titleParts: string[] = [];
+	const firstIsDecision = /^DL-\d+$/.test(rest[0] ?? "");
+	let decisionIds: string[];
+	let titleParts: string[];
+
 	if (decisionFlag >= 0) {
 		decisionIds = (rest[decisionFlag + 1] ?? "").split(",").filter(Boolean);
 		titleParts = rest.slice(1, decisionFlag);
 	} else {
-		const positional = rest.slice(1);
-		decisionIds = positional.filter((p) => /^DL-\d+$/.test(p));
-		titleParts = positional.filter((p) => !/^DL-\d+$/.test(p));
+		// When the first token is a decision ID there is no explicit slug —
+		// every positional token is a decision. Taking rest.slice(1) would
+		// silently drop the first one.
+		const source = firstIsDecision ? rest : rest.slice(1);
+		decisionIds = source.filter((p) => /^DL-\d+$/.test(p));
+		titleParts = source.filter((p) => !/^DL-\d+$/.test(p));
 	}
 
 	if (decisionIds.length === 0) {
 		return { error: "A run needs decisions. Try /dld-goal start DL-014..DL-022 or /dld-goal start my-batch DL-014 DL-015" };
 	}
 
-	// First token is the slug if it isn't a decision ID; otherwise derive one.
-	const firstIsDecision = /^DL-\d+$/.test(rest[0] ?? "");
-	const slug = firstIsDecision ? `dl-${decisionIds[0]!.slice(3)}-${decisionIds[decisionIds.length - 1]!.slice(3)}` : (rest[0] ?? "run");
+	const slug = firstIsDecision
+		? `dl-${decisionIds[0]!.slice(3).padStart(3, "0")}-${decisionIds[decisionIds.length - 1]!.slice(3).padStart(3, "0")}`
+		: (rest[0] ?? "run");
 	const title = titleParts.join(" ") || (firstIsDecision ? `${decisionIds[0]} batch` : slug);
 
 	return { slug, title, decisionIds };
@@ -276,7 +312,7 @@ async function handleGoalCommand(
 				ctx.ui.notify(`A run is already active: ${existing}`, "warning");
 				return;
 			}
-			const parsed = parseStartArgs(args.trim());
+			const parsed = parseStartArgs("start " + args.trim().replace(/^start\s*/, ""));
 			if (!("slug" in parsed)) {
 				ctx.ui.notify(parsed.error, "warning");
 				return;
@@ -321,7 +357,11 @@ async function handleGoalCommand(
 					loop.resume();
 					scheduleContinuation(ctx);
 				} else {
-					loop.invalidate();
+					loop.suspend();
+					// Pausing mid-turn must stop the current work, not just the next
+					// dispatch — otherwise the agent finishes what it was doing and
+					// the user thinks pause is broken.
+					if (sub === "pause") ctx.abort();
 				}
 				const past = sub === "stop" ? "Stopped" : sub === "pause" ? "Paused" : "Resumed";
 				ctx.ui.notify(`${past} run ${slug}.`, "info");

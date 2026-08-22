@@ -32,7 +32,7 @@ export type UiSurface = Pick<ExtensionUIContext, "notify" | "setStatus" | "setWi
 
 export type CommandSurface = Pick<
 	ExtensionCommandContext,
-	"cwd" | "hasUI" | "mode" | "isIdle" | "hasPendingMessages"
+	"cwd" | "hasUI" | "mode" | "isIdle" | "hasPendingMessages" | "abort"
 > & { ui: UiSurface };
 
 export interface ExecCall {
@@ -101,6 +101,8 @@ export interface FakePi {
 
 	setIdle(value: boolean): void;
 	setPendingMessages(value: boolean): void;
+	/** Whether ctx.abort() was called. */
+	wasAborted(): boolean;
 
 	/** Fire a registered event handler. Returns each handler's result. */
 	emit(event: string, payload?: unknown): Promise<unknown[]>;
@@ -135,7 +137,16 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 		match: { command?: string; argsInclude?: string[]; argsContain?: string[] };
 		result: ExecResult;
 	}[] = [];
-	let fallbackExec: ExecResponder = options.exec ?? (() => okResult);
+	// git rev-parse answers with the fake's cwd so projectRoot resolution
+	// works without each test scripting it.
+	let fallbackExec: ExecResponder =
+		options.exec ??
+		((call) => {
+			if (call.command === "git" && call.args.includes("rev-parse")) {
+				return { ...okResult, stdout: `${options.cwd ?? process.cwd()}\n` };
+			}
+			return okResult;
+		});
 
 	let idle = options.idle ?? true;
 	let pendingMessages = options.pendingMessages ?? false;
@@ -156,12 +167,16 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 		setWidget,
 	};
 
+	let aborted = false;
 	const ctx: CommandSurface = {
 		cwd: options.cwd ?? process.cwd(),
 		hasUI: options.hasUI ?? true,
 		mode: "tui",
 		isIdle: () => idle,
 		hasPendingMessages: () => pendingMessages,
+		abort: () => {
+			aborted = true;
+		},
 		ui,
 	};
 
@@ -238,6 +253,9 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 		},
 		setIdle(value) {
 			idle = value;
+		},
+		wasAborted() {
+			return aborted;
 		},
 		setPendingMessages(value) {
 			pendingMessages = value;

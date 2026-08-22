@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { boardLines, cardLines, statusLine, widgetLines, type CardData } from "./render.ts";
-import type { RunState, WorkItem } from "./run-state.ts";
+import { activeMinutes, type RunState, type WorkItem } from "./run-state.ts";
 
 function item(index: number, status: WorkItem["status"], decisions: string[] = []): WorkItem {
 	return {
@@ -87,6 +87,39 @@ describe("widgetLines", () => {
 		for (const line of widgetLines(stateWith(many))) {
 			expect(line.length).toBeLessThanOrEqual(60);
 		}
+	});
+});
+
+describe("activeMinutes", () => {
+	test("a run that was never paused measures wall-clock", () => {
+		const state = stateWith([item(1, "pending")]);
+		const minutes = activeMinutes(state, []);
+		expect(minutes).toBeGreaterThan(30);
+		expect(minutes).toBeLessThan(40);
+	});
+
+	test("paused time does not count", () => {
+		const state = stateWith([item(1, "pending")]);
+		const created = Date.parse(state.createdAt);
+		const events = [
+			{ type: "run-paused", timestamp: new Date(created + 10 * 60000).toISOString() },
+			{ type: "run-resumed", timestamp: new Date(created + 700 * 60000).toISOString() },
+		];
+		const minutes = activeMinutes(state, events);
+		// 10 minutes before the pause, plus a little since resume — not 700+.
+		expect(minutes).toBeLessThan(50);
+		expect(minutes).toBeGreaterThan(9);
+	});
+
+	test("a completed run stops counting", () => {
+		const state = stateWith([item(1, "accepted")]);
+		const created = Date.parse(state.createdAt);
+		const events = [
+			{ type: "run-paused", timestamp: new Date(created + 10 * 60000).toISOString() },
+			{ type: "run-completed", timestamp: new Date(created + 20 * 60000).toISOString() },
+		];
+		const minutes = activeMinutes(state, events);
+		expect(minutes).toBe(10);
 	});
 });
 

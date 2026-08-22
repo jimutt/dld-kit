@@ -70,6 +70,9 @@ function makePi() {
 function installStatefulScripts(pi: ReturnType<typeof createFakePi>, slug: string) {
 	pi.setExec(async (call) => {
 		const joined = call.args.join(" ");
+		if (call.command === "git" && call.args.includes("rev-parse")) {
+			return { stdout: `${workspace}\n`, stderr: "", code: 0, killed: false };
+		}
 		if (joined.includes("run-state.sh") && call.args[1] === "active") {
 			const state = JSON.parse(
 				require("node:fs").readFileSync(join(workspace, ".dld", "runs", slug, "state.json"), "utf8"),
@@ -436,14 +439,13 @@ describe("turn_end transaction", () => {
 					decisions: [{ id: "DL-010", hash: "sha256:x" }],
 					status: "verifying",
 					acceptance: { annotations: [], checks: [] },
-					attempts: 1,
+					attempts: 2,
 					evidence: [{ kind: "annotations", ok: true }],
 				},
 			],
 		}));
 		installStatefulScripts(pi, "payments");
 		pi.onExec({ command: "bash", argsContain: ["verify-item.sh"] }, { stdout: "", stderr: "annotations missing", code: 1 });
-		pi.onExec({ command: "bash", argsContain: ["bump-attempt"] }, { stdout: "2\n", code: 0 });
 		pi.onExec({ command: "bash", argsContain: ["block-item.sh"] }, { stdout: "Item 1 blocked.\n", code: 0 });
 		dldGoalExtension(pi.api);
 
@@ -452,7 +454,8 @@ describe("turn_end transaction", () => {
 		const blockCalls = pi.execCalls.filter((c) => c.args.some((a) => a.includes("block-item.sh")));
 		expect(blockCalls).toHaveLength(1);
 		expect(blockCalls[0]?.args).toContain("--reason");
-		expect(blockCalls[0]?.args).toContain("--force");
+		// No --force: attempts is already 2, so the retry has been used.
+		expect(blockCalls[0]?.args).not.toContain("--force");
 	});
 
 	test("retries once on first verification failure and blocks on second", async () => {
@@ -535,6 +538,96 @@ describe("commands", () => {
 		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(3);
 		expect(pi.execCalls.some((c) => c.args.includes("dl-14-16"))).toBe(true);
 		expect(pi.notifications.some((n) => n.message.includes("Started run dl-14-16 · 3 items"))).toBe(true);
+	});
+
+	test("start with only positional decisions keeps every one", async () => {
+		const pi = makePi();
+		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
+		pi.onExec({ command: "bash", argsContain: ["guard-preconditions.sh"] }, { stdout: "", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["create-run.sh"] }, { stdout: "Created\n", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
+		dldGoalExtension(pi.api);
+
+		await pi.invokeCommand("dld-goal", "start DL-014 DL-015");
+
+		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(2);
+		expect(pi.execCalls.some((c) => c.args.includes("dl-014-015"))).toBe(true);
+	});
+
+	test("a single positional decision is accepted, not refused", async () => {
+		const pi = makePi();
+		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
+		pi.onExec({ command: "bash", argsContain: ["guard-preconditions.sh"] }, { stdout: "", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["create-run.sh"] }, { stdout: "Created\n", code: 0 });
+		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
+		dldGoalExtension(pi.api);
+
+		await pi.invokeCommand("dld-goal", "start DL-014");
+
+		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(1);
+	});
+
+	test("pause aborts the current turn, not just the next dispatch", async () => {
+		const pi = makePi();
+		writeState("payments", activeState());
+		installStatefulScripts(pi, "payments");
+		dldGoalExtension(pi.api);
+
+		await pi.invokeCommand("dld-goal", "pause");
+
+		expect(pi.wasAborted()).toBe(true);
+	});
+
+	test("suspension covers the write path: turn_end mutates nothing while suspended", async () => {
+		const pi = makePi();
+		writeState("payments", activeState({
+			review: "disabled",
+			items: [
+				{
+					index: 1,
+					decisions: [{ id: "DL-010", hash: "sha256:x" }],
+					status: "verifying",
+					acceptance: { annotations: [], checks: [] },
+					attempts: 1,
+					evidence: [{ kind: "annotations", ok: true }],
+				},
+			],
+		}));
+		installStatefulScripts(pi, "payments");
+		pi.onExec({ command: "bash", argsContain: ["verify-item.sh"] }, { stdout: "", code: 0 });
+		dldGoalExtension(pi.api);
+
+		await pi.emit("input", {});
+		await pi.emit("turn_end", {});
+
+		expect(pi.execCalls.every((c) => !c.args.some((a) => a.includes("verify-item.sh")))).toBe(true);
+	});
+
+	test("an aborted turn suspends the loop instead of redispatching", async () => {
+		const pi = makePi();
+		writeState("payments", activeState());
+		installStatefulScripts(pi, "payments");
+		dldGoalExtension(pi.api);
+
+		await pi.emit("agent_end", {
+			messages: [{ role: "assistant", stopReason: "aborted", content: [] }],
+		});
+
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.notifications.some((n) => n.message.includes("suspended (interrupted)"))).toBe(true);
+	});
+
+	test("a non-aborted turn end still dispatches", async () => {
+		const pi = makePi();
+		writeState("payments", activeState());
+		installStatefulScripts(pi, "payments");
+		dldGoalExtension(pi.api);
+
+		await pi.emit("agent_end", {
+			messages: [{ role: "assistant", stopReason: "stop", content: [] }],
+		});
+
+		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(1);
 	});
 
 	test("start tolerates range separators with spaces", async () => {

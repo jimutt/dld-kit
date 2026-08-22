@@ -10,8 +10,10 @@ import type { RunState, WorkItem } from "./run-state.ts";
 
 const WIDGET_HEIGHT = 5;
 
-function elapsedLabel(state: RunState): string {
-	const elapsedMin = Math.max(0, (Date.now() - Date.parse(state.createdAt)) / 60000);
+function elapsedLabel(state: RunState, activeMinutes?: number): string {
+	// Active time is what the bound measures; wall-clock since creation counts
+	// overnight pauses, which is why a resumed run showed 703m of nothing.
+	const elapsedMin = activeMinutes ?? Math.max(0, (Date.now() - Date.parse(state.createdAt)) / 60000);
 	if (state.bounds.maxMinutes > 0) {
 		return `${Math.floor(elapsedMin)}m/${state.bounds.maxMinutes}m`;
 	}
@@ -34,14 +36,14 @@ function itemIcon(status: WorkItem["status"]): string {
 	}
 }
 
-export function statusLine(state: RunState): string {
+export function statusLine(state: RunState, activeMinutes?: number): string {
 	const total = state.items.length;
 	const done = state.items.filter((i) => i.status === "accepted" || i.status === "skipped").length;
 	const current = state.currentItem !== null ? state.items.find((i) => i.index === state.currentItem) : undefined;
 	const currentBit = current ? ` · ${decisionIds(current)} ${current.status}` : "";
 	const blockedCount = state.blockedQuestions.filter((q) => !q.answer).length;
 	const blockedBit = blockedCount > 0 ? ` · ${blockedCount} blocked question${blockedCount === 1 ? "" : "s"}` : "";
-	return `◆ ${state.slug} ${done}/${total}${currentBit} · ${elapsedLabel(state)}${blockedBit}`;
+	return `◆ ${state.slug} ${done}/${total}${currentBit} · ${elapsedLabel(state, activeMinutes)}${blockedBit}`;
 }
 
 /**
@@ -50,11 +52,11 @@ export function statusLine(state: RunState): string {
  * "+N more" line when items fall outside the window. A 3-item run and a
  * 30-item run render the same number of lines.
  */
-export function widgetLines(state: RunState): string[] {
+export function widgetLines(state: RunState, activeMinutes?: number): string[] {
 	const items = state.items;
 	const total = items.length;
 	const done = items.filter((i) => i.status === "accepted" || i.status === "skipped").length;
-	const header = `dld-goal ${state.slug} ─── ${done}/${total} · ${elapsedLabel(state)}`;
+	const header = `dld-goal ${state.slug} ─── ${done}/${total} · ${elapsedLabel(state, activeMinutes)}`;
 
 	if (total === 0) {
 		return [header, "  no items yet", "", "", ""];

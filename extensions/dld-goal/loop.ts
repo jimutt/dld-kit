@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { scriptPath } from "./paths.ts";
 import type { ExecLike } from "./run-state.ts";
-import { readRunFrom, type RunState } from "./run-state.ts";
+import { activeMinutes, readEventsFrom, readRunFrom, type RunState } from "./run-state.ts";
 
 // @decision(DL-008) @decision(DL-004)
 // In-session continuation: agent_end advances an active run when everything
@@ -48,6 +48,10 @@ export class LoopController {
 	/** Items already told that they are waiting on review, so turn_end does not
 	 * repeat the warning on every turn while the item stays verifying. */
 	private reviewNagged = new Set<number>();
+	/** Evidence count at the last verification per item, so verify-item.sh
+	 * (which runs the project test suite) only re-runs when new evidence
+	 * arrived, not on every turn the item sits in verifying. */
+	private verifiedAtEvidence = new Map<number, number>();
 
 	constructor(private exec: ExecLike) {}
 
@@ -75,23 +79,33 @@ export class LoopController {
 		return this.token;
 	}
 
-	private async runScript(cwd: string, name: string, args: string[]): Promise<MutationEnvelope> {
+	private async runScript(name: string, args: string[]): Promise<MutationEnvelope> {
 		const result = await this.exec("bash", [scriptPath(name), ...args]);
 		const output = result.stdout.length > 0 ? result.stdout.trimEnd() : result.stderr.trimEnd();
 		return { ok: result.code === 0, code: result.code, output };
 	}
 
-	private contextCwd(ctx: LoopContext): string {
-		return ctx.cwd;
+	private projectRootCache = new Map<string, string>();
+
+	/** The scripts resolve .dld/ from the git root; the extension must match
+	 * or a session started in a subdirectory sees a different filesystem. */
+	private async projectRoot(ctx: LoopContext): Promise<string> {
+		const cached = this.projectRootCache.get(ctx.cwd);
+		if (cached) return cached;
+		const result = await this.exec("git", ["-C", ctx.cwd, "rev-parse", "--show-toplevel"]);
+		const root = result.code === 0 ? result.stdout.trim() : ctx.cwd;
+		this.projectRootCache.set(ctx.cwd, root);
+		return root;
 	}
 
 	/** Active run from a context, or null. Active slug resolution goes through run-state.sh. */
 	private async activeRun(ctx: LoopContext): Promise<ActiveRun | null> {
-		const active = await this.runScript(this.contextCwd(ctx), "run-state.sh", ["active"]);
+		const root = await this.projectRoot(ctx);
+		const active = await this.runScript("run-state.sh", ["active"]);
 		if (!active.ok) return null;
 		const slug = active.output.trim();
 		if (!slug) return null;
-		const runDir = join(this.contextCwd(ctx), ".dld", "runs", slug);
+		const runDir = join(root, ".dld", "runs", slug);
 		const read = readRunFrom(runDir);
 		if (!read.ok) return null;
 		return { slug, state: read.state, runDir };
@@ -109,12 +123,12 @@ export class LoopController {
 		if (!active) return false;
 		if (active.state.status !== "active") return false;
 
-		if (!this.withinBounds(active.state)) {
+		if (!this.withinBounds(active.state, active.runDir)) {
 			await this.pauseAtBounds(active, ctx, ui);
 			return false;
 		}
 
-		const next = await this.runScript(this.contextCwd(ctx), "next-item.sh", [active.slug]);
+		const next = await this.runScript("next-item.sh", [active.slug]);
 		if (!next.ok) {
 			if (next.code === 2) {
 				await this.pauseRun(active.slug, ctx, ui, next.output);
@@ -148,41 +162,56 @@ export class LoopController {
 		// race at the start; this catches the race at the end.
 		if (capturedToken !== this.token) return false;
 
+		// Claim the item before dispatching so the next agent_end sees it as
+		// in-flight rather than re-dispatching the same work. next-item.sh
+		// prefers in-flight items, so claiming makes the loop single-threaded.
+		const claimed = await this.runScript("run-state.sh", [
+			"set-item-status",
+			active.slug,
+			String(item.index),
+			"implementing",
+		]);
+		if (!claimed.ok) {
+			ui.notify(`Could not claim item ${item.index}: ${claimed.output}`, "error");
+			return false;
+		}
+
 		const decisions = item.decisions.map((d) => d.id).join(", ");
 		ui.notify(`Continue goal run '${active.slug}'. Work item ${index} (${decisions}).`, "info");
 		return true;
 	}
 
 	private async completeRun(slug: string, ctx: LoopContext, ui: LoopUi): Promise<void> {
-		const result = await this.runScript(this.contextCwd(ctx), "run-state.sh", ["set-status", slug, "complete"]);
+		const result = await this.runScript("run-state.sh", ["set-status", slug, "complete"]);
 		if (!result.ok) {
 			ui.notify(`Could not complete run ${slug}: ${result.output}`, "error");
 			return;
 		}
 		this.invalidate();
-		await this.runScript(this.contextCwd(ctx), "append-event.sh", [slug, "run-completed"]);
+		await this.runScript("append-event.sh", [slug, "run-completed"]);
 		ui.notify(`Run ${slug} complete — every item is accepted or skipped.`, "info");
 	}
 
 	private async pauseRun(slug: string, ctx: LoopContext, ui: LoopUi, reason: string): Promise<void> {
-		const result = await this.runScript(this.contextCwd(ctx), "run-state.sh", ["set-status", slug, "paused"]);
+		const result = await this.runScript("run-state.sh", ["set-status", slug, "paused"]);
 		if (result.ok) this.invalidate();
 		ui.notify(reason || `Run ${slug} paused.`, "warning");
 	}
 
-	private withinBounds(state: RunState): boolean {
+	private withinBounds(state: RunState, runDir: string): boolean {
 		const accepted = state.items.filter((item) => item.status === "accepted" || item.status === "skipped").length;
 		if (state.bounds.maxItems > 0 && accepted >= state.bounds.maxItems) return false;
 		if (state.bounds.maxMinutes > 0) {
-			// The contract's cap is wall-clock, so idle time between turns counts.
-			const elapsedMin = (Date.now() - Date.parse(state.createdAt)) / 60000;
+			// The bound measures active time: pauses, overnight gaps, and idle
+			// sessions do not count toward it.
+			const elapsedMin = activeMinutes(state, readEventsFrom(runDir).events);
 			if (elapsedMin >= state.bounds.maxMinutes) return false;
 		}
 		return true;
 	}
 
 	private async pauseAtBounds(active: ActiveRun, ctx: LoopContext, ui: LoopUi): Promise<void> {
-		const result = await this.runScript(this.contextCwd(ctx), "run-state.sh", ["set-status", active.slug, "paused"]);
+		const result = await this.runScript("run-state.sh", ["set-status", active.slug, "paused"]);
 		if (!result.ok) {
 			ui.notify(`Could not pause run ${active.slug}: ${result.output}`, "error");
 			return;
@@ -195,14 +224,22 @@ export class LoopController {
 	 * Advance an item through verification and completion. Delegate every write.
 	 */
 	async onTurnEnd(ctx: LoopContext, ui: LoopUi): Promise<void> {
+		// Suspension covers the write path too: a suspended loop mutates nothing.
+		if (this.suspended) return;
 		const active = await this.activeRun(ctx);
 		if (!active) return;
 		if (active.state.status !== "active") return;
 
-		const item = active.state.items.find((entry) => entry.status === "verifying" && entry.evidence.length > 0);
+		const item = active.state.items.find(
+			(entry) =>
+				entry.status === "verifying" &&
+				entry.evidence.length > 0 &&
+				entry.evidence.length !== this.verifiedAtEvidence.get(entry.index),
+		);
 		if (!item) return;
 
-		const verify = await this.runScript(this.contextCwd(ctx), "verify-item.sh", [active.slug, String(item.index)]);
+		this.verifiedAtEvidence.set(item.index, item.evidence.length);
+		const verify = await this.runScript("verify-item.sh", [active.slug, String(item.index)]);
 
 		if (verify.code === 0) {
 			if (active.state.review === "enabled") {
@@ -218,7 +255,7 @@ export class LoopController {
 				}
 				return;
 			}
-			const accepted = await this.runScript(this.contextCwd(ctx), "run-state.sh", [
+			const accepted = await this.runScript("run-state.sh", [
 				"set-item-status",
 				active.slug,
 				String(item.index),
@@ -228,12 +265,12 @@ export class LoopController {
 				ui.notify(`Could not mark item ${item.index} accepted: ${accepted.output}`, "error");
 				return;
 			}
-			const repinned = await this.runScript(this.contextCwd(ctx), "run-state.sh", ["repin-item", active.slug, String(item.index)]);
+			const repinned = await this.runScript("run-state.sh", ["repin-item", active.slug, String(item.index)]);
 			if (!repinned.ok) {
 				ui.notify(`Could not repin item ${item.index}: ${repinned.output}`, "error");
 				return;
 			}
-			const eventAppended = await this.runScript(this.contextCwd(ctx), "append-event.sh", [
+			const eventAppended = await this.runScript("append-event.sh", [
 				active.slug,
 				"item-accepted",
 				"--data",
@@ -251,15 +288,11 @@ export class LoopController {
 			return;
 		}
 
-		const bump = await this.runScript(this.contextCwd(ctx), "run-state.sh", ["bump-attempt", active.slug, String(item.index)]);
-		const attempts = Number(bump.output.trim());
-		if (!Number.isFinite(attempts)) {
-			ui.notify(`bump-attempt returned an unexpected output: ${bump.output}`, "error");
-			return;
-		}
-
-		if (attempts < 2) {
-			const retried = await this.runScript(this.contextCwd(ctx), "run-state.sh", [
+		// attempts counts completed attempts. The skill claims with bump-attempt
+		// (0→1) so a first failure sees attempts=1 and retries; a second failure
+		// sees attempts=2 and blocks. Do not bump here — the next claim does it.
+		if (item.attempts < 2) {
+			const retried = await this.runScript("run-state.sh", [
 				"set-item-status",
 				active.slug,
 				String(item.index),
@@ -269,16 +302,15 @@ export class LoopController {
 				ui.notify(`Could not send item ${item.index} back for a retry: ${retried.output}`, "error");
 				return;
 			}
-			ui.notify(`Item ${item.index} verification failed; retrying (attempt ${attempts}).`, "warning");
+			ui.notify(`Item ${item.index} verification failed; retrying (attempt ${item.attempts + 1}).`, "warning");
 			return;
 		}
 
-		const blocker = await this.runScript(this.contextCwd(ctx), "block-item.sh", [
+		const blocker = await this.runScript("block-item.sh", [
 			active.slug,
 			String(item.index),
 			"--reason",
 			verify.output,
-			"--force",
 		]);
 		if (!blocker.ok) {
 			ui.notify(blocker.output, "error");
