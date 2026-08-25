@@ -172,7 +172,7 @@ YAML
 }
 
 @test "validate_slug accepts lowercase slugs with hyphens and digits" {
-  run validate_slug "dld-goal-stage-1"
+  run validate_slug "dld-run-stage-1"
   assert_success
 }
 

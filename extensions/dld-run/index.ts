@@ -11,8 +11,8 @@ export type DldGoalApi = Pick<
 	"registerCommand" | "exec" | "appendEntry" | "on" | "sendMessage" | "registerEntryRenderer"
 >;
 
-const STATUS_KEY = "dld-goal";
-const WIDGET_KEY = "dld-goal-run";
+const STATUS_KEY = "dld-run";
+const WIDGET_KEY = "dld-run-run";
 
 /** Time between agent_end and the deferred dispatch. Long enough for the
  * session to settle, short enough to feel like a handoff. */
@@ -25,7 +25,7 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 
 	const uiAdapterFor = (ctx: ExtensionContext): LoopUi => ({
 		notify: (message, type) => ctx.ui.notify(message, type),
-		card: (lines) => pi.appendEntry("dld-goal-card", { lines }),
+		card: (lines) => pi.appendEntry("dld-run-card", { lines }),
 	});
 
 	// Paint the persistent surfaces from the on-disk state. Called after every
@@ -64,8 +64,8 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 		hasPendingMessages: () => ctx.hasPendingMessages(),
 	});
 
-	pi.registerCommand("dld-goal-doctor", {
-		description: "Check that dld-goal can run: bash, jq, skill scripts, and workspace config",
+	pi.registerCommand("dld-run-doctor", {
+		description: "Check that dld-run can run: bash, jq, skill scripts, and workspace config",
 		handler: async (_args, ctx) => {
 			const report = await runDoctor(
 				(command, commandArgs, options) => pi.exec(command, commandArgs, options),
@@ -76,12 +76,12 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 			if (ctx.hasUI) {
 				ctx.ui.notify(text, report.ok ? "info" : "warning");
 			} else {
-				pi.appendEntry("dld-goal-doctor", { report, text });
+				pi.appendEntry("dld-run-doctor", { report, text });
 			}
 		},
 	});
 
-	pi.registerCommand("dld-goal", {
+	pi.registerCommand("dld-run", {
 		description: "Drive a goal run: start, pause, resume, stop, status, or board",
 		handler: async (args, ctx) => {
 			await handleGoalCommand(pi, loop, args, ctx, scheduleContinuation, projectRoot);
@@ -91,7 +91,7 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 
 	// Cards render in the transcript as custom entries: scrollback, no redraw,
 	// and never part of LLM context.
-	pi.registerEntryRenderer("dld-goal-card", (entry, _options, theme) => {
+	pi.registerEntryRenderer("dld-run-card", (entry, _options, theme) => {
 		const data = entry.data as { lines?: string[] } | undefined;
 		const text = (data?.lines ?? []).join("\n");
 		return {
@@ -128,9 +128,9 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 				if (dispatched) {
 					pi.sendMessage(
 						{
-							customType: "dld-goal:continuation",
+							customType: "dld-run:continuation",
 							content:
-								"Continue the goal run: work the item named in the last dld-goal notification, exactly as the dld-goal skill describes.",
+								"Continue the goal run: work the item named in the last dld-run notification, exactly as the dld-run skill describes.",
 							display: false,
 						},
 						{ triggerTurn: true, deliverAs: "followUp" },
@@ -141,7 +141,7 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 				// anything else once.
 				const message = error instanceof Error ? error.message : String(error);
 				if (!message.includes("stale")) {
-					ctx.ui.notify(`dld-goal continuation failed: ${message}`, "error");
+					ctx.ui.notify(`dld-run continuation failed: ${message}`, "error");
 				}
 			}
 		}, CONTINUATION_DELAY_MS);
@@ -161,7 +161,7 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 				clearTimer();
 				if (!loop.isSuspended()) {
 					loop.suspend();
-					ctx.ui.notify("Run suspended (interrupted). /dld-goal resume to continue.", "info");
+					ctx.ui.notify("Run suspended (interrupted). /dld-run resume to continue.", "info");
 				}
 				return;
 			}
@@ -194,7 +194,7 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 			await loop.onTurnEnd(contextAdapterFor(ctx), uiAdapterFor(ctx));
 		} catch (error) {
 			ctx.ui.notify(
-				`dld-goal completion check failed: ${error instanceof Error ? error.message : String(error)}`,
+				`dld-run completion check failed: ${error instanceof Error ? error.message : String(error)}`,
 				"error",
 			);
 		}
@@ -212,17 +212,17 @@ interface StartArgs {
  * Parse the tolerant start syntax. The agent is the parser: ranges expand,
  * slug and title are derived when not given.
  *
- *   /dld-goal start DL-014..DL-022          → slug dl-014-022, 9 items
- *   /dld-goal start DL-014 - DL-022         → same
- *   /dld-goal start my-batch DL-014 DL-015  → slug my-batch, 2 items
- *   /dld-goal start my-batch "My title" --decisions DL-014,DL-015
+ *   /dld-run start DL-014..DL-022          → slug dl-014-022, 9 items
+ *   /dld-run start DL-014 - DL-022         → same
+ *   /dld-run start my-batch DL-014 DL-015  → slug my-batch, 2 items
+ *   /dld-run start my-batch "My title" --decisions DL-014,DL-015
  */
 function parseStartArgs(raw: string): StartArgs | { error: string } {
 	// raw is the args string after the command name, including the subcommand
 	// "start" itself; strip it before parsing.
 	const rest = raw.split(/\s+/).slice(1).filter(Boolean);
 	if (rest.length === 0) {
-		return { error: "Usage: /dld-goal start <DL-NNN..DL-NNN | slug [title] decisions…>" };
+		return { error: "Usage: /dld-run start <DL-NNN..DL-NNN | slug [title] decisions…>" };
 	}
 
 	// Range form: DL-014..DL-022 or DL-014 - DL-022 (spaces tolerated).
@@ -261,7 +261,7 @@ function parseStartArgs(raw: string): StartArgs | { error: string } {
 	}
 
 	if (decisionIds.length === 0) {
-		return { error: "A run needs decisions. Try /dld-goal start DL-014..DL-022 or /dld-goal start my-batch DL-014 DL-015" };
+		return { error: "A run needs decisions. Try /dld-run start DL-014..DL-022 or /dld-run start my-batch DL-014 DL-015" };
 	}
 
 	const slug = firstIsDecision
@@ -420,6 +420,6 @@ async function handleGoalCommand(
 			return;
 		}
 		default:
-			ctx.ui.notify("Usage: /dld-goal [status] | start DL-014..DL-022 | start <slug> [title] DL-… | pause|resume|stop [slug] | board", "warning");
+			ctx.ui.notify("Usage: /dld-run [status] | start DL-014..DL-022 | start <slug> [title] DL-… | pause|resume|stop [slug] | board", "warning");
 	}
 }

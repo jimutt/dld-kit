@@ -1,10 +1,10 @@
 ---
-name: dld-goal
+name: dld-run
 description: Execute a set of proposed decisions as a long-running goal. Creates a run contract, works decisions item by item with verified completion, and tracks progress in durable run state.
 user_invocable: true
 ---
 
-# /dld-goal — Execute Decisions as a Long-Running Goal
+# /dld-run — Execute Decisions as a Long-Running Goal
 
 You are running a **goal**: a set of `proposed` decisions executed one work item at a time, where each item's completion is verified before the next begins.
 
@@ -23,16 +23,16 @@ Shared scripts:
 
 Skill-specific scripts:
 ```
-.claude/skills/dld-goal/scripts/create-run.sh
-.claude/skills/dld-goal/scripts/run-state.sh
-.claude/skills/dld-goal/scripts/append-event.sh
-.claude/skills/dld-goal/scripts/decision-hash.sh
-.claude/skills/dld-goal/scripts/next-item.sh
-.claude/skills/dld-goal/scripts/verify-hashes.sh
-.claude/skills/dld-goal/scripts/guard-preconditions.sh
-.claude/skills/dld-goal/scripts/verify-item.sh
-.claude/skills/dld-goal/scripts/block-item.sh
-.claude/skills/dld-goal/scripts/resolve-block.sh
+.claude/skills/dld-run/scripts/create-run.sh
+.claude/skills/dld-run/scripts/run-state.sh
+.claude/skills/dld-run/scripts/append-event.sh
+.claude/skills/dld-run/scripts/decision-hash.sh
+.claude/skills/dld-run/scripts/next-item.sh
+.claude/skills/dld-run/scripts/verify-hashes.sh
+.claude/skills/dld-run/scripts/guard-preconditions.sh
+.claude/skills/dld-run/scripts/verify-item.sh
+.claude/skills/dld-run/scripts/block-item.sh
+.claude/skills/dld-run/scripts/resolve-block.sh
 ```
 
 Cross-skill scripts:
@@ -58,7 +58,7 @@ Run artifacts are gitignored by default; decisions are the persistent record. Se
 
 ## Commands
 
-### `/dld-goal start`
+### `/dld-run start`
 
 Create a run.
 
@@ -85,7 +85,7 @@ Create a run.
 3. **Check it is safe to start.** A run pins decision IDs and hashes, so anything that rewrites decisions underneath it invalidates the run:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/guard-preconditions.sh start --decisions "DL-010,DL-011,DL-012,DL-013"
+bash .claude/skills/dld-run/scripts/guard-preconditions.sh start --decisions "DL-010,DL-011,DL-012,DL-013"
 ```
 
 This checks the working tree is clean, no other run is active, every decision exists and is `proposed`, and no decision IDs collide with the base branch. Any output is a blocker — resolve it before continuing. A collision means `/dld-reindex` first, always.
@@ -110,7 +110,7 @@ This checks the working tree is clean, no other run is active, every decision ex
 6. **Create the run**, piping the objective via `printf` with `\n` escapes. Include the agreed slicing in the contract body — the contract is the immutable record of what was agreed:
 
 ```bash
-printf "Implement the payment gateway decisions...\n\n## Agreed slicing\n\n| # | Decisions | Why grouped |\n..." | bash .claude/skills/dld-goal/scripts/create-run.sh \
+printf "Implement the payment gateway decisions...\n\n## Agreed slicing\n\n| # | Decisions | Why grouped |\n..." | bash .claude/skills/dld-run/scripts/create-run.sh \
   --slug "payment-gateway" \
   --title "Payment gateway" \
   --max-items 8 \
@@ -123,10 +123,10 @@ Pass `--review disabled` only when the project sets `implement_review: false`; r
 7. **Create the items**, one per slice, in the agreed order. Each item pins its decisions by intent hash at this moment:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/run-state.sh add-item payment-gateway --decisions "DL-010"
-bash .claude/skills/dld-goal/scripts/run-state.sh add-item payment-gateway --decisions "DL-011,DL-012" \
+bash .claude/skills/dld-run/scripts/run-state.sh add-item payment-gateway --decisions "DL-010"
+bash .claude/skills/dld-run/scripts/run-state.sh add-item payment-gateway --decisions "DL-011,DL-012" \
   --check "npm test -- src/payments"
-bash .claude/skills/dld-goal/scripts/run-state.sh add-item payment-gateway --decisions "DL-013"
+bash .claude/skills/dld-run/scripts/run-state.sh add-item payment-gateway --decisions "DL-013"
 ```
 
 Add `--check` for each acceptance command the item needs beyond the project default, and `--annotation <path>` where you already know which file must carry the annotation. Both can be filled in later as implementation reveals them.
@@ -144,7 +144,7 @@ Report the created run: item count, bounds, and the first item to be worked.
 Ask for the next item rather than tracking position yourself — the run state is the source of truth, not the conversation:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/next-item.sh <slug>
+bash .claude/skills/dld-run/scripts/next-item.sh <slug>
 ```
 
 It prints the index of the item to work, or nothing when every item is accepted or skipped. Exit code 2 means the run has a blocked item: stop and surface it to the user rather than moving to later work.
@@ -156,8 +156,8 @@ In-flight items win over later pending ones, so a resumed run finishes what it s
 Before starting an item, and always before resuming a paused run, confirm the decisions still say what they said when the run was planned:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/verify-hashes.sh <slug>          # pending items
-bash .claude/skills/dld-goal/scripts/verify-hashes.sh <slug> --all    # on resume, include in-flight items
+bash .claude/skills/dld-run/scripts/verify-hashes.sh <slug>          # pending items
+bash .claude/skills/dld-run/scripts/verify-hashes.sh <slug> --all    # on resume, include in-flight items
 ```
 
 Any output means a decision changed. Stop the run and tell the user which decision drifted and how — do not replan silently, and do not implement against the new text on the assumption the change was harmless. Starting a fresh run is the normal resolution.
@@ -165,10 +165,10 @@ Any output means a decision changed. Stop the run and tell the user which decisi
 Refining a still-`proposed` decision *while implementing its own item* is legitimate and expected; that is why the default check ignores in-flight items. Re-pin when the item completes:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/run-state.sh repin-item <slug> <index>
+bash .claude/skills/dld-run/scripts/run-state.sh repin-item <slug> <index>
 ```
 
-### `/dld-goal continue`
+### `/dld-run continue`
 
 Work the next item. This is the loop: with no extension installed, each invocation advances the run by one item, and the run state — not this conversation — carries the position.
 
@@ -183,9 +183,9 @@ Work the next item. This is the loop: with no extension installed, each invocati
 #### 1. Claim
 
 ```bash
-bash .claude/skills/dld-goal/scripts/run-state.sh set-item-status <slug> <index> implementing
-bash .claude/skills/dld-goal/scripts/run-state.sh bump-attempt <slug> <index>
-bash .claude/skills/dld-goal/scripts/append-event.sh <slug> item-started --data '{"item":<index>}'
+bash .claude/skills/dld-run/scripts/run-state.sh set-item-status <slug> <index> implementing
+bash .claude/skills/dld-run/scripts/run-state.sh bump-attempt <slug> <index>
+bash .claude/skills/dld-run/scripts/append-event.sh <slug> item-started --data '{"item":<index>}'
 ```
 
 Read the item's decisions and implement them exactly as `/dld-implement` describes — same practices manifest, same annotation rules, same restraint about comments. A batched item is implemented as one coherent change.
@@ -195,13 +195,13 @@ Refining a still-`proposed` decision as you implement it is allowed and expected
 When the code is written, claim the item:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/run-state.sh set-item-status <slug> <index> verifying
+bash .claude/skills/dld-run/scripts/run-state.sh set-item-status <slug> <index> verifying
 ```
 
 #### 2. Mechanical check
 
 ```bash
-bash .claude/skills/dld-goal/scripts/verify-item.sh <slug> <index>
+bash .claude/skills/dld-run/scripts/verify-item.sh <slug> <index>
 ```
 
 Annotations must exist for every decision in the item, and every acceptance check must exit 0. Evidence is recorded either way. A non-zero exit sends you to *When an item fails*.
@@ -221,9 +221,9 @@ Only once steps 1–3 have all passed:
 ```bash
 # Update each decision's references, then:
 bash .claude/skills/dld-common/scripts/update-status.sh DL-NNN accepted
-bash .claude/skills/dld-goal/scripts/run-state.sh repin-item <slug> <index>
-bash .claude/skills/dld-goal/scripts/run-state.sh set-item-status <slug> <index> accepted
-bash .claude/skills/dld-goal/scripts/append-event.sh <slug> item-accepted --data '{"item":<index>}'
+bash .claude/skills/dld-run/scripts/run-state.sh repin-item <slug> <index>
+bash .claude/skills/dld-run/scripts/run-state.sh set-item-status <slug> <index> accepted
+bash .claude/skills/dld-run/scripts/append-event.sh <slug> item-accepted --data '{"item":<index>}'
 bash .claude/skills/dld-common/scripts/regenerate-index.sh
 ```
 
@@ -240,7 +240,7 @@ One retry, then escalate. The retry gets the failure as context — the point is
 **Second failure** (`attempts` is 2): escalate. Do not try a third time.
 
 ```bash
-bash .claude/skills/dld-goal/scripts/block-item.sh <slug> <index> \
+bash .claude/skills/dld-run/scripts/block-item.sh <slug> <index> \
   --reason "acceptance check fails: 3 tests red after retry" \
   --question "Relax the check, fix the fixture, or skip this item?"
 ```
@@ -252,8 +252,8 @@ This blocks the item, pauses the run, and records the question in the run. Surfa
 Record the answer and continue:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/resolve-block.sh <slug> <index> --answer "<what the user said>" --action retry
-bash .claude/skills/dld-goal/scripts/resolve-block.sh <slug> <index> --answer "<what the user said>" --action skip
+bash .claude/skills/dld-run/scripts/resolve-block.sh <slug> <index> --answer "<what the user said>" --action retry
+bash .claude/skills/dld-run/scripts/resolve-block.sh <slug> <index> --answer "<what the user said>" --action skip
 ```
 
 `skip` leaves the item's decisions `proposed` and moves the queue on. Say so in the final report — a run that finishes with skipped items has not finished the plan.
@@ -265,29 +265,29 @@ If resolving a blocker needs a real design change, stop and run `/dld-decide` wi
 When `next-item.sh` returns nothing, every item is accepted or skipped:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/run-state.sh set-status <slug> complete
-bash .claude/skills/dld-goal/scripts/append-event.sh <slug> run-complete
+bash .claude/skills/dld-run/scripts/run-state.sh set-status <slug> complete
+bash .claude/skills/dld-run/scripts/append-event.sh <slug> run-complete
 ```
 
 Report: items accepted, items skipped, decisions now `accepted`, and anything left `proposed`. Suggest `/dld-snapshot` to refresh the projection, and `/dld-audit` if the run skipped anything.
 
-### `/dld-goal status`
+### `/dld-run status`
 
 Report the run: status, bounds, item progress, and recent events.
 
 ```bash
-bash .claude/skills/dld-goal/scripts/run-state.sh get <slug>
-bash .claude/skills/dld-goal/scripts/run-state.sh list
+bash .claude/skills/dld-run/scripts/run-state.sh get <slug>
+bash .claude/skills/dld-run/scripts/run-state.sh list
 tail -20 .dld/runs/<slug>/events.jsonl
 ```
 
 Summarize in a table rather than dumping raw JSON.
 
-### `/dld-goal pause` / `resume` / `stop`
+### `/dld-run pause` / `resume` / `stop`
 
 ```bash
-bash .claude/skills/dld-goal/scripts/run-state.sh set-status <slug> paused
-bash .claude/skills/dld-goal/scripts/append-event.sh <slug> run-paused --data '{"reason":"user requested"}'
+bash .claude/skills/dld-run/scripts/run-state.sh set-status <slug> paused
+bash .claude/skills/dld-run/scripts/append-event.sh <slug> run-paused --data '{"reason":"user requested"}'
 ```
 
 Valid statuses: `active`, `paused`, `blocked`, `complete`, `stopped`. `stop` is terminal — a stopped run is not resumed, a new run is started instead.
@@ -297,18 +297,18 @@ Every state change gets an event. The event log is how a later session, or the P
 **Resuming** re-validates before doing any work:
 
 ```bash
-bash .claude/skills/dld-goal/scripts/guard-preconditions.sh resume <slug>
+bash .claude/skills/dld-run/scripts/guard-preconditions.sh resume <slug>
 ```
 
 This checks the tree is clean, no ID collisions appeared while the run was idle, the run is resumable, and — including in-flight items — that no decision drifted. Every reported problem must be resolved before continuing; a collision means `/dld-reindex` first, and drift means replanning rather than implementing against changed intent.
 
-Then set the run `active` and go to `/dld-goal continue`.
+Then set the run `active` and go to `/dld-run continue`.
 
 ## Working without the Pi extension
 
 This skill deliberately contains no loop machinery — no continuation after the agent stops, no child sessions, no timers. Those need harness lifecycle control, which lives in the Pi extension. `@decision(DL-005)`
 
-Without the extension the run is *paced by the user*: each `/dld-goal continue` advances one item, and the durable state in `.dld/runs/` carries everything between invocations. That is a real workflow, not a degraded one — the contract, ordering, verification, and reporting all work. What you supply manually is the nudge to keep going.
+Without the extension the run is *paced by the user*: each `/dld-run continue` advances one item, and the durable state in `.dld/runs/` carries everything between invocations. That is a real workflow, not a degraded one — the contract, ordering, verification, and reporting all work. What you supply manually is the nudge to keep going.
 
 Because state lives on disk rather than in conversation, a run started by hand can later be driven by the extension, and vice versa.
 

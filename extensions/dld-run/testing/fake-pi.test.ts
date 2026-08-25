@@ -87,28 +87,28 @@ describe("createFakePi", () => {
 	test("records notifications, statuses, widgets, messages, and entries", () => {
 		const pi = createFakePi();
 		pi.ctx.ui.notify("hello", "warning");
-		pi.ctx.ui.setStatus("dld-goal", "running");
-		pi.ctx.ui.setWidget("dld-goal", ["line one"]);
-		pi.api.sendMessage({ customType: "dld-goal", content: "next item", display: true }, { deliverAs: "followUp" });
-		pi.api.appendEntry("dld-goal-card", { item: 2 });
+		pi.ctx.ui.setStatus("dld-run", "running");
+		pi.ctx.ui.setWidget("dld-run", ["line one"]);
+		pi.api.sendMessage({ customType: "dld-run", content: "next item", display: true }, { deliverAs: "followUp" });
+		pi.api.appendEntry("dld-run-card", { item: 2 });
 
 		expect(pi.notifications).toEqual([{ message: "hello", type: "warning" }]);
-		expect(pi.status("dld-goal")).toBe("running");
-		expect(pi.widget("dld-goal")).toEqual(["line one"]);
+		expect(pi.status("dld-run")).toBe("running");
+		expect(pi.widget("dld-run")).toEqual(["line one"]);
 		expect(pi.messages[0]?.deliverAs).toBe("followUp");
-		expect(pi.entries).toEqual([{ customType: "dld-goal-card", data: { item: 2 } }]);
+		expect(pi.entries).toEqual([{ customType: "dld-run-card", data: { item: 2 } }]);
 	});
 
 
 
 	test("clearing a status or widget is distinguishable from never setting one", () => {
 		const pi = createFakePi();
-		expect(pi.statuses.has("dld-goal")).toBe(false);
+		expect(pi.statuses.has("dld-run")).toBe(false);
 
-		pi.ctx.ui.setStatus("dld-goal", "running");
-		pi.ctx.ui.setStatus("dld-goal", undefined);
+		pi.ctx.ui.setStatus("dld-run", "running");
+		pi.ctx.ui.setStatus("dld-run", undefined);
 
-		expect(pi.statuses.has("dld-goal")).toBe(true);
-		expect(pi.status("dld-goal")).toBeUndefined();
+		expect(pi.statuses.has("dld-run")).toBe(true);
+		expect(pi.status("dld-run")).toBeUndefined();
 	});
 });

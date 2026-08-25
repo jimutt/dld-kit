@@ -2,14 +2,14 @@
 
 ## Overview
 
-> **Status:** decisions recorded as DL-001 through DL-005 (tag `dld-goal`). This document is the narrative design; the decision records are the authoritative log. Where they disagree, the decisions win.
+> **Status:** decisions recorded as DL-001 through DL-005 (tag `dld-run`). This document is the narrative design; the decision records are the authoritative log. Where they disagree, the decisions win.
 
 DLD covers decision capture, implementation, and drift detection, but assumes a human paces the work: run `/dld-plan`, then `/dld-implement` per decision or batch. For large features — dozens of decisions, hours of agent work — this pacing is the bottleneck, and generic "goal loop" tooling (Ralph-style prompt re-injection) doesn't know about the decision log.
 
 This plan adds long-running execution to DLD as two components:
 
-- **`/dld-goal` skill** — orchestration contract. Authors a run contract from a plan group, paces implementation item by item, and gates each item's completion on mechanical verification.
-- **`dld-goal` Pi extension** — loop machinery. Continuation across turns, fresh child sessions per work item, status UI, bounds, and crash recovery. The extension owns mechanics; the skill owns DLD semantics.
+- **`/dld-run` skill** — orchestration contract. Authors a run contract from a plan group, paces implementation item by item, and gates each item's completion on mechanical verification.
+- **`dld-run` Pi extension** — loop machinery. Continuation across turns, fresh child sessions per work item, status UI, bounds, and crash recovery. The extension owns mechanics; the skill owns DLD semantics.
 
 The design builds on a survey of the Pi goal-loop ecosystem (`pi-goal`, `pi-goal-x`, `pi-goal-list-loop-audit`, `pi-loop-mode`, `ralphi`, `pi-ralph-wiggum`, `pi-autoresearch`, and others). See the [Ecosystem findings](#ecosystem-findings) section for what was learned.
 
@@ -103,11 +103,11 @@ Defaults are conservative:
 - Pause/resume/stop/cancel at run level. User input suspends continuation; Esc pauses (Pi conventions).
 - Any mutation of an `accepted` decision's body remains forbidden, run or no run — the existing immutability rule wins over loop autonomy.
 
-## The `/dld-goal` skill
+## The `/dld-run` skill
 
 The skill is the harness-agnostic half. In Claude Code (or Pi without the extension) it runs as a **manually paced loop** — the agent works through the contract item by item within one conversation, and the user nudges it along. With the extension present, the same contract is executed autonomously.
 
-### `/dld-goal start <tag | DL-NNN...>`
+### `/dld-run start <tag | DL-NNN...>`
 
 1. Collect the goal: a plan-group tag, an explicit list of decision IDs, or a feature description (which routes through `/dld-plan` first).
 2. Verify all referenced decisions exist and are `proposed`. Refuse to start if any are missing or already `accepted` (unless the user explicitly wants re-verification).
@@ -117,7 +117,7 @@ The skill is the harness-agnostic half. In Claude Code (or Pi without the extens
 6. Write `contract.md`, `state.json`, and the first `events.jsonl` entry.
 7. Begin execution (or hand off to the extension if installed).
 
-### `/dld-goal status | pause | resume | stop`
+### `/dld-run status | pause | resume | stop`
 
 Status reads `state.json` and the event log — it never reconstructs from conversation. Pause/stop write a terminal event so a later resume knows where things stood. Resume re-reads the contract and decision records from disk, re-validates decision hashes, and continues from the first non-terminal item.
 
@@ -139,7 +139,7 @@ The extension implements what a skill can't: harness lifecycle control. It reads
 
 ### Surface
 
-- **Commands:** `/dld-goal start|status|pause|resume|stop|cancel` (delegating contract authoring to the skill where interaction is needed).
+- **Commands:** `/dld-run start|status|pause|resume|stop|cancel` (delegating contract authoring to the skill where interaction is needed).
 - **Continuation:** on `agent_end`, if the run is active, the agent is idle, and no user message is pending, queue the next step — either the next item's child session or the current item's verification phase. A monotonic run token invalidates stale queued continuations (the standard guard against double-dispatch after pause/resume races).
 - **Child sessions:** one per work item via `ctx.fork`/new-session APIs, steered with a bounded brief. Child transcripts are referenced from `events.jsonl`.
 - **Compaction:** on `session_before_compact`, supply a deterministic summary built from `state.json` + decision records instead of relying on a generic LLM summary (the `pi-autoresearch` pattern).
@@ -163,8 +163,8 @@ On session start with an active run in `.dld/runs/`:
 
 ## Build order
 
-1. **`/dld-goal` skill (manual pacing).** ✅ Done — 10 scripts, 305 bats tests, validated end-to-end.
-2. **Extension v1: in-session continuation.** ✅ Done — `/dld-goal` commands with tolerant start syntax (`DL-014..DL-022`), scheduled `agent_end` continuation with suspension on user input and Esc, completion transaction honouring review mode, layered UI (status line, fixed-height widget, transcript cards, board overlay), active-time bounds. 96 bun tests alongside the bats suite. DL-006 through DL-014 accepted.
+1. **`/dld-run` skill (manual pacing).** ✅ Done — 10 scripts, 305 bats tests, validated end-to-end.
+2. **Extension v1: in-session continuation.** ✅ Done — `/dld-run` commands with tolerant start syntax (`DL-014..DL-022`), scheduled `agent_end` continuation with suspension on user input and Esc, completion transaction honouring review mode, layered UI (status line, fixed-height widget, transcript cards, board overlay), active-time bounds. 96 bun tests alongside the bats suite. DL-006 through DL-014 accepted.
 3. **Extension v2: child sessions + deterministic compaction.** Fresh session per item, disk-backed recovery, deterministic compaction summaries (DL-009, DL-010, still proposed).
 4. **Later, if earned:** detached auditor process, regression-shield audit automation, `/dld-audit-auto` integration for fully unattended runs with a PR at the end.
 
@@ -175,7 +175,7 @@ Each stage ships usable; later stages only add autonomy.
 - **Contract granularity (resolved — batching allowed).** A work item is one decision by default; tightly coupled decisions batch into one item following `/dld-implement`'s existing rule. See [Work items and batching](#work-items-and-batching). Remaining granularity question: is there a practical upper bound on batch size (decision count or diff size) beyond which the completion gate gets too coarse to be meaningful?
 - **Blocked-item policy (resolved).** One retry with failure context, then the item blocks and the run pauses on an operator question recorded in the run's state/event log — not a decision record. Design changes that emerge from a blocker go through `/dld-decide` as a separate human step. See [Blocked items](#blocked-items).
 - **Cross-run interaction with `/dld-reindex` (resolved).** A reindex mid-run renames decision IDs and rewrites annotations, invalidating the contract's decision references and hashes. Runs therefore **refuse to start** on branches with unresolved ID collisions, and **hard-pause** if a collision is detected mid-run (e.g., after a pull or merge brings in a conflicting decision). The resolution path is always `/dld-reindex` first, then resume — the loop never works around it.
-- **Team visibility (resolved).** Run artifacts are **local state, gitignored by default**; decisions are the persistent artifacts. `/dld-goal start` adds `.dld/runs/` to `.gitignore` on first run. A developer can opt out per-project (`dld.config.yaml`) if they want run history committed as an audit trail, but the default assumes the decision log is the reviewable record and run state is ephemeral working state.
+- **Team visibility (resolved).** Run artifacts are **local state, gitignored by default**; decisions are the persistent artifacts. `/dld-run start` adds `.dld/runs/` to `.gitignore` on first run. A developer can opt out per-project (`dld.config.yaml`) if they want run history committed as an audit trail, but the default assumes the decision log is the reviewable record and run state is ephemeral working state.
 
 ## Ecosystem findings
 

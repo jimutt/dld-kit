@@ -11,7 +11,7 @@ package.json               # Pi package manifest (extensions + skills) — see D
 .tessl-plugin/
   plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
 extensions/
-  dld-goal/                # Pi extension: TypeScript, loaded from source, no build step
+  dld-run/                # Pi extension: TypeScript, loaded from source, no build step
     index.ts               # Entry point — pi loads only index.ts from a subdirectory
     *.test.ts              # Colocated unit tests (bun)
     testing/fake-pi.ts     # Faked ExtensionAPI used by the tests
@@ -108,7 +108,7 @@ Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.
 - Use `/dld-decide` to record new decisions
 - Use `/dld-plan` to break down a feature into multiple grouped decisions
 - Use `/dld-implement` to implement proposed decisions
-- Use `/dld-goal` to execute a set of proposed decisions as a long-running run (durable state, verified per-item completion)
+- Use `/dld-run` to execute a set of proposed decisions as a long-running run (durable state, verified per-item completion)
 - Use `/dld-lookup` to query decisions by ID, tag, or code path
 - Use `/dld-audit` to scan for drift between decisions and code
 - Use `/dld-snapshot` to regenerate SNAPSHOT.md and OVERVIEW.md from the decision log

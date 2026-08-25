@@ -22,8 +22,8 @@ describe("paths", () => {
 		expect(existsSync(join(packageRoot(), "dld.config.yaml"))).toBe(true);
 	});
 
-	test("scripts directory points at the dld-goal skill", () => {
-		expect(scriptsDir()).toBe(join(packageRoot(), "skills", "dld-goal", "scripts"));
+	test("scripts directory points at the dld-run skill", () => {
+		expect(scriptsDir()).toBe(join(packageRoot(), "skills", "dld-run", "scripts"));
 	});
 
 	test("every required script exists in the shipped skill", () => {

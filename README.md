@@ -25,7 +25,7 @@ tessl install dld-kit/dld
 cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
 ```
 
-**Via [pi](https://pi.dev)** (skills plus the `dld-goal` extension):
+**Via [pi](https://pi.dev)** (skills plus the `dld-run` extension):
 
 ```bash
 pi install git:github.com/jimutt/dld-kit
@@ -49,13 +49,13 @@ For a small, isolated change (a bug fix, a single design choice), `/dld-decide` 
 
 ### Large features that outlast one sitting
 
-When a plan produces more decisions than fit comfortably in one session, `/dld-goal` executes them as a **run**: a durable contract that survives context compaction, session restarts, and interruptions.
+When a plan produces more decisions than fit comfortably in one session, `/dld-run` executes them as a **run**: a durable contract that survives context compaction, session restarts, and interruptions.
 
 ```
 /dld-plan                        # Break the feature into decisions
-/dld-goal start tag:payments     # Agree a slicing, bounds, and acceptance checks
-/dld-goal continue               # Work the next item — repeat until done
-/dld-goal status                 # Where the run stands
+/dld-run start tag:payments     # Agree a slicing, bounds, and acceptance checks
+/dld-run continue               # Work the next item — repeat until done
+/dld-run status                 # Where the run stands
 ```
 
 The run works one item at a time, where an item is one decision or a few tightly coupled ones. Each item completes only when annotations verify, acceptance checks pass, and a review subagent approves — an agent saying "done" is never sufficient. Failures get one retry with the failure as context, then stop and ask you rather than guessing.
@@ -154,7 +154,7 @@ DLD is designed for long-lived codebases where decisions accumulate, original au
 | `/dld-decide` | Record a single decision interactively |
 | `/dld-plan` | Break down a feature into multiple grouped decisions |
 | `/dld-implement` | Implement proposed decisions — writes code, adds annotations, updates status |
-| `/dld-goal` | Execute a set of proposed decisions as a long-running goal — durable run state, verified per-item completion, blocked-item escalation |
+| `/dld-run` | Execute a set of proposed decisions as a long-running goal — durable run state, verified per-item completion, blocked-item escalation |
 | `/dld-adjust` | Adjust or update existing decisions — handles permission gating and correct intent interpretation |
 | `/dld-lookup` | Query decisions by ID, tag, code path, or keyword |
 | `/dld-status` | Overview of the decision log — counts, recent decisions, run tracking |
@@ -286,7 +286,7 @@ bun test            # pi extension (bun)
 npx tsc --noEmit    # typecheck the extension
 ```
 
-Skills and their scripts need no dependencies. The `dld-goal` pi extension is TypeScript, loaded by pi from source with no build step, and is typechecked against the pi API rather than a hand-written stub.
+Skills and their scripts need no dependencies. The `dld-run` pi extension is TypeScript, loaded by pi from source with no build step, and is typechecked against the pi API rather than a hand-written stub.
 
 To run the extension against a local checkout:
 

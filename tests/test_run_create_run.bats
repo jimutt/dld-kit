@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests for dld-goal/scripts/create-run.sh
+# Tests for dld-run/scripts/create-run.sh
 
 load 'test_helper/common'
 
@@ -12,7 +12,7 @@ teardown() {
 }
 
 create_run() {
-  bash "$SKILLS_DIR/dld-goal/scripts/create-run.sh" "$@"
+  bash "$SKILLS_DIR/dld-run/scripts/create-run.sh" "$@"
 }
 
 @test "create-run scaffolds the run directory" {

@@ -97,7 +97,7 @@ get_run_dir() {
 }
 
 # Fail with a clear message when jq is unavailable.
-# Goal run state is JSON; the dld-goal scripts require jq to read and mutate it.
+# Goal run state is JSON; the dld-run scripts require jq to read and mutate it.
 # Print the caller script's usage from its header comment, stopping at the
 # first line that is not a comment. Scripts source common.sh, so the script
 # whose usage we want is BASH_SOURCE[1]; BASH_SOURCE[0] is common.sh itself.
@@ -109,7 +109,7 @@ usage() {
 
 require_jq() {
   if ! command -v jq >/dev/null 2>&1; then
-    echo "Error: jq is required by the dld-goal scripts but was not found on PATH." >&2
+    echo "Error: jq is required by the dld-run scripts but was not found on PATH." >&2
     echo "Install it (e.g. 'brew install jq' or 'apt-get install jq') and retry." >&2
     exit 1
   fi

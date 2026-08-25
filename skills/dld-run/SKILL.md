@@ -1,10 +1,10 @@
 ---
-name: dld-goal
+name: dld-run
 description: Execute a set of proposed decisions as a long-running goal. Creates a run contract, works decisions item by item with verified completion, and tracks progress in durable run state.
 compatibility: Requires bash, git, and jq. Scripts use BASH_SOURCE for path resolution.
 ---
 
-# /dld-goal — Execute Decisions as a Long-Running Goal
+# /dld-run — Execute Decisions as a Long-Running Goal
 
 You are running a **goal**: a set of `proposed` decisions executed one work item at a time, where each item's completion is verified before the next begins.
 
@@ -58,7 +58,7 @@ Run artifacts are gitignored by default; decisions are the persistent record. Se
 
 ## Commands
 
-### `/dld-goal start`
+### `/dld-run start`
 
 Create a run.
 
@@ -168,7 +168,7 @@ Refining a still-`proposed` decision *while implementing its own item* is legiti
 bash scripts/run-state.sh repin-item <slug> <index>
 ```
 
-### `/dld-goal continue`
+### `/dld-run continue`
 
 Work the next item. This is the loop: with no extension installed, each invocation advances the run by one item, and the run state — not this conversation — carries the position.
 
@@ -271,7 +271,7 @@ bash scripts/append-event.sh <slug> run-complete
 
 Report: items accepted, items skipped, decisions now `accepted`, and anything left `proposed`. Suggest `/dld-snapshot` to refresh the projection, and `/dld-audit` if the run skipped anything.
 
-### `/dld-goal status`
+### `/dld-run status`
 
 Report the run: status, bounds, item progress, and recent events.
 
@@ -283,7 +283,7 @@ tail -20 .dld/runs/<slug>/events.jsonl
 
 Summarize in a table rather than dumping raw JSON.
 
-### `/dld-goal pause` / `resume` / `stop`
+### `/dld-run pause` / `resume` / `stop`
 
 ```bash
 bash scripts/run-state.sh set-status <slug> paused
@@ -302,13 +302,13 @@ bash scripts/guard-preconditions.sh resume <slug>
 
 This checks the tree is clean, no ID collisions appeared while the run was idle, the run is resumable, and — including in-flight items — that no decision drifted. Every reported problem must be resolved before continuing; a collision means `/dld-reindex` first, and drift means replanning rather than implementing against changed intent.
 
-Then set the run `active` and go to `/dld-goal continue`.
+Then set the run `active` and go to `/dld-run continue`.
 
 ## Working without the Pi extension
 
 This skill deliberately contains no loop machinery — no continuation after the agent stops, no child sessions, no timers. Those need harness lifecycle control, which lives in the Pi extension. `@decision(DL-005)`
 
-Without the extension the run is *paced by the user*: each `/dld-goal continue` advances one item, and the durable state in `.dld/runs/` carries everything between invocations. That is a real workflow, not a degraded one — the contract, ordering, verification, and reporting all work. What you supply manually is the nudge to keep going.
+Without the extension the run is *paced by the user*: each `/dld-run continue` advances one item, and the durable state in `.dld/runs/` carries everything between invocations. That is a real workflow, not a degraded one — the contract, ordering, verification, and reporting all work. What you supply manually is the nudge to keep going.
 
 Because state lives on disk rather than in conversation, a run started by hand can later be driven by the extension, and vice versa.
 

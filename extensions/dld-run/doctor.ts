@@ -90,6 +90,6 @@ export function formatDoctorReport(report: DoctorReport): string {
 	const lines = report.checks.map(
 		(check) => `${check.ok ? "ok  " : "FAIL"} ${check.name.padEnd(width)}  ${check.detail}`,
 	);
-	lines.unshift(`dld-goal ${report.ok ? "ready" : "not ready"} · ${packageRoot()}`);
+	lines.unshift(`dld-run ${report.ok ? "ready" : "not ready"} · ${packageRoot()}`);
 	return lines.join("\n");
 }

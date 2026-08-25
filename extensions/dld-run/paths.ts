@@ -11,12 +11,12 @@ export function packageRoot(): string {
 	return resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 }
 
-/** Directory holding the dld-goal skill scripts that own every state mutation. */
+/** Directory holding the dld-run skill scripts that own every state mutation. */
 export function scriptsDir(): string {
-	return join(packageRoot(), "skills", "dld-goal", "scripts");
+	return join(packageRoot(), "skills", "dld-run", "scripts");
 }
 
-/** Absolute path to one dld-goal skill script. */
+/** Absolute path to one dld-run skill script. */
 export function scriptPath(name: string): string {
 	return join(scriptsDir(), name);
 }

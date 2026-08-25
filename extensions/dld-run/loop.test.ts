@@ -11,7 +11,7 @@ import { createFakePi } from "./testing/fake-pi.ts";
 let workspace: string;
 
 beforeEach(() => {
-	workspace = mkdtempSync(join(tmpdir(), "dld-goal-loop-"));
+	workspace = mkdtempSync(join(tmpdir(), "dld-run-loop-"));
 	mkdirSync(join(workspace, "decisions"), { recursive: true });
 });
 
@@ -128,7 +128,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(1);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(1);
 		expect(pi.messages[0]?.deliverAs).toBe("followUp");
 		expect(pi.messages[0]?.triggerTurn).toBe(true);
 		expect(pi.notifications.some((n) => n.message.includes("Continue goal run 'payments'"))).toBe(true);
@@ -142,11 +142,11 @@ describe("agent_end gating", () => {
 		dldGoalExtension(pi.api);
 
 		// invalidate happens via pause; a queued dispatch carrying the old token must not fire.
-		await pi.invokeCommand("dld-goal", "pause");
+		await pi.invokeCommand("dld-run", "pause");
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 	});
 
 	test("does not dispatch while the agent is busy", async () => {
@@ -159,7 +159,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 	});
 
 	test("does not dispatch while the user has queued input", async () => {
@@ -172,7 +172,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 	});
 
 	test("pauses rather than dispatches when maxItems is already reached", async () => {
@@ -196,7 +196,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("reached its bounds and paused"))).toBe(true);
 	});
 
@@ -221,7 +221,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("item 1 blocked: set up the sandbox?"))).toBe(true);
 	});
 
@@ -245,7 +245,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("Run payments complete"))).toBe(true);
 		expect(pi.notifications.every((n) => n.type !== "error")).toBe(true);
 	});
@@ -293,7 +293,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("reached its bounds and paused"))).toBe(true);
 	});
 
@@ -305,7 +305,7 @@ describe("agent_end gating", () => {
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 		expect(pi.notifications).toHaveLength(0);
 	});
 });
@@ -494,7 +494,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start payments DL-001 DL-002");
+		await pi.invokeCommand("dld-run", "start payments DL-001 DL-002");
 
 		expect(pi.execCalls.some((c) => c.args.some((a) => a.includes("guard-preconditions.sh")))).toBe(true);
 		expect(pi.execCalls.some((c) => c.args.some((a) => a.includes("create-run.sh")))).toBe(true);
@@ -507,7 +507,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start payments");
+		await pi.invokeCommand("dld-run", "start payments");
 
 		expect(pi.execCalls.every((c) => !c.args.some((a) => a.includes("create-run.sh")))).toBe(true);
 		expect(pi.notifications.some((n) => n.message.includes("A run needs decisions"))).toBe(true);
@@ -519,7 +519,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["guard-preconditions.sh"] }, { stdout: "", stderr: "dirty tree", code: 1 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start payments DL-001");
+		await pi.invokeCommand("dld-run", "start payments DL-001");
 
 		expect(pi.execCalls.every((c) => !c.args.some((a) => a.includes("create-run.sh")))).toBe(true);
 		expect(pi.notifications.some((n) => n.message.includes("dirty tree"))).toBe(true);
@@ -533,7 +533,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start DL-014..DL-016");
+		await pi.invokeCommand("dld-run", "start DL-014..DL-016");
 
 		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(3);
 		expect(pi.execCalls.some((c) => c.args.includes("dl-14-16"))).toBe(true);
@@ -548,7 +548,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start DL-014 DL-015");
+		await pi.invokeCommand("dld-run", "start DL-014 DL-015");
 
 		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(2);
 		expect(pi.execCalls.some((c) => c.args.includes("dl-014-015"))).toBe(true);
@@ -562,7 +562,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start DL-014");
+		await pi.invokeCommand("dld-run", "start DL-014");
 
 		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(1);
 	});
@@ -573,7 +573,7 @@ describe("commands", () => {
 		installStatefulScripts(pi, "payments");
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "pause");
+		await pi.invokeCommand("dld-run", "pause");
 
 		expect(pi.wasAborted()).toBe(true);
 	});
@@ -613,7 +613,7 @@ describe("commands", () => {
 			messages: [{ role: "assistant", stopReason: "aborted", content: [] }],
 		});
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 		expect(pi.notifications.some((n) => n.message.includes("suspended (interrupted)"))).toBe(true);
 	});
 
@@ -627,7 +627,7 @@ describe("commands", () => {
 			messages: [{ role: "assistant", stopReason: "stop", content: [] }],
 		});
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(1);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(1);
 	});
 
 	test("start tolerates range separators with spaces", async () => {
@@ -638,7 +638,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["add-item"] }, { stdout: "", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "start DL-014 - DL-015");
+		await pi.invokeCommand("dld-run", "start DL-014 - DL-015");
 
 		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(2);
 	});
@@ -649,11 +649,11 @@ describe("commands", () => {
 		installStatefulScripts(pi, "payments");
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "pause");
+		await pi.invokeCommand("dld-run", "pause");
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(0);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(0);
 	});
 
 	test("resume invalidates the token so agent_end can dispatch again", async () => {
@@ -662,12 +662,12 @@ describe("commands", () => {
 		installStatefulScripts(pi, "payments");
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "pause");
-		await pi.invokeCommand("dld-goal", "resume");
+		await pi.invokeCommand("dld-run", "pause");
+		await pi.invokeCommand("dld-run", "resume");
 		await pi.emit("agent_end", {});
 		await settle();
 
-		expect(pi.messages.filter((m) => m.customType === "dld-goal:continuation")).toHaveLength(1);
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(1);
 	});
 
 	test("status with no active run says so without shelling out", async () => {
@@ -675,7 +675,7 @@ describe("commands", () => {
 		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "", code: 1 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "status");
+		await pi.invokeCommand("dld-run", "status");
 
 		expect(pi.notifications.some((n) => n.message === "No active run.")).toBe(true);
 	});

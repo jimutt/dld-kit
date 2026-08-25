@@ -8,7 +8,7 @@ import { createFakePi } from "./testing/fake-pi.ts";
 let workspace: string;
 
 beforeEach(() => {
-	workspace = mkdtempSync(join(tmpdir(), "dld-goal-ui-"));
+	workspace = mkdtempSync(join(tmpdir(), "dld-run-ui-"));
 });
 
 afterEach(() => {
@@ -53,9 +53,9 @@ describe("status line and widget", () => {
 
 		await pi.emit("turn_end", {});
 
-		expect(pi.status("dld-goal")).toContain("payments 1/2");
-		expect(pi.widget("dld-goal-run")).toHaveLength(5);
-		expect(pi.widget("dld-goal-run")?.[0]).toContain("dld-goal payments");
+		expect(pi.status("dld-run")).toContain("payments 1/2");
+		expect(pi.widget("dld-run-run")).toHaveLength(5);
+		expect(pi.widget("dld-run-run")?.[0]).toContain("dld-run payments");
 	});
 
 	test("clears both surfaces when no run is active", async () => {
@@ -65,8 +65,8 @@ describe("status line and widget", () => {
 
 		await pi.emit("turn_end", {});
 
-		expect(pi.status("dld-goal")).toBeUndefined();
-		expect(pi.widget("dld-goal-run")).toBeUndefined();
+		expect(pi.status("dld-run")).toBeUndefined();
+		expect(pi.widget("dld-run-run")).toBeUndefined();
 	});
 
 	test("does not touch surfaces without a UI", async () => {
@@ -88,9 +88,9 @@ describe("board", () => {
 		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "active"] }, { stdout: "payments\n", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "board");
+		await pi.invokeCommand("dld-run", "board");
 
-		expect(pi.notifications.some((n) => n.message.includes("dld-goal board — payments"))).toBe(true);
+		expect(pi.notifications.some((n) => n.message.includes("dld-run board — payments"))).toBe(true);
 	});
 
 	test("says so when there is no run", async () => {
@@ -99,7 +99,7 @@ describe("board", () => {
 		pi.onExec({ command: "bash", argsContain: ["run-state.sh", "list"] }, { stdout: "", code: 0 });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal", "board");
+		await pi.invokeCommand("dld-run", "board");
 
 		expect(pi.notifications.some((n) => n.message === "No run to show.")).toBe(true);
 	});
@@ -109,6 +109,6 @@ describe("cards", () => {
 	test("registering the card renderer happens at load", () => {
 		const pi = createFakePi();
 		dldGoalExtension(pi.api);
-		expect(pi.entryRenderers.has("dld-goal-card")).toBe(true);
+		expect(pi.entryRenderers.has("dld-run-card")).toBe(true);
 	});
 });

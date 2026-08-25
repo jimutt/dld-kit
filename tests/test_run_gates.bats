@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests for dld-goal gates: guard-preconditions.sh, verify-item.sh,
+# Tests for dld-run gates: guard-preconditions.sh, verify-item.sh,
 # block-item.sh and resolve-block.sh
 
 load 'test_helper/common'
@@ -9,7 +9,7 @@ setup() {
   create_decision "DL-001" "proposed"
   create_decision "DL-002" "proposed"
   git add -A && git commit -qm "decisions"
-  bash "$SKILLS_DIR/dld-goal/scripts/create-run.sh" --slug "run-a" --title "Run A" >/dev/null
+  bash "$SKILLS_DIR/dld-run/scripts/create-run.sh" --slug "run-a" --title "Run A" >/dev/null
   git add -A && git commit -qm "run" 2>/dev/null || true
 }
 
@@ -17,11 +17,11 @@ teardown() {
   teardown_project
 }
 
-state() { bash "$SKILLS_DIR/dld-goal/scripts/run-state.sh" "$@"; }
-guard() { bash "$SKILLS_DIR/dld-goal/scripts/guard-preconditions.sh" "$@"; }
-verify_item() { bash "$SKILLS_DIR/dld-goal/scripts/verify-item.sh" "$@"; }
-block_item() { bash "$SKILLS_DIR/dld-goal/scripts/block-item.sh" "$@"; }
-resolve_block() { bash "$SKILLS_DIR/dld-goal/scripts/resolve-block.sh" "$@"; }
+state() { bash "$SKILLS_DIR/dld-run/scripts/run-state.sh" "$@"; }
+guard() { bash "$SKILLS_DIR/dld-run/scripts/guard-preconditions.sh" "$@"; }
+verify_item() { bash "$SKILLS_DIR/dld-run/scripts/verify-item.sh" "$@"; }
+block_item() { bash "$SKILLS_DIR/dld-run/scripts/block-item.sh" "$@"; }
+resolve_block() { bash "$SKILLS_DIR/dld-run/scripts/resolve-block.sh" "$@"; }
 
 annotate() {
   mkdir -p src
@@ -332,7 +332,7 @@ annotate() {
   assert_output "skipped"
 
   # The queue moves on rather than stalling behind the blocker.
-  run bash "$SKILLS_DIR/dld-goal/scripts/next-item.sh" run-a
+  run bash "$SKILLS_DIR/dld-run/scripts/next-item.sh" run-a
   assert_output "2"
 }
 

@@ -57,7 +57,7 @@ describe("widgetLines", () => {
 		const state = stateWith([item(1, "accepted", ["DL-010"]), item(2, "verifying", ["DL-011"]), item(3, "pending")]);
 		const lines = widgetLines(state);
 		expect(lines).toHaveLength(5);
-		expect(lines[0]).toContain("dld-goal payments");
+		expect(lines[0]).toContain("dld-run payments");
 		expect(lines[0]).toContain("1/3");
 	});
 

@@ -8,7 +8,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 
 /**
- * The slice of pi's API that dld-goal actually uses.
+ * The slice of pi's API that dld-run actually uses.
  *
  * Picked from the real interfaces rather than redeclared, and assigned into
  * these annotated types without assertions, so the compiler rejects a fake

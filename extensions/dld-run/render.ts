@@ -56,7 +56,7 @@ export function widgetLines(state: RunState, activeMinutes?: number): string[] {
 	const items = state.items;
 	const total = items.length;
 	const done = items.filter((i) => i.status === "accepted" || i.status === "skipped").length;
-	const header = `dld-goal ${state.slug} ─── ${done}/${total} · ${elapsedLabel(state, activeMinutes)}`;
+	const header = `dld-run ${state.slug} ─── ${done}/${total} · ${elapsedLabel(state, activeMinutes)}`;
 
 	if (total === 0) {
 		return [header, "  no items yet", "", "", ""];
@@ -101,7 +101,7 @@ export function widgetLines(state: RunState, activeMinutes?: number): string[] {
 /** Full board content for the overlay. No height cap — scrollback is free here. */
 export function boardLines(state: RunState): string[] {
 	const lines: string[] = [
-		`dld-goal board — ${state.slug}`,
+		`dld-run board — ${state.slug}`,
 		`status: ${state.status} · created ${state.createdAt} · ${elapsedLabel(state)}`,
 		`bounds: ${state.bounds.maxItems || "∞"} items · ${state.bounds.maxMinutes || "∞"} minutes · review ${state.review}`,
 		"",

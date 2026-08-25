@@ -9,7 +9,7 @@ import { createFakePi } from "./testing/fake-pi.ts";
 let workspace: string;
 
 beforeEach(() => {
-	workspace = mkdtempSync(join(tmpdir(), "dld-goal-doctor-"));
+	workspace = mkdtempSync(join(tmpdir(), "dld-run-doctor-"));
 });
 
 afterEach(() => {
@@ -131,7 +131,7 @@ describe("formatDoctorReport", () => {
 		const text = formatDoctorReport(await runDoctor((c, a) => pi.api.exec(c, a), workspace));
 		const lines = text.split("\n");
 
-		expect(lines[0]).toContain("dld-goal ready");
+		expect(lines[0]).toContain("dld-run ready");
 		expect(lines.slice(1).every((l) => l.startsWith("ok  "))).toBe(true);
 	});
 
@@ -140,7 +140,7 @@ describe("formatDoctorReport", () => {
 
 		const text = formatDoctorReport(await runDoctor((c, a) => pi.api.exec(c, a), workspace));
 
-		expect(text).toContain("dld-goal not ready");
+		expect(text).toContain("dld-run not ready");
 		expect(text).toContain("FAIL workspace");
 	});
 });
@@ -150,31 +150,31 @@ describe("extension registration", () => {
 		const pi = createFakePi();
 		dldGoalExtension(pi.api);
 
-		expect(pi.commands.has("dld-goal-doctor")).toBe(true);
-		expect(pi.commands.get("dld-goal-doctor")?.description).toContain("bash, jq");
+		expect(pi.commands.has("dld-run-doctor")).toBe(true);
+		expect(pi.commands.get("dld-run-doctor")?.description).toContain("bash, jq");
 	});
 
 	test("the command notifies with a report and warns when not ready", async () => {
 		const pi = createFakePi({ cwd: workspace });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal-doctor");
+		await pi.invokeCommand("dld-run-doctor");
 
 		expect(pi.notifications).toHaveLength(1);
 		expect(pi.notifications[0]?.type).toBe("warning");
-		expect(pi.notifications[0]?.message).toContain("dld-goal not ready");
+		expect(pi.notifications[0]?.message).toContain("dld-run not ready");
 	});
 
 	test("falls back to an entry when there is no UI, instead of reporting nothing", async () => {
 		const pi = createFakePi({ cwd: workspace, hasUI: false });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal-doctor");
+		await pi.invokeCommand("dld-run-doctor");
 
 		expect(pi.notifications).toHaveLength(0);
 		expect(pi.entries).toHaveLength(1);
-		expect(pi.entries[0]?.customType).toBe("dld-goal-doctor");
-		expect((pi.entries[0]?.data as { text: string }).text).toContain("dld-goal not ready");
+		expect(pi.entries[0]?.customType).toBe("dld-run-doctor");
+		expect((pi.entries[0]?.data as { text: string }).text).toContain("dld-run not ready");
 	});
 
 	test("the command reports info level when the workspace is configured", async () => {
@@ -182,7 +182,7 @@ describe("extension registration", () => {
 		const pi = createFakePi({ cwd: workspace });
 		dldGoalExtension(pi.api);
 
-		await pi.invokeCommand("dld-goal-doctor");
+		await pi.invokeCommand("dld-run-doctor");
 
 		expect(pi.notifications[0]?.type).toBe("info");
 	});

@@ -2,7 +2,7 @@
 
 A goal run is a set of `proposed` decisions executed as one long-running unit of work. Its state lives in the repository, not in an agent session, so it survives compaction, restarts, and crashes.
 
-This document specifies the on-disk format. Two implementations read and write it — the `dld-goal` bash scripts and the Pi extension — so the schema is normative for both. See DL-001 for the rationale.
+This document specifies the on-disk format. Two implementations read and write it — the `dld-run` bash scripts and the Pi extension — so the schema is normative for both. See DL-001 for the rationale.
 
 ## Location
 

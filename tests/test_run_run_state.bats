@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
-# Tests for dld-goal/scripts/run-state.sh and append-event.sh
+# Tests for dld-run/scripts/run-state.sh and append-event.sh
 
 load 'test_helper/common'
 
 setup() {
   setup_flat_project
-  bash "$SKILLS_DIR/dld-goal/scripts/create-run.sh" --slug "run-a" --title "Run A" >/dev/null
+  bash "$SKILLS_DIR/dld-run/scripts/create-run.sh" --slug "run-a" --title "Run A" >/dev/null
 }
 
 teardown() {
@@ -13,11 +13,11 @@ teardown() {
 }
 
 state() {
-  bash "$SKILLS_DIR/dld-goal/scripts/run-state.sh" "$@"
+  bash "$SKILLS_DIR/dld-run/scripts/run-state.sh" "$@"
 }
 
 event() {
-  bash "$SKILLS_DIR/dld-goal/scripts/append-event.sh" "$@"
+  bash "$SKILLS_DIR/dld-run/scripts/append-event.sh" "$@"
 }
 
 @test "get prints the whole state document" {
@@ -105,7 +105,7 @@ event() {
 }
 
 @test "list reports every run with its status" {
-  bash "$SKILLS_DIR/dld-goal/scripts/create-run.sh" --slug "run-b" --title "Run B" >/dev/null
+  bash "$SKILLS_DIR/dld-run/scripts/create-run.sh" --slug "run-b" --title "Run B" >/dev/null
   state set-status run-b paused
 
   run state list
@@ -122,7 +122,7 @@ event() {
 }
 
 @test "active prints only active runs" {
-  bash "$SKILLS_DIR/dld-goal/scripts/create-run.sh" --slug "run-b" --title "Run B" >/dev/null
+  bash "$SKILLS_DIR/dld-run/scripts/create-run.sh" --slug "run-b" --title "Run B" >/dev/null
   state set-status run-b paused
 
   run state active

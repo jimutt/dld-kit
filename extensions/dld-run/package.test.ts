@@ -34,7 +34,7 @@ describe("pi package manifest", () => {
 	test("the extension entry point is where pi looks for it", () => {
 		// Pi loads only index.ts from an extension subdirectory, which is what
 		// keeps colocated *.test.ts files from being loaded as extensions.
-		expect(existsSync(join(packageRoot(), "extensions", "dld-goal", "index.ts"))).toBe(true);
+		expect(existsSync(join(packageRoot(), "extensions", "dld-run", "index.ts"))).toBe(true);
 	});
 
 	test("pi runtime packages are optional peers, never bundled", () => {

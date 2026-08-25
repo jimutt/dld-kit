@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Tests for dld-goal item operations: decision-hash.sh, run-state.sh item
+# Tests for dld-run item operations: decision-hash.sh, run-state.sh item
 # subcommands, next-item.sh and verify-hashes.sh
 
 load 'test_helper/common'
@@ -9,7 +9,7 @@ setup() {
   create_decision "DL-001" "proposed"
   create_decision "DL-002" "proposed"
   create_decision "DL-003" "proposed"
-  bash "$SKILLS_DIR/dld-goal/scripts/create-run.sh" --slug "run-a" --title "Run A" >/dev/null
+  bash "$SKILLS_DIR/dld-run/scripts/create-run.sh" --slug "run-a" --title "Run A" >/dev/null
 }
 
 teardown() {
@@ -17,19 +17,19 @@ teardown() {
 }
 
 state() {
-  bash "$SKILLS_DIR/dld-goal/scripts/run-state.sh" "$@"
+  bash "$SKILLS_DIR/dld-run/scripts/run-state.sh" "$@"
 }
 
 hash_of() {
-  bash "$SKILLS_DIR/dld-goal/scripts/decision-hash.sh" "$@"
+  bash "$SKILLS_DIR/dld-run/scripts/decision-hash.sh" "$@"
 }
 
 next_item() {
-  bash "$SKILLS_DIR/dld-goal/scripts/next-item.sh" "$@"
+  bash "$SKILLS_DIR/dld-run/scripts/next-item.sh" "$@"
 }
 
 verify_hashes() {
-  bash "$SKILLS_DIR/dld-goal/scripts/verify-hashes.sh" "$@"
+  bash "$SKILLS_DIR/dld-run/scripts/verify-hashes.sh" "$@"
 }
 
 # --- decision-hash.sh ---
