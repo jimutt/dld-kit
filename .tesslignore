@@ -4,3 +4,8 @@ docs/
 LICENSE
 README.md
 tests/
+extensions/
+node_modules/
+package.json
+package-lock.json
+tsconfig.json
