@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-016 | Add a findings log to the run contract: the agent records what it noticed, surfaced on completion | proposed | dld-goal, extension, run-contract |
 | DL-015 | Rename dld-goal to dld-run: the command is a run, not a goal | accepted | dld-goal, naming, ux |
 | DL-014 | Amend DL-008: Esc suspends the loop; pause aborts the current turn | accepted | dld-goal, extension, execution |
 | DL-013 | Amend DL-008: continuation is a scheduled dispatch, not an awaited handler | accepted | dld-goal, extension, execution |
