@@ -193,6 +193,20 @@ export class LoopController {
 		}
 		this.invalidate();
 		await this.runScript("append-event.sh", [slug, "run-completed"]);
+
+		// Surface findings if the agent recorded any.
+		const count = await this.runScript("get-findings.sh", [slug, "--count"]);
+		const findingCount = Number(count.output.trim());
+		if (Number.isFinite(findingCount) && findingCount > 0) {
+			const findings = await this.runScript("get-findings.sh", [slug]);
+			if (findings.ok) {
+				ui.card?.([
+					`Run ${slug} complete — ${findingCount} finding${findingCount === 1 ? "" : "s"} recorded.`,
+					"",
+					...findings.output.split("\n").slice(0, 30),
+				]);
+			}
+		}
 		ui.notify(`Run ${slug} complete — every item is accepted or skipped.`, "info");
 	}
 

@@ -20,6 +20,7 @@ export type PiSurface = Pick<
 	| "on"
 	| "registerCommand"
 	| "registerEntryRenderer"
+	| "registerTool"
 	| "sendMessage"
 	| "appendEntry"
 	| "exec"
@@ -75,6 +76,7 @@ export interface FakePi {
 	readonly commands: Map<string, Omit<RegisteredCommand, "name" | "sourceInfo">>;
 	readonly events: Map<string, ((event: unknown, ctx: unknown) => unknown)[]>;
 	readonly entryRenderers: Map<string, unknown>;
+	readonly tools: Map<string, unknown>;
 
 	readonly execCalls: ExecCall[];
 	readonly notifications: Notification[];
@@ -116,6 +118,7 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 	const commands = new Map<string, Omit<RegisteredCommand, "name" | "sourceInfo">>();
 	const events = new Map<string, ((event: unknown, ctx: unknown) => unknown)[]>();
 	const entryRenderers = new Map<string, unknown>();
+	const tools = new Map<string, unknown>();
 
 	const execCalls: ExecCall[] = [];
 	const notifications: Notification[] = [];
@@ -188,6 +191,9 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 		registerEntryRenderer(customType: string, renderer: unknown) {
 			entryRenderers.set(customType, renderer);
 		},
+		registerTool(tool: { name: string }) {
+			tools.set(tool.name, tool);
+		},
 		sendMessage(
 			message: { customType: string; content: string | unknown[]; display: boolean; details?: unknown },
 			sendOptions,
@@ -217,6 +223,7 @@ export function createFakePi(options: FakePiOptions = {}): FakePi {
 		commands,
 		events,
 		entryRenderers,
+		tools,
 		execCalls,
 		notifications,
 		statuses,

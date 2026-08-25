@@ -11,11 +11,20 @@ This document specifies the on-disk format. Two implementations read and write i
   contract.md     # Human-readable objective and bounds. Immutable once created.
   state.json      # Machine-readable run state. Atomic writes only.
   events.jsonl    # Append-only event log, one JSON object per line.
+  findings.md     # Append-only findings log, markdown. What the agent noticed.
 ```
 
 `<slug>` is lowercase letters, digits, and hyphens, with no leading or trailing hyphen.
 
 `.dld/` is gitignored by default. Set `goal_run_artifacts: commit` in `dld.config.yaml` to keep run history in version control instead.
+
+## findings.md
+
+The findings log captures what the agent noticed during the run that the plan did not anticipate: unhandled edge cases, decisions made on the fly, code that contradicts an assumption, risks noticed but not acted on. It is written for the human reviewing the run, not the agent executing it.
+
+The log is append-only markdown, newest at the bottom. The agent appends via a `dld_run_note` tool (or `add-finding.sh` from the skill); the extension surfaces the log on run completion as a transcript card and includes a findings section in the board overlay.
+
+Findings are advisory, not gating. A run can complete with findings unaddressed; they surface for the user to decide whether they warrant follow-up decisions. A finding that blocks the run is a blocker (see [Blocked items](#blocked-items)), not a finding.
 
 ## state.json
 

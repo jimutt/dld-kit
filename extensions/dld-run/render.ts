@@ -122,3 +122,13 @@ export function boardLines(state: RunState): string[] {
 	lines.push("", "esc to close");
 	return lines;
 }
+
+/** Findings section for the board, read from the run's findings.md. */
+export function findingsBoardLines(content: string): string[] {
+	if (!content.trim()) return [];
+	const lines = ["", "findings:"];
+	for (const line of content.split("\n").slice(0, 20)) {
+		lines.push(`  ${line}`);
+	}
+	return lines;
+}
