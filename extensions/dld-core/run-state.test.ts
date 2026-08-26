@@ -9,7 +9,7 @@ import {
 	readRunFrom,
 	type RunState,
 } from "./run-state.ts";
-import { createFakePi } from "./testing/fake-pi.ts";
+import { createFakePi } from "../dld-run/testing/fake-pi.ts";
 
 let workspace: string;
 

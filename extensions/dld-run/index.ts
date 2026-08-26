@@ -1,9 +1,10 @@
 import type { ExecOptions, ExecResult, ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { formatDoctorReport, runDoctor } from "./doctor.ts";
 import { LoopController, type LoopContext, type LoopUi } from "./loop.ts";
-import { scriptPath } from "./paths.ts";
-import { boardLines, statusLine, widgetLines } from "./render.ts";
-import { activeMinutes, readEventsFrom, readRunFrom } from "./run-state.ts";
+import { scriptPath } from "../dld-core/paths.ts";
+import { boardLines, statusLine, widgetLines } from "../dld-core/render.ts";
+import { parseStartArgs } from "../dld-core/parse-start-args.ts";
+import { activeMinutes, readEventsFrom, readRunFrom } from "../dld-core/run-state.ts";
 
 // @decision(DL-006) @decision(DL-008) @decision(DL-011)
 export type DldGoalApi = Pick<
@@ -202,76 +203,6 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 	});
 }
 
-interface StartArgs {
-	slug: string;
-	title: string;
-	decisionIds: string[];
-}
-
-/**
- * Parse the tolerant start syntax. The agent is the parser: ranges expand,
- * slug and title are derived when not given.
- *
- *   /dld-run start DL-014..DL-022          → slug dl-014-022, 9 items
- *   /dld-run start DL-014 - DL-022         → same
- *   /dld-run start my-batch DL-014 DL-015  → slug my-batch, 2 items
- *   /dld-run start my-batch "My title" --decisions DL-014,DL-015
- */
-function parseStartArgs(raw: string): StartArgs | { error: string } {
-	// raw is the args string after the command name, including the subcommand
-	// "start" itself; strip it before parsing.
-	const rest = raw.split(/\s+/).slice(1).filter(Boolean);
-	if (rest.length === 0) {
-		return { error: "Usage: /dld-run start <DL-NNN..DL-NNN | slug [title] decisions…>" };
-	}
-
-	// Range form: DL-014..DL-022 or DL-014 - DL-022 (spaces tolerated).
-	const joined = rest.join(" ");
-	const rangeMatch = joined.match(/^(DL-\d+)\s*(?:\.\.|-|–|—|to)\s*(DL-\d+)$/i);
-	if (rangeMatch) {
-		const from = Number(rangeMatch[1]!.slice(3));
-		const to = Number(rangeMatch[2]!.slice(3));
-		if (!Number.isInteger(from) || !Number.isInteger(to) || from > to || to - from > 50) {
-			return { error: `Invalid range: ${rangeMatch[1]}..${rangeMatch[2]}` };
-		}
-		const ids = Array.from({ length: to - from + 1 }, (_, i) => `DL-${String(from + i).padStart(3, "0")}`);
-		return {
-			slug: `dl-${from}-${to}`,
-			title: `${rangeMatch[1]} through ${rangeMatch[2]}`,
-			decisionIds: ids,
-		};
-	}
-
-	// Flag form: --decisions DL-A,DL-B
-	const decisionFlag = rest.indexOf("--decisions");
-	const firstIsDecision = /^DL-\d+$/.test(rest[0] ?? "");
-	let decisionIds: string[];
-	let titleParts: string[];
-
-	if (decisionFlag >= 0) {
-		decisionIds = (rest[decisionFlag + 1] ?? "").split(",").filter(Boolean);
-		titleParts = rest.slice(1, decisionFlag);
-	} else {
-		// When the first token is a decision ID there is no explicit slug —
-		// every positional token is a decision. Taking rest.slice(1) would
-		// silently drop the first one.
-		const source = firstIsDecision ? rest : rest.slice(1);
-		decisionIds = source.filter((p) => /^DL-\d+$/.test(p));
-		titleParts = source.filter((p) => !/^DL-\d+$/.test(p));
-	}
-
-	if (decisionIds.length === 0) {
-		return { error: "A run needs decisions. Try /dld-run start DL-014..DL-022 or /dld-run start my-batch DL-014 DL-015" };
-	}
-
-	const slug = firstIsDecision
-		? `dl-${decisionIds[0]!.slice(3).padStart(3, "0")}-${decisionIds[decisionIds.length - 1]!.slice(3).padStart(3, "0")}`
-		: (rest[0] ?? "run");
-	const title = titleParts.join(" ") || (firstIsDecision ? `${decisionIds[0]} batch` : slug);
-
-	return { slug, title, decisionIds };
-}
-
 async function handleGoalCommand(
 	pi: DldGoalApi,
 	loop: LoopController,
@@ -309,7 +240,7 @@ async function handleGoalCommand(
 				ctx.ui.notify(`A run is already active: ${existing}`, "warning");
 				return;
 			}
-			const parsed = parseStartArgs("start " + args.trim().replace(/^start\s*/, ""));
+			const parsed = parseStartArgs(args.trim().replace(/^start\s*/, "").split(/\s+/).filter(Boolean));
 			if (!("slug" in parsed)) {
 				ctx.ui.notify(parsed.error, "warning");
 				return;

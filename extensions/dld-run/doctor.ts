@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ExecOptions, ExecResult } from "@earendil-works/pi-coding-agent";
-import { missingScripts as defaultMissingScripts, packageRoot, scriptsDir } from "./paths.ts";
+import { missingScripts as defaultMissingScripts, packageRoot, scriptsDir } from "../dld-core/paths.ts";
 
 /** A probe that never returns leaves the command hanging with no way out. */
 const PROBE_TIMEOUT_MS = 5000;

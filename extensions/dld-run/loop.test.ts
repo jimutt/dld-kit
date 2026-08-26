@@ -536,8 +536,8 @@ describe("commands", () => {
 		await pi.invokeCommand("dld-run", "start DL-014..DL-016");
 
 		expect(pi.execCalls.filter((c) => c.args.some((a) => a.includes("add-item")))).toHaveLength(3);
-		expect(pi.execCalls.some((c) => c.args.includes("dl-14-16"))).toBe(true);
-		expect(pi.notifications.some((n) => n.message.includes("Started run dl-14-16 · 3 items"))).toBe(true);
+		expect(pi.execCalls.some((c) => c.args.includes("dl-014-016"))).toBe(true);
+		expect(pi.notifications.some((n) => n.message.includes("Started run dl-014-016 · 3 items"))).toBe(true);
 	});
 
 	test("start with only positional decisions keeps every one", async () => {

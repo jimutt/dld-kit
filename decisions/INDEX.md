@@ -2,7 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-022 | Create extensions/dld-core: a TypeScript-native library with a function-shaped API | proposed | dld-core, architecture, typescript |
+| DL-022 | Create extensions/dld-core: a TypeScript-native library with a function-shaped API | accepted | dld-core, architecture, typescript |
 | DL-021 | Port the four-part completion transaction to the OpenCode plugin | accepted | opencode, dld-run, verification |
 | DL-020 | Fix loop gating, error mapping, and TUI reactivity per the spike review | accepted | opencode, dld-run, review |
 | DL-019 | Implement start in the OpenCode plugin: full lifecycle, and agent-safe error messages | accepted | opencode, dld-run, ux |

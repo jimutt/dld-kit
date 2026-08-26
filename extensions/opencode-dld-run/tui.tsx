@@ -17,15 +17,11 @@
 
 import { Plugin } from "@opencode-ai/plugin/tui";
 import { createSignal, type JSX } from "solid-js";
-import {
-	readFileSync,
-	existsSync,
-	readdirSync,
-	watch,
-	type FSWatcher,
-} from "node:fs";
+import { existsSync, readdirSync, watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { readRunFrom, type RunState } from "../dld-core/run-state.ts";
+import { statusLine, widgetLines, boardLines } from "../dld-core/render.ts";
 
 function projectRoot(cwd: string): string {
 	try {
@@ -38,122 +34,24 @@ function projectRoot(cwd: string): string {
 	}
 }
 
-interface RunState {
-	schemaVersion: number;
-	slug: string;
-	title: string;
-	status: string;
-	createdAt: string;
-	items: { status: string; decisions: { id: string }[] }[];
-	bounds: { maxItems: number; maxMinutes: number };
-	blockedQuestions?: { itemIndex: number; question: string; answer?: string }[];
-}
-
+// The most relevant run for the UI: the active one, else the most recent
+// paused or blocked run — a paused run is exactly when the user needs the
+// status surface. Uses dld-core's validated reader; a corrupt state file
+// skips that run rather than aborting the scan.
 function readActiveRun(root: string): RunState | undefined {
 	const runsDir = join(root, ".dld", "runs");
 	if (!existsSync(runsDir)) return undefined;
-	try {
-		const dirs = readdirSync(runsDir, { withFileTypes: true })
-			.filter((d) => d.isDirectory())
-			.map((d) => d.name);
-		let fallback: RunState | undefined;
-		for (const slug of dirs) {
-			const statePath = join(runsDir, slug, "state.json");
-			if (!existsSync(statePath)) continue;
-			const raw = JSON.parse(readFileSync(statePath, "utf-8"));
-			if (raw.schemaVersion !== 1) continue;
-			// Show active runs first, then paused/blocked — a paused run is
-			// exactly when the user needs the status surface.
-			if (raw.status === "active") return raw as RunState;
-			if (!fallback && (raw.status === "paused" || raw.status === "blocked"))
-				fallback = raw as RunState;
-		}
-		return fallback;
-	} catch {}
-	return undefined;
-}
-
-function itemIcon(status: string): string {
-	switch (status) {
-		case "accepted":
-			return "✔";
-		case "implementing":
-			return "▸";
-		case "verifying":
-			return "◌";
-		case "blocked":
-			return "✖";
-		case "skipped":
-			return "–";
-		default:
-			return "○";
-	}
-}
-
-function statusLine(state: RunState): string {
-	const done = state.items.filter(
-		(i) => i.status === "accepted" || i.status === "skipped",
-	).length;
-	const total = state.items.length;
-	const current = state.items.find(
-		(i) => i.status === "implementing" || i.status === "verifying",
-	);
-	const blocked = (state.blockedQuestions ?? []).filter(
-		(q) => !q.answer,
-	).length;
-	const elapsed = Math.round(
-		(Date.now() - new Date(state.createdAt).getTime()) / 60_000,
-	);
-	const bounds =
-		state.bounds.maxMinutes > 0
-			? ` · ${elapsed}m/${state.bounds.maxMinutes}m`
-			: ` · ${elapsed}m`;
-	const currentStr = current
-		? ` · ${current.decisions.map((d) => d.id).join(",")} ${current.status}`
-		: "";
-	const blockedStr = blocked > 0 ? ` · ${blocked} blocked` : "";
-	return `◆ ${state.slug} ${done}/${total}${currentStr}${bounds}${blockedStr}`;
-}
-
-function widgetLines(state: RunState): string[] {
-	const lines: string[] = [];
-	const done = state.items.filter(
-		(i) => i.status === "accepted" || i.status === "skipped",
-	).length;
-	lines.push(`◆ ${state.slug} — ${done}/${state.items.length} items`);
-
-	for (const item of state.items.slice(0, 3)) {
-		const icon = itemIcon(item.status);
-		lines.push(
-			`${icon} ${item.decisions.map((d) => d.id).join(",")} ${item.status}`,
-		);
-	}
-	if (state.items.length > 3) lines.push(`  +${state.items.length - 3} more`);
-
-	while (lines.length < 5) lines.push("");
-	return lines.slice(0, 5);
-}
-
-function boardText(state: RunState): string {
-	const lines = [
-		`Run: ${state.slug}`,
-		`Title: ${state.title}`,
-		`Status: ${state.status}`,
-		`Items:`,
-		...state.items.map((item, i) => {
-			const icon = itemIcon(item.status);
-			return `  ${icon} ${i + 1}. ${item.decisions.map((d) => d.id).join(",")} — ${item.status}`;
-		}),
-	];
-	if ((state.blockedQuestions ?? []).length > 0) {
-		lines.push("", "Questions:");
-		for (const q of state.blockedQuestions ?? []) {
-			lines.push(
-				`  ${q.answer ? "✔" : "?"} item ${q.itemIndex}: ${q.question}${q.answer ? ` — ${q.answer}` : ""}`,
-			);
+	let fallback: RunState | undefined;
+	for (const slug of readdirSync(runsDir, { withFileTypes: true })) {
+		if (!slug.isDirectory()) continue;
+		const read = readRunFrom(join(runsDir, slug.name));
+		if (!read.ok) continue;
+		if (read.state.status === "active") return read.state;
+		if (!fallback && (read.state.status === "paused" || read.state.status === "blocked")) {
+			fallback = read.state;
 		}
 	}
-	return lines.join("\n");
+	return fallback;
 }
 
 // Reactive state: a single signal shared by every surface, refreshed by
@@ -219,7 +117,7 @@ function BoardCommand(props: {
 						});
 						return;
 					}
-					const text = boardText(state);
+					const text = boardLines(state).join("\n");
 					props.context.ui.dialog.show(() => <text>{text}</text>);
 				},
 			},
