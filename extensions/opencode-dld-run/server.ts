@@ -1,4 +1,4 @@
-// @decision(DL-016) @decision(DL-017)
+// @decision(DL-016) @decision(DL-017) @decision(DL-019) @decision(DL-020)
 // OpenCode V2 server plugin: the dld-run loop driver.
 //
 // Subscribes to session.execution.succeeded, reads the active run from
@@ -13,40 +13,44 @@
 import { Plugin } from "@opencode-ai/plugin";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 
 function projectRoot(cwd: string): string {
 	try {
-		return execSync("git rev-parse --show-toplevel", { cwd, encoding: "utf-8" }).trim();
+		return execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf-8" }).trim();
 	} catch {
 		return cwd;
 	}
 }
 
 function packageRoot(): string {
-	const url = new URL(import.meta.url);
-	return url.pathname.replace(/\/extensions\/opencode-dld-run\/server\.ts$/, "");
+	// fileURLToPath, not new URL().pathname — the latter leaves percent-
+	// encoding in place, breaking checkouts under paths with spaces.
+	const path = new URL(import.meta.url);
+	const decoded = decodeURIComponent(path.pathname);
+	return decoded.replace(/\/extensions\/opencode-dld-run\/server\.ts$/, "");
 }
 
 function scriptPath(name: string): string {
 	return join(packageRoot(), "skills", "dld-run", "scripts", name);
 }
 
-// Exec shim: run a script, return {code, stdout, stderr} without throwing.
 // @decision(DL-017)
+// Exec shim: run a script as an argv array — no shell. execFileSync never
+// interprets $, backticks, quotes, or spaces in arguments, which is what
+// DL-003 requires of anything that touches stored contract content.
 function runScript(
 	name: string,
 	args: string[],
 	cwd: string,
 ): { code: number; stdout: string; stderr: string } {
 	try {
-		const stdout = execSync(
-			`bash "${scriptPath(name)}" ${args.map((a) => `"${a}"`).join(" ")}`,
-			{ cwd, encoding: "utf-8", timeout: 30_000, stdio: ["pipe", "pipe", "pipe"] },
-		);
+		const stdout = execFileSync("bash", [scriptPath(name), ...args], {
+			cwd, encoding: "utf-8", timeout: 30_000, stdio: ["pipe", "pipe", "pipe"],
+		});
 		return { code: 0, stdout, stderr: "" };
 	} catch (e: unknown) {
-		const err = e as { status?: number; stdout?: string; stderr?: string };
+		const err = e as { status?: number | null; stdout?: string; stderr?: string };
 		return { code: err.status ?? 1, stdout: err.stdout ?? "", stderr: err.stderr ?? String(e) };
 	}
 }
@@ -58,6 +62,18 @@ interface RunState {
 	status: string;
 	items: { status: string; decisions: { id: string }[] }[];
 	bounds: { maxItems: number; maxMinutes: number };
+}
+
+function readRunState(runDir: string): RunState | undefined {
+	const statePath = join(runDir, "state.json");
+	if (!existsSync(statePath)) return undefined;
+	try {
+		const raw = JSON.parse(readFileSync(statePath, "utf-8"));
+		if (raw.schemaVersion !== 1) return undefined;
+		return raw as RunState;
+	} catch {
+		return undefined;
+	}
 }
 
 interface StartArgs {
@@ -93,51 +109,84 @@ function parseStartArgs(tokens: string[]): StartArgs | { error: string } {
 	}
 
 	const decisionFlag = tokens.indexOf("--decisions");
+	// --decisions as the first token has no slug — don't let the flag itself
+	// become one.
 	const firstIsDecision = /^DL-\d+$/.test(tokens[0] ?? "");
 	let decisionIds: string[];
 	let titleParts: string[];
+	let slugSource: string | undefined;
 
-	if (decisionFlag >= 0) {
+	if (decisionFlag === 0) {
+		decisionIds = (tokens[1] ?? "").split(",").filter(Boolean);
+		titleParts = [];
+		slugSource = undefined;
+	} else if (decisionFlag > 0) {
 		decisionIds = (tokens[decisionFlag + 1] ?? "").split(",").filter(Boolean);
 		titleParts = tokens.slice(1, decisionFlag);
+		slugSource = tokens[0];
 	} else {
 		// When the first token is a decision ID there is no explicit slug —
 		// every positional token is a decision.
 		const source = firstIsDecision ? tokens : tokens.slice(1);
 		decisionIds = source.filter((p) => /^DL-\d+$/.test(p));
 		titleParts = source.filter((p) => !/^DL-\d+$/.test(p));
+		slugSource = firstIsDecision ? undefined : tokens[0];
 	}
 
 	if (decisionIds.length === 0) {
 		return { error: "A run needs decisions. Try /dld-run start DL-014..DL-022 or /dld-run start my-batch DL-014 DL-015" };
 	}
 
-	const slug = firstIsDecision
-		? `dl-${decisionIds[0]!.slice(3).padStart(3, "0")}-${decisionIds[decisionIds.length - 1]!.slice(3).padStart(3, "0")}`
-		: (tokens[0] ?? "run");
-	const title = titleParts.join(" ") || (firstIsDecision ? `${decisionIds[0]} batch` : slug);
+	const slug = slugSource
+		?? `dl-${decisionIds[0]!.slice(3).padStart(3, "0")}-${decisionIds[decisionIds.length - 1]!.slice(3).padStart(3, "0")}`;
+	const title = titleParts.join(" ") || (slugSource ? slugSource : `${decisionIds[0]} batch`);
 	return { slug, title, decisionIds };
 }
 
-function readRunState(runDir: string): RunState | undefined {
-	const statePath = join(runDir, "state.json");
-	if (!existsSync(statePath)) return undefined;
-	try {
-		const raw = JSON.parse(readFileSync(statePath, "utf-8"));
-		if (raw.schemaVersion !== 1) return undefined;
-		return raw as RunState;
-	} catch {
-		return undefined;
-	}
+// A single line from `run-state.sh active|list` — the scripts print one
+// slug per line, and multiple active runs are possible after crashes.
+function firstLine(s: string): string {
+	return s.trim().split("\n")[0]?.trim() ?? "";
 }
 
 export default Plugin.define({
 	id: "dld-run",
 	tui: true,
 	async setup(ctx) {
-		let root = "";
-		let dispatched = 0;
-		const MAX_DISPATCHES = 50;
+		// Workspace root per project directory, not a single global — one
+		// server can host sessions in several projects.
+		const roots = new Map<string, string>();
+		async function rootFor(sessionID: string): Promise<string> {
+			const session = await ctx.session.get({ sessionID });
+			const dir = (session as { location?: { directory?: string } }).location?.directory;
+			if (!dir) throw new Error("session has no location.directory");
+			const cached = roots.get(dir);
+			if (cached) return cached;
+			const root = projectRoot(dir);
+			roots.set(dir, root);
+			return root;
+		}
+
+		// Dispatch guard: which item each session was last told to work.
+		// Without this, every execution.succeeded re-dispatches the in-flight
+		// item — the agent ends a turn mid-item (question, rate limit, context
+		// boundary) and the loop spams the identical prompt. An item is only
+		// re-dispatched when the session changes (restart/resume) or the item
+		// itself advances.
+		const lastDispatch = new Map<string, string>();
+
+		// Resolve the run to operate on: the active one if any, otherwise
+		// (for resume/status/stop) the most recent paused or blocked one.
+		function resolveSlug(root: string, resumable: boolean): string | null {
+			const active = runScript("run-state.sh", ["active"], root);
+			if (active.code === 0 && active.stdout.trim()) return firstLine(active.stdout);
+			if (!resumable) return null;
+			const list = runScript("run-state.sh", ["list"], root);
+			if (list.code !== 0) return null;
+			const lines = list.stdout.split("\n").filter((l) => /\s(paused|blocked)$/.test(l));
+			const last = lines[lines.length - 1];
+			return last ? (last.split(/\s+/)[0] ?? null) : null;
+		}
 
 		// Register the /dld-run command.
 		await ctx.command.transform((draft) => {
@@ -145,22 +194,27 @@ export default Plugin.define({
 				name: "dld-run",
 				description: "Drive a goal run: start, pause, resume, stop, status",
 				execute: async ({ sessionID, prompt, delivery }) => {
-					const args = prompt.text.trim().split(/\s+/);
+					const args = prompt.text.trim().split(/\s+/).filter(Boolean);
 					const sub = args[0] ?? "status";
 
-					if (!root) {
-						const session = await ctx.session.get({ sessionID });
-						const dir = (session as { location?: { directory?: string } }).location?.directory;
-						if (dir) root = projectRoot(dir);
+					let root: string;
+					try {
+						root = await rootFor(sessionID);
+					} catch (e) {
+						await ctx.session.synthetic({
+							sessionID,
+							text: `[dld-run plugin] Could not resolve the workspace: ${e instanceof Error ? e.message : String(e)}. Relay this to the user as-is.`,
+						});
+						return;
 					}
 
 					// @decision(DL-019)
 					if (sub === "start") {
-						const existing = runScript("run-state.sh", ["active"], root);
-						if (existing.code === 0 && existing.stdout.trim()) {
+						const existing = resolveSlug(root, false);
+						if (existing) {
 							await ctx.session.synthetic({
 								sessionID,
-								text: `[dld-run plugin] A run is already active: ${existing.stdout.trim()}. Relay this to the user as-is.`,
+								text: `[dld-run plugin] A run is already active: ${existing}. Relay this to the user as-is.`,
 							});
 							return;
 						}
@@ -194,16 +248,18 @@ export default Plugin.define({
 						for (const id of parsed.decisionIds) {
 							const added = runScript("run-state.sh", ["add-item", parsed.slug, "--decisions", id], root);
 							if (added.code !== 0) {
+								// A half-populated run must not go live — the loop would
+								// start working it with items silently missing.
+								runScript("run-state.sh", ["set-status", parsed.slug, "blocked"], root);
 								await ctx.session.synthetic({
 									sessionID,
-									text: `[dld-run plugin] Run ${parsed.slug} created but item ${id} failed: ${added.stdout.trim() || added.stderr.trim()} Relay this to the user as-is.`,
+									text: `[dld-run plugin] Run ${parsed.slug} created but item ${id} failed: ${added.stdout.trim() || added.stderr.trim()} The run is blocked; add the missing items manually or recreate it. Relay this to the user as-is.`,
 								});
 								return;
 							}
 						}
-						// Kick the loop: the run is active, so the next
-						// execution.succeeded event dispatches item 1. Prompt the
-						// agent to start work now rather than waiting for a turn.
+						// Kick the loop: prompt the agent to start work now.
+						lastDispatch.set(sessionID, `${parsed.slug}:1`);
 						await ctx.session.prompt({
 							sessionID,
 							text: `Started goal run '${parsed.slug}' — ${parsed.decisionIds.length} item${parsed.decisionIds.length === 1 ? "" : "s"} (${parsed.title}). Begin work on item 1 as the dld-run skill describes.`,
@@ -213,38 +269,71 @@ export default Plugin.define({
 					}
 
 					if (sub === "status") {
-						const active = runScript("run-state.sh", ["active"], root);
-						if (active.code !== 0 || !active.stdout.trim()) {
-							await ctx.session.synthetic({ sessionID, text: "No active dld run." });
+						const slug = resolveSlug(root, true);
+						if (!slug) {
+							await ctx.session.synthetic({ sessionID, text: "[dld-run plugin] No active or paused dld run. Relay this to the user as-is." });
 							return;
 						}
-						const slug = active.stdout.trim();
 						const state = readRunState(join(root, ".dld", "runs", slug));
 						if (!state) {
-							await ctx.session.synthetic({ sessionID, text: `Run ${slug} exists but state is unreadable.` });
+							await ctx.session.synthetic({ sessionID, text: `[dld-run plugin] Run ${slug} exists but state is unreadable. Relay this to the user as-is.` });
 							return;
 						}
 						const done = state.items.filter((i) => i.status === "accepted" || i.status === "skipped").length;
 						const current = state.items.find((i) => i.status === "implementing" || i.status === "verifying");
-						const statusText = `Run ${slug}: ${done}/${state.items.length} items done` +
+						const statusText = `[dld-run plugin] Run ${slug}: ${done}/${state.items.length} items done` +
 							(current ? `, working on ${current.decisions.map((d) => d.id).join(",")}` : "") +
-							`, status: ${state.status}`;
+							`, status: ${state.status}. Relay this to the user as-is.`;
 						await ctx.session.synthetic({ sessionID, text: statusText });
 						return;
 					}
 
-					const statusMap: Record<string, string> = { pause: "paused", resume: "active", stop: "complete" };
+					const statusMap: Record<string, string> = { pause: "paused", resume: "active", stop: "stopped" };
 					if (statusMap[sub]) {
-						const active = runScript("run-state.sh", ["active"], root);
-						if (active.code !== 0 || !active.stdout.trim()) {
-							await ctx.session.synthetic({ sessionID, text: "No active dld run." });
+						const slug = resolveSlug(root, sub === "resume" || sub === "stop");
+						if (!slug) {
+							await ctx.session.synthetic({
+								sessionID,
+								text: `[dld-run plugin] No ${sub === "resume" ? "resumable" : "active"} run to ${sub}. Relay this to the user as-is.`,
+							});
 							return;
 						}
-						const slug = active.stdout.trim();
+						// Resume re-validates preconditions (DL-004): the tree may
+						// have gone dirty, collisions may have appeared, or decision
+						// hashes may have drifted while the run sat idle.
+						if (sub === "resume") {
+							const guard = runScript("guard-preconditions.sh", ["resume", slug], root);
+							if (guard.code !== 0) {
+								await ctx.session.synthetic({
+									sessionID,
+									text: `[dld-run plugin] Cannot resume: ${guard.stdout.trim() || guard.stderr.trim()} Relay this to the user as-is.`,
+								});
+								return;
+							}
+						}
 						const result = runScript("run-state.sh", ["set-status", slug, statusMap[sub]!], root);
+						if (result.code === 0) {
+							runScript("append-event.sh", [slug, `run-${sub === "stop" ? "stopped" : sub + "d"}`], root);
+							if (sub === "resume") {
+								// Clear the dispatch guard so the in-flight item gets
+								// re-delivered to this session, and interrupt any turn
+								// still running so the continuation lands immediately.
+								lastDispatch.delete(sessionID);
+								await ctx.session.prompt({
+									sessionID,
+									text: `Run ${slug} resumed. Continue the goal run as the dld-run skill describes.`,
+									delivery,
+								});
+							} else if (sub === "pause") {
+								// Pausing must stop the current work, not just the next
+								// dispatch (DL-014).
+								lastDispatch.delete(sessionID);
+								try { await ctx.session.interrupt({ sessionID, continue: false }); } catch { /* no turn in flight */ }
+							}
+						}
 						const msg = result.code === 0
-							? `Run ${slug} ${sub === "stop" ? "stopped" : sub + "d"}.`
-							: `Failed to ${sub} run ${slug}: ${result.stderr}`;
+							? `[dld-run plugin] Run ${slug} ${sub === "stop" ? "stopped" : sub + "d"}. Relay this to the user as-is.`
+							: `[dld-run plugin] Failed to ${sub} run ${slug}: ${result.stderr.trim()} Relay this to the user as-is.`;
 						await ctx.session.synthetic({ sessionID, text: msg });
 						return;
 					}
@@ -267,18 +356,19 @@ export default Plugin.define({
 				const sessionID = (event as { data?: { sessionID?: string } }).data?.sessionID;
 				if (!sessionID) continue;
 
-				// Resolve the workspace from the session.
-				if (!root) {
-					try {
-						const session = await ctx.session.get({ sessionID });
-						const dir = (session as { location?: { directory?: string } }).location?.directory;
-						if (dir) root = projectRoot(dir);
-					} catch { continue; }
+				let root: string;
+				try {
+					root = await rootFor(sessionID);
+				} catch {
+					continue;
 				}
 
 				const active = runScript("run-state.sh", ["active"], root);
-				if (active.code !== 0 || !active.stdout.trim()) continue;
-				const slug = active.stdout.trim();
+				// A failed script (missing jq, unreadable state, timeout) is not
+				// "no run" — skip silently and let the next event retry.
+				if (active.code !== 0) continue;
+				const slug = firstLine(active.stdout);
+				if (!slug) continue;
 				const state = readRunState(join(root, ".dld", "runs", slug));
 				if (!state || state.status !== "active") continue;
 
@@ -286,36 +376,60 @@ export default Plugin.define({
 				const done = state.items.filter((i) => i.status === "accepted" || i.status === "skipped").length;
 				if (state.bounds.maxItems > 0 && done >= state.bounds.maxItems) {
 					runScript("run-state.sh", ["set-status", slug, "paused"], root);
+					runScript("append-event.sh", [slug, "run-paused", "--data", `{"reason":"maxItems reached"}`], root);
 					continue;
 				}
 
 				// Find the next item.
 				const next = runScript("next-item.sh", [slug], root);
 				if (next.code === 2) {
+					// Blocked item — pause and surface it. A silent pause reads
+					// as a wedged run.
 					runScript("run-state.sh", ["set-status", slug, "paused"], root);
+					runScript("append-event.sh", [slug, "run-paused", "--data", `{"reason":"blocked item"}`], root);
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Run ${slug} paused: an item is blocked and needs an operator answer. Run /dld-run status for details. Relay this to the user as-is.`,
+					});
 					continue;
 				}
-				if (next.code !== 0 || !next.stdout.trim()) {
+				if (next.code !== 0) continue; // script failure — skip, do not complete
+				const itemIndex = firstLine(next.stdout);
+				if (!itemIndex) {
+					// Exit 0 with empty stdout: genuinely nothing left.
 					runScript("run-state.sh", ["set-status", slug, "complete"], root);
+					runScript("append-event.sh", [slug, "run-completed"], root);
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Run ${slug} complete — every item is accepted or skipped. Relay this to the user as-is.`,
+					});
 					continue;
 				}
 
-				if (dispatched >= MAX_DISPATCHES) continue;
-				const itemIndex = next.stdout.trim();
+				// The dispatch guard: don't re-deliver the item this session is
+				// already working. The agent can end a turn mid-item (question,
+				// rate limit, context boundary); that turn's completion must not
+				// trigger an identical re-dispatch.
+				const dispatchKey = `${slug}:${itemIndex}`;
+				if (lastDispatch.get(sessionID) === dispatchKey) continue;
+
 				const item = state.items[Number(itemIndex) - 1];
 				if (!item) continue;
 
-				// Claim the item.
+				// Claim the item before dispatching.
 				runScript("run-state.sh", ["set-item-status", slug, itemIndex, "implementing"], root);
 
-				dispatched++;
+				lastDispatch.set(sessionID, dispatchKey);
 				const decisions = item.decisions.map((d) => d.id).join(", ");
 				try {
 					await ctx.session.prompt({
 						sessionID,
 						text: `Continue goal run '${slug}'. Work item ${itemIndex} (${decisions}). Implement the decision(s) as the dld-run skill describes.`,
 					});
-				} catch { /* dispatch failed — the next execution.succeeded will retry */ }
+				} catch {
+					// Dispatch failed — clear the guard so the next event retries.
+					lastDispatch.delete(sessionID);
+				}
 			}
 		})().catch(() => {});
 

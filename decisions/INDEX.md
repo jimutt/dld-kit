@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-020 | Fix loop gating, error mapping, and TUI reactivity per the spike review | accepted | opencode, dld-run, review |
 | DL-019 | Implement start in the OpenCode plugin: full lifecycle, and agent-safe error messages | accepted | opencode, dld-run, ux |
 | DL-018 | Full implementation: complete UI surface after the spike proves the loop | proposed | opencode, extension, dld-run |
 | DL-017 | Spike scope: validate state sharing, loop dispatch, exec, status, and widget | accepted | opencode, spike, dld-run |

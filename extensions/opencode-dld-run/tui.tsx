@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-// @decision(DL-016) @decision(DL-017)
+// @decision(DL-016) @decision(DL-017) @decision(DL-020)
 // OpenCode V2 CLI/TUI plugin: the dld-run UI surfaces.
 //
 // The pragma is load-bearing: OpenCode's TUI renders SolidJS, and without
@@ -47,12 +47,18 @@ function readActiveRun(root: string): RunState | undefined {
 		const dirs = readdirSync(runsDir, { withFileTypes: true })
 			.filter((d) => d.isDirectory())
 			.map((d) => d.name);
+		let fallback: RunState | undefined;
 		for (const slug of dirs) {
 			const statePath = join(runsDir, slug, "state.json");
 			if (!existsSync(statePath)) continue;
 			const raw = JSON.parse(readFileSync(statePath, "utf-8"));
-			if (raw.schemaVersion === 1 && raw.status === "active") return raw as RunState;
+			if (raw.schemaVersion !== 1) continue;
+			// Show active runs first, then paused/blocked — a paused run is
+			// exactly when the user needs the status surface.
+			if (raw.status === "active") return raw as RunState;
+			if (!fallback && (raw.status === "paused" || raw.status === "blocked")) fallback = raw as RunState;
 		}
+		return fallback;
 	} catch {}
 	return undefined;
 }
@@ -61,7 +67,7 @@ function statusLine(state: RunState): string {
 	const done = state.items.filter((i) => i.status === "accepted" || i.status === "skipped").length;
 	const total = state.items.length;
 	const current = state.items.find((i) => i.status === "implementing" || i.status === "verifying");
-	const blocked = state.blockedQuestions.filter((q) => !q.answer).length;
+	const blocked = (state.blockedQuestions ?? []).filter((q) => !q.answer).length;
 	const elapsed = Math.round((Date.now() - new Date(state.createdAt).getTime()) / 60_000);
 	const bounds = state.bounds.maxMinutes > 0 ? ` · ${elapsed}m/${state.bounds.maxMinutes}m` : ` · ${elapsed}m`;
 	const currentStr = current ? ` · ${current.decisions.map((d) => d.id).join(",")} ${current.status}` : "";
@@ -95,9 +101,9 @@ function boardText(state: RunState): string {
 			return `  ${icon} ${i + 1}. ${item.decisions.map((d) => d.id).join(",")} — ${item.status}`;
 		}),
 	];
-	if (state.blockedQuestions.length > 0) {
+	if ((state.blockedQuestions ?? []).length > 0) {
 		lines.push("", "Questions:");
-		for (const q of state.blockedQuestions) {
+		for (const q of state.blockedQuestions ?? []) {
 			lines.push(`  ${q.answer ? "✔" : "?"} item ${q.itemIndex}: ${q.question}${q.answer ? ` — ${q.answer}` : ""}`);
 		}
 	}
@@ -175,24 +181,18 @@ export default Plugin.define({
 		const root = projectRoot(process.cwd());
 		const { state: run, dispose } = createRunSignal(root);
 
-		// Status line in the prompt footer.
+		// Status line in the prompt footer. The signal read must be inside
+		// the JSX expression — Solid untracks component bodies, so a read
+		// assigned to a const never re-runs and the surface goes stale.
 		ctx.ui.slot({
 			replace: "prompt.footer.status",
-			render: () => {
-				const state = run();
-				if (!state) return <text>{""}</text>;
-				return <text>{statusLine(state)}</text>;
-			},
+			render: () => <text>{run() ? statusLine(run()!) : ""}</text>,
 		});
 
-		// Widget in the sidebar.
+		// Widget in the sidebar. Same reactivity rule.
 		ctx.ui.slot({
 			replace: "sidebar.content",
-			render: () => {
-				const state = run();
-				if (!state) return <text>No active dld run.</text>;
-				return <text>{widgetLines(state).join("\n")}</text>;
-			},
+			render: () => <text>{run() ? widgetLines(run()!).join("\n") : "No active dld run."}</text>,
 		});
 
 		// The board command mounts through the app slot so its keymap layer
