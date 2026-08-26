@@ -60,6 +60,65 @@ interface RunState {
 	bounds: { maxItems: number; maxMinutes: number };
 }
 
+interface StartArgs {
+	slug: string;
+	title: string;
+	decisionIds: string[];
+}
+
+// @decision(DL-019)
+// Ported from the Pi extension's parseStartArgs. The agent is the parser:
+// ranges expand, slug and title are derived when not given.
+//
+//   /dld-run start DL-014..DL-022          → slug dl-14-22, 9 items
+//   /dld-run start DL-014 - DL-022         → same
+//   /dld-run start my-batch DL-014 DL-015  → slug my-batch, 2 items
+//   /dld-run start my-batch --decisions DL-014,DL-015
+function parseStartArgs(tokens: string[]): StartArgs | { error: string } {
+	if (tokens.length === 0) {
+		return { error: "Usage: /dld-run start <DL-NNN..DL-NNN | slug [title] decisions…>" };
+	}
+
+	// Range form: DL-014..DL-022 or DL-014 - DL-022 (spaces tolerated).
+	const joined = tokens.join(" ");
+	const rangeMatch = joined.match(/^(DL-\d+)\s*(?:\.\.|-|–|—|to)\s*(DL-\d+)$/i);
+	if (rangeMatch) {
+		const from = Number(rangeMatch[1]!.slice(3));
+		const to = Number(rangeMatch[2]!.slice(3));
+		if (!Number.isInteger(from) || !Number.isInteger(to) || from > to || to - from > 50) {
+			return { error: `Invalid range: ${rangeMatch[1]}..${rangeMatch[2]}` };
+		}
+		const ids = Array.from({ length: to - from + 1 }, (_, i) => `DL-${String(from + i).padStart(3, "0")}`);
+		return { slug: `dl-${from}-${to}`, title: `${rangeMatch[1]} through ${rangeMatch[2]}`, decisionIds: ids };
+	}
+
+	const decisionFlag = tokens.indexOf("--decisions");
+	const firstIsDecision = /^DL-\d+$/.test(tokens[0] ?? "");
+	let decisionIds: string[];
+	let titleParts: string[];
+
+	if (decisionFlag >= 0) {
+		decisionIds = (tokens[decisionFlag + 1] ?? "").split(",").filter(Boolean);
+		titleParts = tokens.slice(1, decisionFlag);
+	} else {
+		// When the first token is a decision ID there is no explicit slug —
+		// every positional token is a decision.
+		const source = firstIsDecision ? tokens : tokens.slice(1);
+		decisionIds = source.filter((p) => /^DL-\d+$/.test(p));
+		titleParts = source.filter((p) => !/^DL-\d+$/.test(p));
+	}
+
+	if (decisionIds.length === 0) {
+		return { error: "A run needs decisions. Try /dld-run start DL-014..DL-022 or /dld-run start my-batch DL-014 DL-015" };
+	}
+
+	const slug = firstIsDecision
+		? `dl-${decisionIds[0]!.slice(3).padStart(3, "0")}-${decisionIds[decisionIds.length - 1]!.slice(3).padStart(3, "0")}`
+		: (tokens[0] ?? "run");
+	const title = titleParts.join(" ") || (firstIsDecision ? `${decisionIds[0]} batch` : slug);
+	return { slug, title, decisionIds };
+}
+
 function readRunState(runDir: string): RunState | undefined {
 	const statePath = join(runDir, "state.json");
 	if (!existsSync(statePath)) return undefined;
@@ -93,6 +152,64 @@ export default Plugin.define({
 						const session = await ctx.session.get({ sessionID });
 						const dir = (session as { location?: { directory?: string } }).location?.directory;
 						if (dir) root = projectRoot(dir);
+					}
+
+					// @decision(DL-019)
+					if (sub === "start") {
+						const existing = runScript("run-state.sh", ["active"], root);
+						if (existing.code === 0 && existing.stdout.trim()) {
+							await ctx.session.synthetic({
+								sessionID,
+								text: `[dld-run plugin] A run is already active: ${existing.stdout.trim()}. Relay this to the user as-is.`,
+							});
+							return;
+						}
+						const parsed = parseStartArgs(args.slice(1));
+						if (!("slug" in parsed)) {
+							await ctx.session.synthetic({
+								sessionID,
+								text: `[dld-run plugin] ${parsed.error} Relay this to the user as-is.`,
+							});
+							return;
+						}
+						// Preconditions first: dirty tree, active run, non-proposed
+						// decisions, and ID collisions all refuse before anything
+						// is created.
+						const guard = runScript("guard-preconditions.sh", ["start", "--decisions", parsed.decisionIds.join(",")], root);
+						if (guard.code !== 0) {
+							await ctx.session.synthetic({
+								sessionID,
+								text: `[dld-run plugin] Preconditions failed: ${guard.stdout.trim() || guard.stderr.trim()} Relay this to the user as-is.`,
+							});
+							return;
+						}
+						const created = runScript("create-run.sh", ["--slug", parsed.slug, "--title", parsed.title], root);
+						if (created.code !== 0) {
+							await ctx.session.synthetic({
+								sessionID,
+								text: `[dld-run plugin] Could not create run: ${created.stdout.trim() || created.stderr.trim()} Relay this to the user as-is.`,
+							});
+							return;
+						}
+						for (const id of parsed.decisionIds) {
+							const added = runScript("run-state.sh", ["add-item", parsed.slug, "--decisions", id], root);
+							if (added.code !== 0) {
+								await ctx.session.synthetic({
+									sessionID,
+									text: `[dld-run plugin] Run ${parsed.slug} created but item ${id} failed: ${added.stdout.trim() || added.stderr.trim()} Relay this to the user as-is.`,
+								});
+								return;
+							}
+						}
+						// Kick the loop: the run is active, so the next
+						// execution.succeeded event dispatches item 1. Prompt the
+						// agent to start work now rather than waiting for a turn.
+						await ctx.session.prompt({
+							sessionID,
+							text: `Started goal run '${parsed.slug}' — ${parsed.decisionIds.length} item${parsed.decisionIds.length === 1 ? "" : "s"} (${parsed.title}). Begin work on item 1 as the dld-run skill describes.`,
+							delivery,
+						});
+						return;
 					}
 
 					if (sub === "status") {
@@ -132,9 +249,11 @@ export default Plugin.define({
 						return;
 					}
 
+					// @decision(DL-019) — plugin messages become agent context, so
+					// phrase them so the agent's correct action is to relay, not debug.
 					await ctx.session.synthetic({
 						sessionID,
-						text: `Unknown subcommand: ${sub}. Use status, pause, resume, or stop.`,
+						text: `[dld-run plugin] Unknown subcommand: ${sub}. Use start, status, pause, resume, or stop. Relay this to the user as-is.`,
 					});
 				},
 			});
