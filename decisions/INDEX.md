@@ -3,8 +3,8 @@
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
 | DL-018 | Full implementation: complete UI surface after the spike proves the loop | proposed | opencode, extension, dld-run |
-| DL-017 | Spike scope: validate state sharing, loop dispatch, exec, status, and widget | proposed | opencode, spike, dld-run |
-| DL-016 | Build the OpenCode dld-run as a V2 combined plugin: server + CLI, shared state layer | proposed | opencode, extension, dld-run |
+| DL-017 | Spike scope: validate state sharing, loop dispatch, exec, status, and widget | accepted | opencode, spike, dld-run |
+| DL-016 | Build the OpenCode dld-run as a V2 combined plugin: server + CLI, shared state layer | accepted | opencode, extension, dld-run |
 | DL-015 | Rename dld-goal to dld-run: the command is a run, not a goal | accepted | dld-goal, naming, ux |
 | DL-014 | Amend DL-008: Esc suspends the loop; pause aborts the current turn | accepted | dld-goal, extension, execution |
 | DL-013 | Amend DL-008: continuation is a scheduled dispatch, not an awaited handler | accepted | dld-goal, extension, execution |
