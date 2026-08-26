@@ -42,25 +42,44 @@ function scriptPath(name: string): string {
 // Exec shim: run a script as an argv array — no shell. execFileSync never
 // interprets $, backticks, quotes, or spaces in arguments, which is what
 // DL-003 requires of anything that touches stored contract content.
+//
+// verify-item.sh gets a longer timeout and a larger buffer: it runs the
+// project's test suite, which can take minutes and print megabytes. The
+// defaults (30s, 1MB) would present as a verification failure and block
+// the item — the worst failure mode for the longest-running script.
 function runScript(
 	name: string,
 	args: string[],
 	cwd: string,
 ): { code: number; stdout: string; stderr: string } {
+	const isVerify = name === "verify-item.sh";
 	try {
 		const stdout = execFileSync("bash", [scriptPath(name), ...args], {
 			cwd,
 			encoding: "utf-8",
-			timeout: 30_000,
+			timeout: isVerify ? 300_000 : 30_000,
+			maxBuffer: isVerify ? 16 * 1024 * 1024 : 1024 * 1024,
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 		return { code: 0, stdout, stderr: "" };
 	} catch (e: unknown) {
+		// execFileSync throws on non-zero exit, timeout, and buffer overflow;
+		// the cast is confined here so callers see a uniform envelope.
 		const err = e as {
 			status?: number | null;
+			signal?: string | null;
 			stdout?: string;
 			stderr?: string;
 		};
+		// A timeout (SIGTERM) is not a verification failure — code 3 marks
+		// it as infrastructure so the loop surfaces rather than retry-and-block.
+		if (err.signal === "SIGTERM") {
+			return {
+				code: 3,
+				stdout: err.stdout ?? "",
+				stderr: `script timed out: ${name}`,
+			};
+		}
 		return {
 			code: err.status ?? 1,
 			stdout: err.stdout ?? "",
@@ -82,7 +101,7 @@ interface RunState {
 	slug: string;
 	title: string;
 	status: string;
-	review?: "enabled" | "disabled";
+	review: "enabled" | "disabled";
 	items: WorkItem[];
 	bounds: { maxItems: number; maxMinutes: number };
 }
@@ -139,31 +158,27 @@ function parseStartArgs(tokens: string[]): StartArgs | { error: string } {
 			(_, i) => `DL-${String(from + i).padStart(3, "0")}`,
 		);
 		return {
-			slug: `dl-${from}-${to}`,
+			slug: `dl-${String(from).padStart(3, "0")}-${String(to).padStart(3, "0")}`,
 			title: `${rangeMatch[1]} through ${rangeMatch[2]}`,
 			decisionIds: ids,
 		};
 	}
 
 	const decisionFlag = tokens.indexOf("--decisions");
-	// --decisions as the first token has no slug — don't let the flag itself
-	// become one.
-	const firstIsDecision = /^DL-\d+$/.test(tokens[0] ?? "");
 	let decisionIds: string[];
 	let titleParts: string[];
 	let slugSource: string | undefined;
 
-	if (decisionFlag === 0) {
-		decisionIds = (tokens[1] ?? "").split(",").filter(Boolean);
-		titleParts = [];
-		slugSource = undefined;
-	} else if (decisionFlag > 0) {
+	if (decisionFlag >= 0) {
+		// --decisions as the first token has no slug — don't let the flag
+		// itself become one.
 		decisionIds = (tokens[decisionFlag + 1] ?? "").split(",").filter(Boolean);
 		titleParts = tokens.slice(1, decisionFlag);
-		slugSource = tokens[0];
+		slugSource = decisionFlag === 0 ? undefined : tokens[0];
 	} else {
 		// When the first token is a decision ID there is no explicit slug —
 		// every positional token is a decision.
+		const firstIsDecision = /^DL-\d+$/.test(tokens[0] ?? "");
 		const source = firstIsDecision ? tokens : tokens.slice(1);
 		decisionIds = source.filter((p) => /^DL-\d+$/.test(p));
 		titleParts = source.filter((p) => !/^DL-\d+$/.test(p));
@@ -181,8 +196,7 @@ function parseStartArgs(tokens: string[]): StartArgs | { error: string } {
 		slugSource ??
 		`dl-${decisionIds[0]!.slice(3).padStart(3, "0")}-${decisionIds[decisionIds.length - 1]!.slice(3).padStart(3, "0")}`;
 	const title =
-		titleParts.join(" ") ||
-		(slugSource ? slugSource : `${decisionIds[0]} batch`);
+		titleParts.join(" ") || (slugSource ?? `${decisionIds[0]} batch`);
 	return { slug, title, decisionIds };
 }
 
@@ -309,14 +323,18 @@ export default Plugin.define({
 							if (added.code !== 0) {
 								// A half-populated run must not go live — the loop would
 								// start working it with items silently missing.
-								runScript(
+								const blocked = runScript(
 									"run-state.sh",
 									["set-status", parsed.slug, "blocked"],
 									root,
 								);
+								const rollbackNote =
+									blocked.code === 0
+										? "The run is blocked; add the missing items manually or recreate it."
+										: "CRITICAL: the run is still ACTIVE and half-populated — stop it manually with run-state.sh set-status before doing anything else.";
 								await ctx.session.synthetic({
 									sessionID,
-									text: `[dld-run plugin] Run ${parsed.slug} created but item ${id} failed: ${added.stdout.trim() || added.stderr.trim()} The run is blocked; add the missing items manually or recreate it. Relay this to the user as-is.`,
+									text: `[dld-run plugin] Run ${parsed.slug} created but item ${id} failed: ${added.stdout.trim() || added.stderr.trim()} ${rollbackNote} Relay this to the user as-is.`,
 								});
 								return;
 							}
@@ -369,7 +387,8 @@ export default Plugin.define({
 						resume: "active",
 						stop: "stopped",
 					};
-					if (statusMap[sub]) {
+					const target = statusMap[sub];
+					if (target) {
 						const slug = resolveSlug(root, sub === "resume" || sub === "stop");
 						if (!slug) {
 							await ctx.session.synthetic({
@@ -395,17 +414,14 @@ export default Plugin.define({
 								return;
 							}
 						}
+						const past = sub === "stop" ? "stopped" : sub + "d";
 						const result = runScript(
 							"run-state.sh",
-							["set-status", slug, statusMap[sub]!],
+							["set-status", slug, target],
 							root,
 						);
 						if (result.code === 0) {
-							runScript(
-								"append-event.sh",
-								[slug, `run-${sub === "stop" ? "stopped" : sub + "d"}`],
-								root,
-							);
+							runScript("append-event.sh", [slug, `run-${past}`], root);
 							if (sub === "resume") {
 								// Clear the dispatch guard so the in-flight item gets
 								// re-delivered to this session, and interrupt any turn
@@ -429,7 +445,7 @@ export default Plugin.define({
 						}
 						const msg =
 							result.code === 0
-								? `[dld-run plugin] Run ${slug} ${sub === "stop" ? "stopped" : sub + "d"}. Relay this to the user as-is.`
+								? `[dld-run plugin] Run ${slug} ${past}. Relay this to the user as-is.`
 								: `[dld-run plugin] Failed to ${sub} run ${slug}: ${result.stderr.trim()} Relay this to the user as-is.`;
 						await ctx.session.synthetic({ sessionID, text: msg });
 						return;
@@ -673,12 +689,21 @@ export default Plugin.define({
 				const item = state.items[Number(itemIndex) - 1];
 				if (!item) continue;
 
-				// Claim the item before dispatching.
-				runScript(
+				// Claim the item before dispatching. A failed claim aborts the
+				// dispatch — next-item would re-offer the same item next event
+				// and the loop would claim-dispatch-spin without writing anything.
+				const claimed = runScript(
 					"run-state.sh",
 					["set-item-status", slug, itemIndex, "implementing"],
 					root,
 				);
+				if (claimed.code !== 0) {
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Could not claim item ${itemIndex} of run ${slug}: ${claimed.stderr.trim()} Relay this to the user as-is.`,
+					});
+					continue;
+				}
 
 				lastDispatch.set(sessionID, dispatchKey);
 				const decisions = item.decisions.map((d) => d.id).join(", ");
