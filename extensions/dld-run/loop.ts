@@ -1,4 +1,5 @@
 import { runDir } from "../dld-core/paths.ts";
+import { DispatchGuard } from "../dld-core/dispatch-guard.ts";
 import type { Exec } from "../dld-core/run-api.ts";
 import {
 	activeRun as apiActiveRun,
@@ -47,6 +48,7 @@ export class LoopController {
 	/** User input suspends continuation until an explicit resume. */
 	private suspended = false;
 	private completion = new CompletionTracker();
+	private guard = new DispatchGuard();
 	private exec: Exec;
 
 	constructor(exec: Exec) {
@@ -71,6 +73,7 @@ export class LoopController {
 	invalidate(): number {
 		this.token += 1;
 		this.completion.clear();
+		this.guard.clear();
 		return this.token;
 	}
 
@@ -150,6 +153,20 @@ export class LoopController {
 		// race at the start; this catches the race at the end.
 		if (capturedToken !== this.token) return false;
 
+		// The dispatch guard (DL-023/DL-024): first suppression re-delivers
+		// once, second surfaces a wedge. Pi has a single session, so the
+		// guard's session key is a constant.
+		const dispatchKey = `${active.slug}:${index}`;
+		const verdict = this.guard.classify("pi", dispatchKey);
+		if (verdict === "wedged") {
+			ui.notify(
+				`Item ${index} of run ${active.slug} appears wedged: two turns completed without the item advancing. Inspect the run (/dld-run status), nudge the agent, or pause the run.`,
+				"warning",
+			);
+			return false;
+		}
+		if (verdict === "suppress") return false;
+
 		// Claim the item before dispatching so the next agent_end sees it as
 		// in-flight rather than re-dispatching the same work. next-item.sh
 		// prefers in-flight items, so claiming makes the loop single-threaded.
@@ -159,6 +176,7 @@ export class LoopController {
 			return false;
 		}
 
+		this.guard.record("pi", dispatchKey);
 		const decisions = item.decisions.map((d) => d.id).join(", ");
 		ui.notify(`Continue goal run '${active.slug}'. Work item ${index} (${decisions}).`, "info");
 		return true;
