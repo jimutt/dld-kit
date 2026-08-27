@@ -25,6 +25,12 @@ tessl install dld-kit/dld
 cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
 ```
 
+**Via [pi](https://pi.dev)** (skills plus the `dld-run` extension):
+
+```bash
+pi install git:github.com/jimutt/dld-kit
+```
+
 Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
 
 ### New feature or change
@@ -40,6 +46,21 @@ Use `/dld-plan` to break it down into decisions, then implement:
 ```
 
 For a small, isolated change (a bug fix, a single design choice), `/dld-decide` records one decision directly without the planning step.
+
+### Large features that outlast one sitting
+
+When a plan produces more decisions than fit comfortably in one session, `/dld-run` executes them as a **run**: a durable contract that survives context compaction, session restarts, and interruptions.
+
+```
+/dld-plan                        # Break the feature into decisions
+/dld-run start tag:payments     # Agree a slicing, bounds, and acceptance checks
+/dld-run continue               # Work the next item — repeat until done
+/dld-run status                 # Where the run stands
+```
+
+The run works one item at a time, where an item is one decision or a few tightly coupled ones. Each item completes only when annotations verify, acceptance checks pass, and a review subagent approves — an agent saying "done" is never sufficient. Failures get one retry with the failure as context, then stop and ask you rather than guessing.
+
+Run state lives in `.dld/runs/`, gitignored by default: the decisions are the permanent record, the run is working state. See [the run contract](docs/framework/run-contract.md) for the format.
 
 ### Existing codebase
 
@@ -133,6 +154,7 @@ DLD is designed for long-lived codebases where decisions accumulate, original au
 | `/dld-decide` | Record a single decision interactively |
 | `/dld-plan` | Break down a feature into multiple grouped decisions |
 | `/dld-implement` | Implement proposed decisions — writes code, adds annotations, updates status |
+| `/dld-run` | Execute a set of proposed decisions as a long-running goal — durable run state, verified per-item completion, blocked-item escalation |
 | `/dld-adjust` | Adjust or update existing decisions — handles permission gating and correct intent interpretation |
 | `/dld-lookup` | Query decisions by ID, tag, code path, or keyword |
 | `/dld-status` | Overview of the decision log — counts, recent decisions, run tracking |
@@ -251,6 +273,29 @@ implement_review: false
 
 The review subagent operates with limited context and may flag false positives. The implementing agent uses its own judgment and asks for user input when uncertain about a finding.
 
+## Development
+
+The repository holds two kinds of code, with a test runner for each.
+
+```bash
+git submodule update --init --recursive   # first time only, vendors bats
+
+tests/run.sh        # shell scripts (bats)
+npm install         # once, for the extension's type definitions
+bun test            # pi extension (bun)
+npx tsc --noEmit    # typecheck the extension
+```
+
+Skills and their scripts need no dependencies. The `dld-run` pi extension is TypeScript, loaded by pi from source with no build step, and is typechecked against the pi API rather than a hand-written stub.
+
+To run the extension against a local checkout:
+
+```bash
+pi install /path/to/dld-kit
+```
+
+Skills live in two synchronized copies — `skills/` for the Tessl plugin and `.claude/skills/` for manual Claude Code installs. Content must match; only frontmatter and script paths differ. Run `tessl plugin lint` before committing skill changes.
+
 ## Further reading
 
 - [Concept paper](docs/concept/dld-concept.md) — full rationale and design philosophy
@@ -258,7 +303,9 @@ The review subagent operates with limited context and may flag false positives. 
 - [FAQ](docs/concept/dld-faq.md) — anticipated questions
 - [Decision record format](docs/framework/decision-record-format.md) — schema and field reference
 - [Project configuration](docs/framework/project-configuration.md) — config file and directory layout
+- [Run contract](docs/framework/run-contract.md) — goal run state, work items, and verification
 - [Skill design plan](docs/plan/skill-design.md) — detailed skill specifications
+- [Goal loop design plan](docs/plan/goal-loop.md) — long-running execution: run contracts, completion gating, Pi extension design
 
 ## Acknowledgements
 

@@ -124,3 +124,85 @@ YAML
   assert_success
   assert_output ""
 }
+
+# --- config_get_optional ---
+
+@test "config_get_optional returns the value when the field exists" {
+  result="$(config_get_optional decisions_dir)"
+  assert_equal "$result" "decisions"
+}
+
+@test "config_get_optional returns the default when the field is missing" {
+  result="$(config_get_optional goal_run_artifacts gitignore)"
+  assert_equal "$result" "gitignore"
+}
+
+@test "config_get_optional returns empty when missing with no default" {
+  result="$(config_get_optional nope)"
+  assert_equal "$result" ""
+}
+
+@test "config_get_optional returns the default when config is absent" {
+  rm dld.config.yaml
+  result="$(config_get_optional mode flat)"
+  assert_equal "$result" "flat"
+}
+
+@test "config_get_optional strips quotes" {
+  echo "goal_run_artifacts: 'commit'" >> dld.config.yaml
+  result="$(config_get_optional goal_run_artifacts)"
+  assert_equal "$result" "commit"
+}
+
+# --- goal run helpers ---
+
+@test "get_runs_dir resolves under the project root" {
+  result="$(get_runs_dir)"
+  assert_equal "$result" "$TEST_PROJECT/.dld/runs"
+}
+
+@test "get_run_dir appends the slug" {
+  result="$(get_run_dir my-run)"
+  assert_equal "$result" "$TEST_PROJECT/.dld/runs/my-run"
+}
+
+@test "get_run_dir requires a slug" {
+  run get_run_dir
+  assert_failure
+}
+
+@test "validate_slug accepts lowercase slugs with hyphens and digits" {
+  run validate_slug "dld-run-stage-1"
+  assert_success
+}
+
+@test "validate_slug rejects uppercase, spaces and edge hyphens" {
+  run validate_slug "Bad Slug"
+  assert_failure
+  run validate_slug "UPPER"
+  assert_failure
+  run validate_slug "-leading"
+  assert_failure
+  run validate_slug "trailing-"
+  assert_failure
+  run validate_slug ""
+  assert_failure
+}
+
+@test "utc_timestamp emits an ISO-8601 UTC timestamp" {
+  run utc_timestamp
+  assert_success
+  assert_output --regexp '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+}
+
+@test "require_jq succeeds when jq is installed" {
+  run require_jq
+  assert_success
+}
+
+@test "require_jq fails with guidance when jq is absent" {
+  # Absolute bash path: PATH is emptied so the shell itself must still resolve.
+  run env PATH="/nonexistent" /bin/bash -c "source '$SKILLS_DIR/dld-common/scripts/common.sh'; require_jq"
+  assert_failure
+  assert_output --partial "jq is required"
+}

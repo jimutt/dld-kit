@@ -1,7 +1,7 @@
 {
   "name": "dld-kit/dld",
   "version": "0.9.0",
-  "description": "Decision-Linked Development (DLD) — a workflow for recording, linking, and maintaining development decisions alongside code. Skills for planning, recording, implementing, auditing, and documenting decisions via @decision annotations.",
+  "description": "Decision-Linked Development (DLD) \u2014 a workflow for recording, linking, and maintaining development decisions alongside code. Skills for planning, recording, implementing, auditing, and documenting decisions via @decision annotations.",
   "private": false,
   "skills": [
     "skills/dld-common",
@@ -9,6 +9,7 @@
     "skills/dld-decide",
     "skills/dld-plan",
     "skills/dld-implement",
+    "skills/dld-run",
     "skills/dld-lookup",
     "skills/dld-audit",
     "skills/dld-audit-auto",

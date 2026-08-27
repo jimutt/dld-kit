@@ -1,0 +1,61 @@
+{
+  "name": "dld-kit",
+  "version": "0.1.0",
+  "description": "Decision-Linked Development: agent skills and a pi extension for decision-driven work",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jimutt/dld-kit.git"
+  },
+  "homepage": "https://github.com/jimutt/dld-kit#readme",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "dld",
+    "decision-records",
+    "agent-skills"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "files": [
+    "extensions/**/*.ts",
+    "!extensions/**/*.test.ts",
+    "!extensions/**/testing/**",
+    "skills/**/*",
+    "rules/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "npm run test:unit && npm run test:bats",
+    "test:unit": "bun test",
+    "test:bats": "tests/run.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "~0.83.0",
+    "@earendil-works/pi-tui": "~0.83.0",
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.6.0"
+  }
+}

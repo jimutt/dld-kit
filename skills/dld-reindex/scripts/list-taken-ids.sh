@@ -48,10 +48,12 @@ PR_BASE="${BASE#origin/}"
 
   # IDs in files touched by open PRs targeting this base. Scope to paths under
   # the records dir so an unrelated PR touching e.g. notes/DL-007-meeting.md
-  # doesn't poison the taken set.
+  # doesn't poison the taken set. A PR whose head is the current branch is not
+  # a collision: it holds this branch's own decisions.
   if [[ -z "$SKIP_REASON" ]]; then
-    gh pr list --state open --base "$PR_BASE" --json files --limit 100 \
-      --jq '.[].files[].path' 2>/dev/null \
+    CURRENT_BRANCH="$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)"
+    gh pr list --state open --base "$PR_BASE" --json files,headRefName --limit 100 \
+      --jq ".[] | select(.headRefName != \"$CURRENT_BRANCH\") | .files[].path" 2>/dev/null \
       | grep -E "^${RECORDS_DIR_REL}/" \
       | grep -oE 'DL-[0-9]+' || true
   fi

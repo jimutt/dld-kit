@@ -7,8 +7,14 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 ## Directory structure
 
 ```
+package.json               # Pi package manifest (extensions + skills) — see DL-006
 .tessl-plugin/
   plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
+extensions/
+  dld-run/                # Pi extension: TypeScript, loaded from source, no build step
+    index.ts               # Entry point — pi loads only index.ts from a subdirectory
+    *.test.ts              # Colocated unit tests (bun)
+    testing/fake-pi.ts     # Faked ExtensionAPI used by the tests
 rules/
   dld-workflow.md          # Tessl steering rule (always-on agent guidance)
 skills/                    # Tessl plugin skills (used by tessl install)
@@ -18,7 +24,12 @@ skills/                    # Tessl plugin skills (used by tessl install)
 docs/
   concept/                 # Design philosophy, FAQ, TL;DR
   framework/               # Decision record format, project configuration specs
-  plan/                    # Skill design plan
+  plan/                    # Design plans (skill design, goal loop)
+  research/                # Prior-art research briefs
+decisions/                 # dld-kit's OWN decision log (dogfooding, not shipped content)
+  records/                 # DL-*.md decision records
+  PRACTICES.md             # Development practices manifest
+dld.config.yaml            # DLD config for this repo itself
 ```
 
 ## Dual directory layout
@@ -55,13 +66,25 @@ Scripts use `set -euo pipefail` and source `common.sh` via `BASH_SOURCE` path re
 
 ## Testing
 
-Tests use [bats-core](https://github.com/bats-core/bats-core) installed as a git submodule at `tests/bats/`. Run tests with:
+Two layers, two runners. Both must pass before committing.
+
+**Shell scripts** use [bats-core](https://github.com/bats-core/bats-core), installed as a git submodule at `tests/bats/`:
 
 ```bash
-tests/bats/bin/bats tests/
+tests/run.sh
 ```
 
 If tests fail with "Could not find bats-support", init submodules first: `git submodule update --init --recursive`
+
+**The pi extension** uses `bun test`, plus a typecheck that is part of the definition of done:
+
+```bash
+npm install        # once, for pi type definitions
+bun test
+npx tsc --noEmit
+```
+
+See `decisions/PRACTICES.md` for the conventions each layer follows.
 
 ## Conventions
 
@@ -69,3 +92,26 @@ If tests fail with "Could not find bats-support", init submodules first: `git su
 - Use PRs for changes (project is maturing)
 - Run `tessl plugin lint` before committing skill changes
 - Skills that involve user interaction should use the `AskUserQuestion` tool
+- Changing a skill's scripts or the run contract usually means changing the extension too — they are one package for that reason
+
+## DLD (Decision-Linked Development)
+
+dld-kit uses its own toolkit. `decisions/` is dld-kit's real decision log — it is dogfooding, not example content shipped to users. Development practices live in `decisions/PRACTICES.md`.
+
+Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in `decisions/`.
+
+### Rules
+
+- When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
+- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
+- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (via `/dld-decide`) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.
+- Use `/dld-decide` to record new decisions
+- Use `/dld-plan` to break down a feature into multiple grouped decisions
+- Use `/dld-implement` to implement proposed decisions
+- Use `/dld-run` to execute a set of proposed decisions as a long-running run (durable state, verified per-item completion)
+- Use `/dld-lookup` to query decisions by ID, tag, or code path
+- Use `/dld-audit` to scan for drift between decisions and code
+- Use `/dld-snapshot` to regenerate SNAPSHOT.md and OVERVIEW.md from the decision log
+- Use `/dld-status` for a quick overview of the decision log state
+
+When running these skills against dld-kit itself, invoke the scripts from `skills/<skill>/scripts/` (the Tessl copy) — both copies are identical in behaviour, and `skills/` is the canonical one.
