@@ -1,14 +1,15 @@
 import type { ExecOptions, ExecResult, ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { formatDoctorReport, runDoctor } from "./doctor.ts";
 import { LoopController, type LoopContext, type LoopUi } from "./loop.ts";
 import { scriptPath } from "./paths.ts";
-import { boardLines, statusLine, widgetLines } from "./render.ts";
+import { boardLines, findingsBoardLines, statusLine, widgetLines } from "./render.ts";
 import { activeMinutes, readEventsFrom, readRunFrom } from "./run-state.ts";
 
-// @decision(DL-006) @decision(DL-008) @decision(DL-011)
+// @decision(DL-006) @decision(DL-008) @decision(DL-011) @decision(DL-016)
 export type DldGoalApi = Pick<
 	ExtensionAPI,
-	"registerCommand" | "exec" | "appendEntry" | "on" | "sendMessage" | "registerEntryRenderer"
+	"registerCommand" | "exec" | "appendEntry" | "on" | "sendMessage" | "registerEntryRenderer" | "registerTool"
 >;
 
 const STATUS_KEY = "dld-run";
@@ -91,6 +92,42 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 
 	// Cards render in the transcript as custom entries: scrollback, no redraw,
 	// and never part of LLM context.
+	// The agent appends findings without knowing the run directory's path.
+	pi.registerTool({
+		name: "dld_run_note",
+		label: "Record a finding",
+		description:
+			"Record something you noticed during the run that the plan did not anticipate: an unhandled edge case, a decision made on the fly, code that contradicts an assumption, or a risk noticed but not acted on. The finding is appended to the run's findings log and surfaced to the user on completion.",
+		parameters: Type.Object({
+			note: Type.String({ description: "The observation, in one or two sentences." }),
+			item: Type.Optional(Type.Number({ description: "The work item this relates to." })),
+			decisions: Type.Optional(Type.String({ description: "Comma-separated decision IDs this relates to, e.g. DL-014,DL-015." })),
+		}),
+		async execute(_id: string, params: { note: string; item?: number; decisions?: string }, _signal: AbortSignal | undefined, _onUpdate: unknown, _ctx: unknown) {
+			const active = await pi.exec("bash", [scriptPath("run-state.sh"), "active"]);
+			if (active.code !== 0 || !active.stdout.trim()) {
+				return { content: [{ type: "text", text: "No active run. Findings are only recorded during a run." }], details: {}, isError: true };
+			}
+			const slug = active.stdout.trim();
+			const item = params.item ?? 0;
+			const decisions = params.decisions ?? "";
+			const result = await pi.exec("bash", [
+				scriptPath("add-finding.sh"),
+				slug,
+				"--item",
+				String(item),
+				"--decisions",
+				decisions,
+				"--note",
+				params.note,
+			]);
+			if (result.code !== 0) {
+				return { content: [{ type: "text", text: `Could not record finding: ${result.stderr}` }], details: {}, isError: true };
+			}
+			return { content: [{ type: "text", text: "Finding recorded." }], details: {} };
+		},
+	});
+
 	pi.registerEntryRenderer("dld-run-card", (entry, _options, theme) => {
 		const data = entry.data as { lines?: string[] } | undefined;
 		const text = (data?.lines ?? []).join("\n");
@@ -402,12 +439,16 @@ async function handleGoalCommand(
 				ctx.ui.notify(`Could not read run ${slug}: ${read.error.detail}`, "error");
 				return;
 			}
+			// Include findings if the agent recorded any.
+			const findingsResult = await runScript("get-findings.sh", [slug]);
+			const findingsContent = findingsResult.ok ? findingsResult.output : "";
+			const allLines = [...boardLines(read.state), ...findingsBoardLines(findingsContent)];
 			if (!ctx.hasUI) {
-				ctx.ui.notify(boardLines(read.state).join("\n"), "info");
+				ctx.ui.notify(allLines.join("\n"), "info");
 				return;
 			}
 			await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-				const lines = boardLines(read.state);
+				const lines = allLines;
 				return {
 					render: () => lines.map((line, i) => (i === 0 ? theme.fg("accent", theme.bold(line)) : line)),
 					invalidate: () => {},
