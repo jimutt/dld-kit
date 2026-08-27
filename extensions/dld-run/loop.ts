@@ -53,7 +53,11 @@ export class LoopController {
 	 * arrived, not on every turn the item sits in verifying. */
 	private verifiedAtEvidence = new Map<number, number>();
 
-	constructor(private exec: ExecLike) {}
+	private exec: ExecLike;
+
+	constructor(exec: ExecLike) {
+		this.exec = exec;
+	}
 
 	suspend(): void {
 		this.suspended = true;
