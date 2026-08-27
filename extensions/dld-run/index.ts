@@ -1,6 +1,7 @@
 import type { ExecResult, ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { formatDoctorReport, runDoctor } from "./doctor.ts";
 import { LoopController, type LoopContext, type LoopUi } from "./loop.ts";
+import { runDir } from "../dld-core/paths.ts";
 import { boardLines, statusLine, widgetLines } from "../dld-core/render.ts";
 
 import {
@@ -58,8 +59,9 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 			const result = await apiActiveRun(execFn, root);
 			if (!result.ok || !result.value) return null;
 			const slug = result.value;
-			const read = readRunFrom(`${root}/.dld/runs/${slug}`);
-			return read.ok ? { state: read.state, runDir: `${root}/.dld/runs/${slug}` } : null;
+			const dir = runDir(root, slug);
+			const read = readRunFrom(dir);
+			return read.ok ? { state: read.state, runDir: dir } : null;
 		})();
 		if (!active) {
 			ctx.ui.setStatus(STATUS_KEY, undefined);
@@ -296,7 +298,7 @@ async function handleGoalCommand(
 				ctx.ui.notify("No active run.", "info");
 				return;
 			}
-			const read = readRunFrom(`${await projectRoot(ctx)}/.dld/runs/${slug}`);
+			const read = readRunFrom(runDir(await projectRoot(ctx), slug));
 			if (!read.ok) {
 				ctx.ui.notify(`Could not read run ${slug}: ${read.error.detail}`, "error");
 				return;
@@ -310,7 +312,7 @@ async function handleGoalCommand(
 				ctx.ui.notify("No run to show.", "info");
 				return;
 			}
-			const read = readRunFrom(`${workspace}/.dld/runs/${slug}`);
+			const read = readRunFrom(runDir(workspace, slug));
 			if (!read.ok) {
 				ctx.ui.notify(`Could not read run ${slug}: ${read.error.detail}`, "error");
 				return;

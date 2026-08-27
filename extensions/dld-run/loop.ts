@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { runDir } from "../dld-core/paths.ts";
 import type { Exec } from "../dld-core/run-api.ts";
 import {
 	activeRun as apiActiveRun,
@@ -8,7 +8,7 @@ import {
 	setItemStatus as apiSetItemStatus,
 } from "../dld-core/run-api.ts";
 import { CompletionTracker } from "../dld-core/completion.ts";
-import { activeMinutes, readEventsFrom, readRunFrom, type RunState } from "../dld-core/run-state.ts";
+import { boundsExceeded, readEventsFrom, readRunFrom, type RunState } from "../dld-core/run-state.ts";
 
 // @decision(DL-008) @decision(DL-004)
 // In-session continuation: agent_end advances an active run when everything
@@ -97,10 +97,10 @@ export class LoopController {
 		const active = await apiActiveRun(this.exec, root);
 		if (!active.ok || !active.value) return null;
 		const slug = active.value;
-		const runDir = join(root, ".dld", "runs", slug);
-		const read = readRunFrom(runDir);
+		const dir = runDir(root, slug);
+		const read = readRunFrom(dir);
 		if (!read.ok) return null;
-		return { slug, state: read.state, runDir };
+		return { slug, state: read.state, runDir: dir };
 	}
 
 	/**
@@ -185,15 +185,7 @@ export class LoopController {
 	}
 
 	private withinBounds(state: RunState, runDir: string): boolean {
-		const accepted = state.items.filter((item) => item.status === "accepted" || item.status === "skipped").length;
-		if (state.bounds.maxItems > 0 && accepted >= state.bounds.maxItems) return false;
-		if (state.bounds.maxMinutes > 0) {
-			// The bound measures active time: pauses, overnight gaps, and idle
-			// sessions do not count toward it.
-			const elapsedMin = activeMinutes(state, readEventsFrom(runDir).events);
-			if (elapsedMin >= state.bounds.maxMinutes) return false;
-		}
-		return true;
+		return boundsExceeded(state, readEventsFrom(runDir).events) === null;
 	}
 
 	private async pauseAtBounds(active: ActiveRun, ctx: LoopContext, ui: LoopUi): Promise<void> {

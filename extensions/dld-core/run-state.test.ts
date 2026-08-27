@@ -113,3 +113,64 @@ describe("events", () => {
 	});
 });
 
+
+// ---------------------------------------------------------------------------
+// boundsExceeded (DL-024 item 5)
+// ---------------------------------------------------------------------------
+
+import { boundsExceeded, type WorkItem } from "./run-state.ts";
+
+function boundsState(statuses: string[], maxItems = 0, maxMinutes = 0): RunState {
+	return {
+		schemaVersion: 1,
+		slug: "test",
+		title: "Test",
+		status: "active",
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+		bounds: { maxItems, maxMinutes },
+		review: "disabled",
+		currentItem: null,
+		blockedQuestions: [],
+		items: statuses.map((s, i) => ({
+			index: i + 1,
+			decisions: [{ id: `DL-${String(i + 1).padStart(3, "0")}`, hash: "x" }],
+			status: s as WorkItem["status"],
+			acceptance: { annotations: [], checks: [] },
+			attempts: 0,
+			evidence: [],
+		})),
+	};
+}
+
+describe("boundsExceeded", () => {
+	test("returns null when no bounds are set", () => {
+		expect(boundsExceeded(boundsState(["accepted", "pending"]), [])).toBeNull();
+	});
+
+	test("maxItems hit when accepted count reaches the bound", () => {
+		const state = boundsState(["accepted", "accepted", "pending"], 2);
+		expect(boundsExceeded(state, [])).toEqual({ reason: "maxItems" });
+	});
+
+	test("maxItems not hit when below the bound", () => {
+		const state = boundsState(["accepted", "pending"], 3);
+		expect(boundsExceeded(state, [])).toBeNull();
+	});
+
+	test("skipped items count toward maxItems", () => {
+		const state = boundsState(["accepted", "skipped"], 2);
+		expect(boundsExceeded(state, [])).toEqual({ reason: "maxItems" });
+	});
+
+	test("maxItems checked before maxMinutes", () => {
+		const state = boundsState(["accepted", "accepted"], 2, 1);
+		expect(boundsExceeded(state, [])).toEqual({ reason: "maxItems" });
+	});
+
+	test("maxMinutes not hit when maxItems is 0", () => {
+		const state = boundsState(["accepted"], 0, 60);
+		// No events — zero active minutes
+		expect(boundsExceeded(state, [])).toBeNull();
+	});
+});

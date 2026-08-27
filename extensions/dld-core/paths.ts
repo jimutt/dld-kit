@@ -34,6 +34,11 @@ export function scriptPath(name: string): string {
 	return join(scriptsDir(), name);
 }
 
+/** The run directory for a given slug under a project root. */
+export function runDir(root: string, slug: string): string {
+	return join(root, ".dld", "runs", slug);
+}
+
 /** Scripts the extension depends on. Verified together by the doctor command. */
 export const REQUIRED_SCRIPTS = [
 	"append-event.sh",

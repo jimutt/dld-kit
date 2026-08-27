@@ -118,6 +118,23 @@ export function activeMinutes(state: RunState, events: unknown[]): number {
 	return total / 60000;
 }
 
+// @decision(DL-024)
+// Pure bounds check: which bound has been exceeded, if any. Both harnesses
+// call this instead of implementing the check inline.
+
+export function boundsExceeded(
+	state: RunState,
+	events: unknown[],
+): { reason: "maxItems" | "maxMinutes" } | null {
+	const accepted = state.items.filter((item) => item.status === "accepted" || item.status === "skipped").length;
+	if (state.bounds.maxItems > 0 && accepted >= state.bounds.maxItems) return { reason: "maxItems" };
+	if (state.bounds.maxMinutes > 0) {
+		const elapsedMin = activeMinutes(state, events);
+		if (elapsedMin >= state.bounds.maxMinutes) return { reason: "maxMinutes" };
+	}
+	return null;
+}
+
 export interface ExecLike {
 	(command: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number; killed?: boolean }>;
 }

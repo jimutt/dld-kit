@@ -13,9 +13,11 @@
 import { Plugin } from "@opencode-ai/plugin";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { packageRoot } from "../dld-core/paths.ts";
+import { packageRoot, runDir } from "../dld-core/paths.ts";
 import { CompletionTracker } from "../dld-core/completion.ts";
 import {
+	boundsExceeded,
+	readEventsFrom,
 	readRunFrom,
 	type RunState,
 	type WorkItem,
@@ -172,7 +174,7 @@ export default Plugin.define({
 							});
 							return;
 						}
-						const state = readRunState(join(root, ".dld", "runs", slug));
+						const state = readRunState(runDir(root, slug));
 						if (!state) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -354,7 +356,7 @@ export default Plugin.define({
 				if (!active.ok) continue;
 				const slug = active.value;
 				if (!slug) continue;
-				const state = readRunState(join(root, ".dld", "runs", slug));
+				const state = readRunState(runDir(root, slug));
 				if (!state || state.status !== "active") continue;
 
 				// Completion takes priority over dispatch: an item awaiting
@@ -362,15 +364,20 @@ export default Plugin.define({
 				// transaction may pause the run (blocked item) — re-read the
 				// status afterwards rather than dispatching on stale state.
 				await runCompletionTransaction(sessionID, root, slug, state);
-				const afterTx = readRunState(join(root, ".dld", "runs", slug));
+				const afterTx = readRunState(runDir(root, slug));
 				if (!afterTx || afterTx.status !== "active") continue;
 
-				// Bounds check, on the post-transaction state.
-				const done = afterTx.items.filter(
-					(i) => i.status === "accepted" || i.status === "skipped",
-				).length;
-				if (afterTx.bounds.maxItems > 0 && done >= afterTx.bounds.maxItems) {
-					await pauseRun(exec, root, slug, "maxItems reached");
+				// Bounds check, on the post-transaction state. maxMinutes is
+				// enforced here too — this closes the gap the direction doc
+				// promised (DL-024).
+				const events = readEventsFrom(runDir(root, slug)).events;
+				const bounds = boundsExceeded(afterTx, events);
+				if (bounds) {
+					await pauseRun(exec, root, slug, `${bounds.reason} reached`);
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Run ${slug} paused: ${bounds.reason} reached. Raise the limit and resume to keep going. Relay this to the user as-is.`,
+					});
 					continue;
 				}
 
