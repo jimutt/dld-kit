@@ -13,27 +13,28 @@
 import { Plugin } from "@opencode-ai/plugin";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { parseStartArgs } from "../dld-core/parse-start-args.ts";
-import { packageRoot } from "../dld-core/paths.ts";
+import { packageRoot, runDir } from "../dld-core/paths.ts";
+import { CompletionTracker } from "../dld-core/completion.ts";
+import { DispatchGuard } from "../dld-core/dispatch-guard.ts";
 import {
+	boundsExceeded,
+	readEventsFrom,
 	readRunFrom,
 	type RunState,
 	type WorkItem,
 } from "../dld-core/run-state.ts";
 import {
 	activeRun,
-	appendRunEvent,
-	blockItem,
-	createRun,
-	addItem,
+	completeRun,
 	defaultExec,
 	guardPreconditions,
 	nextItem,
-	repinItem,
+	pauseRun,
 	resumableRun,
+	resumeRun,
 	setItemStatus,
-	setRunStatus,
-	verifyItem,
+	stopRun,
+	startRun,
 	type Exec,
 } from "../dld-core/run-api.ts";
 
@@ -81,19 +82,9 @@ export default Plugin.define({
 
 		// Dispatch guard (DL-020) with bounded re-delivery (DL-023).
 		//
-		// lastDispatch records which item each session was last told to work;
-		// without it every execution.succeeded re-dispatches the in-flight item
-		// and the loop spams. But a pure guard deadlocks: a turn that ends
-		// without advancing the item (rate limit, context boundary, the agent
-		// asking a question) leaves the item in-flight and suppressed forever.
-		//
-		// The bound: one re-delivery per item per session. The first
-		// suppression re-delivers (the turn may have ended for reasons
-		// unrelated to the work); the second surfaces a wedge message and the
-		// loop stays quiet. redispatched tracks the one allowed retry.
-		const lastDispatch = new Map<string, string>();
-		const redispatched = new Set<string>();
-		const wedged = new Set<string>();
+		// The dispatch guard with bounded re-delivery (DL-023), extracted
+		// as a pure state machine in dld-core (DL-024).
+		const guard = new DispatchGuard();
 
 		// @decision(DL-023)
 		// The dispatch prompt carries the state-machine protocol inline, so a
@@ -117,11 +108,11 @@ export default Plugin.define({
 
 		// Resolve the run to operate on: the active one if any, otherwise
 		// (for resume/status/stop) the most recent paused or blocked one.
-		function resolveSlug(root: string, resumable: boolean): string | null {
-			const active = activeRun(exec, root);
+		async function resolveSlug(root: string, resumable: boolean): Promise<string | null> {
+			const active = await activeRun(exec, root);
 			if (active.ok && active.value) return active.value;
 			if (!resumable) return null;
-			const resumableResult = resumableRun(exec, root);
+			const resumableResult = await resumableRun(exec, root);
 			return resumableResult.ok ? resumableResult.value : null;
 		}
 
@@ -147,77 +138,26 @@ export default Plugin.define({
 
 					// @decision(DL-019)
 					if (sub === "start") {
-						const existing = resolveSlug(root, false);
-						if (existing) {
+						const result = await startRun(exec, root, args.slice(1));
+						if (!result.ok) {
 							await ctx.session.synthetic({
 								sessionID,
-								text: `[dld-run plugin] A run is already active: ${existing}. Relay this to the user as-is.`,
+								text: `[dld-run plugin] ${result.error} Relay this to the user as-is.`,
 							});
 							return;
-						}
-						const parsed = parseStartArgs(args.slice(1));
-						if (!("slug" in parsed)) {
-							await ctx.session.synthetic({
-								sessionID,
-								text: `[dld-run plugin] ${parsed.error} Relay this to the user as-is.`,
-							});
-							return;
-						}
-						// Preconditions first: dirty tree, active run, non-proposed
-						// decisions, and ID collisions all refuse before anything
-						// is created.
-						const guard = guardPreconditions(exec, root, "start", [
-							"--decisions",
-							parsed.decisionIds.join(","),
-						]);
-						if (!guard.ok) {
-							await ctx.session.synthetic({
-								sessionID,
-								text: `[dld-run plugin] Preconditions failed: ${guard.error} Relay this to the user as-is.`,
-							});
-							return;
-						}
-						const created = createRun(exec, root, parsed.slug, parsed.title);
-						if (!created.ok) {
-							await ctx.session.synthetic({
-								sessionID,
-								text: `[dld-run plugin] Could not create run: ${created.error} Relay this to the user as-is.`,
-							});
-							return;
-						}
-						for (const id of parsed.decisionIds) {
-							const added = addItem(exec, root, parsed.slug, id);
-							if (!added.ok) {
-								// A half-populated run must not go live — the loop would
-								// start working it with items silently missing.
-								const blocked = setRunStatus(
-									exec,
-									root,
-									parsed.slug,
-									"blocked",
-								);
-								const rollbackNote = blocked.ok
-									? "The run is blocked; add the missing items manually or recreate it."
-									: "CRITICAL: the run is still ACTIVE and half-populated — stop it manually with run-state.sh set-status before doing anything else.";
-								await ctx.session.synthetic({
-									sessionID,
-									text: `[dld-run plugin] Run ${parsed.slug} created but item ${id} failed: ${added.error} ${rollbackNote} Relay this to the user as-is.`,
-								});
-								return;
-							}
 						}
 						// Kick the loop: prompt the agent to start work now.
-						lastDispatch.set(sessionID, `${parsed.slug}:1`);
+						guard.record(sessionID, `${result.slug}:1`);
 						await ctx.session.prompt({
 							sessionID,
-							text: `Started goal run '${parsed.slug}' — ${parsed.decisionIds.length} item${parsed.decisionIds.length === 1 ? "" : "s"} (${parsed.title}). Begin work on item 1 as the dld-run skill describes.`,
+							text: `Started goal run '${result.slug}' — ${result.itemCount} item${result.itemCount === 1 ? "" : "s"}. Begin work on item 1 as the dld-run skill describes.`,
 							delivery,
 						});
 						return;
 					}
 
 					if (sub === "status") {
-						const slug = resolveSlug(root, true);
+						const slug = await resolveSlug(root, true);
 						if (!slug) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -225,7 +165,7 @@ export default Plugin.define({
 							});
 							return;
 						}
-						const state = readRunState(join(root, ".dld", "runs", slug));
+						const state = readRunState(runDir(root, slug));
 						if (!state) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -256,7 +196,7 @@ export default Plugin.define({
 					};
 					const target = statusMap[sub];
 					if (target) {
-						const slug = resolveSlug(root, sub === "resume" || sub === "stop");
+						const slug = await resolveSlug(root, sub === "resume" || sub === "stop");
 						if (!slug) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -268,7 +208,7 @@ export default Plugin.define({
 						// have gone dirty, collisions may have appeared, or decision
 						// hashes may have drifted while the run sat idle.
 						if (sub === "resume") {
-							const guard = guardPreconditions(exec, root, "resume", [slug]);
+							const guard = await guardPreconditions(exec, root, "resume", [slug]);
 							if (!guard.ok) {
 								await ctx.session.synthetic({
 									sessionID,
@@ -278,17 +218,15 @@ export default Plugin.define({
 							}
 						}
 						const past = sub === "stop" ? "stopped" : sub + "d";
-						const result = setRunStatus(exec, root, slug, target);
+						const lifecycleOp = { pause: pauseRun, resume: resumeRun, stop: stopRun }[sub as "pause" | "resume" | "stop"];
+						const result = await lifecycleOp(exec, root, slug);
 						if (result.ok) {
-							appendRunEvent(exec, root, slug, `run-${past}`);
 							if (sub === "resume") {
 								// Clear the dispatch guard and re-delivery budgets so the
 								// in-flight item gets re-delivered fresh (DL-023), and
 								// interrupt any turn still running so the continuation
 								// lands immediately.
-								lastDispatch.delete(sessionID);
-								redispatched.clear();
-								wedged.clear();
+								guard.clearSession(sessionID);
 								await ctx.session.prompt({
 									sessionID,
 									text: `Run ${slug} resumed. Continue the goal run as the dld-run skill describes.`,
@@ -297,7 +235,7 @@ export default Plugin.define({
 							} else if (sub === "pause") {
 								// Pausing must stop the current work, not just the next
 								// dispatch (DL-014).
-								lastDispatch.delete(sessionID);
+								guard.clearSession(sessionID);
 								try {
 									await ctx.session.interrupt({ sessionID, continue: false });
 								} catch {
@@ -324,131 +262,63 @@ export default Plugin.define({
 
 		// The completion transaction (DL-021): evidence counts per item, so
 		// verify-item.sh runs once per new evidence batch, not per event.
-		const verifiedAtEvidence = new Map<string, number>();
-		const reviewNagged = new Set<string>();
+
 
 		// The four-part completion transaction, ported from loop.ts onTurnEnd.
 		// Runs before the dispatch check: an item in verification takes
 		// priority over selecting new work.
+		const completion = new CompletionTracker();
+
 		async function runCompletionTransaction(
 			sessionID: string,
 			root: string,
 			slug: string,
 			state: RunState,
 		): Promise<void> {
-			const item = state.items.find(
-				(entry) =>
-					entry.status === "verifying" &&
-					entry.evidence.length > 0 &&
-					entry.evidence.length !==
-						verifiedAtEvidence.get(`${slug}:${entry.index}`),
-			);
-			if (!item) return;
-			const key = `${slug}:${item.index}`;
-			verifiedAtEvidence.set(key, item.evidence.length);
+			const outcome = await completion.step(exec, root, slug, state);
 
-			const verify = verifyItem(exec, root, slug, item.index);
-
-			if (verify.kind === "infrastructure") {
-				verifiedAtEvidence.delete(key);
-				await ctx.session.synthetic({
-					sessionID,
-					text: `[dld-run plugin] Verification of item ${item.index} could not run: ${verify.error} The item stays verifying; fix the environment and it will retry. Relay this to the user as-is.`,
-				});
-				return;
-			}
-
-			if (verify.kind === "pass") {
-				// Fail toward more review: anything that isn't explicitly
-				// "disabled" requires it.
-				if (state.review !== "disabled") {
-					// The review is a judgment call the loop cannot make. Nag the
-					// agent once per item; the skill's flow flips the item when
-					// the review passes.
-					if (!reviewNagged.has(key)) {
-						reviewNagged.add(key);
-						await ctx.session.synthetic({
-							sessionID,
-							text: `[dld-run plugin] Item ${item.index} passed mechanical checks but review is enabled — run the review subagent as the dld-run skill describes, then the item can be accepted.`,
-						});
-					}
+			switch (outcome.kind) {
+				case "none":
 					return;
-				}
-				// The transaction: accept → repin → event. Each step checked;
-				// a failure aborts the rest and surfaces rather than half-writing.
-				const accepted = setItemStatus(
-					exec,
-					root,
-					slug,
-					item.index,
-					"accepted",
-				);
-				if (!accepted.ok) {
+				case "infrastructure":
 					await ctx.session.synthetic({
 						sessionID,
-						text: `[dld-run plugin] Could not mark item ${item.index} accepted: ${accepted.error} Relay this to the user as-is.`,
+						text: `[dld-run plugin] Verification of item ${outcome.index} could not run: ${outcome.error} The item stays verifying; fix the environment and it will retry. Relay this to the user as-is.`,
 					});
 					return;
-				}
-				const repinned = repinItem(exec, root, slug, item.index);
-				if (!repinned.ok) {
+				case "review-required":
 					await ctx.session.synthetic({
 						sessionID,
-						text: `[dld-run plugin] Could not repin item ${item.index}: ${repinned.error} Relay this to the user as-is.`,
+						text: `[dld-run plugin] Item ${outcome.index} passed mechanical checks but review is enabled — run the review subagent as the dld-run skill describes, then the item can be accepted.`,
 					});
 					return;
-				}
-				const eventAppended = appendRunEvent(
-					exec,
-					root,
-					slug,
-					"item-accepted",
-					{ index: item.index },
-				);
-				if (!eventAppended.ok) {
+				case "accepted":
 					await ctx.session.synthetic({
 						sessionID,
-						text: `[dld-run plugin] Could not record item ${item.index} acceptance: ${eventAppended.error} Relay this to the user as-is.`,
+						text: `[dld-run plugin] Item ${outcome.index} accepted (verification passed, review disabled) · ${outcome.decisionIds.join(", ")}. Relay this to the user as-is.`,
 					});
 					return;
-				}
-				await ctx.session.synthetic({
-					sessionID,
-					text: `[dld-run plugin] Item ${item.index} accepted (verification passed, review disabled) · ${item.decisions.map((d) => d.id).join(", ")}. Relay this to the user as-is.`,
-				});
-				return;
+				case "retrying":
+					// Clear the dispatch guard so the retry is delivered.
+					guard.clearSession(sessionID);
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Item ${outcome.index} verification failed; retrying (attempt ${outcome.attempt} of 2). Failure output:\n${outcome.output.split("\n").slice(0, 10).join("\n")}`,
+					});
+					return;
+				case "blocked":
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Item ${outcome.index} blocked after two failed verifications; run ${slug} paused. Failure output:\n${outcome.output.split("\n").slice(0, 10).join("\n")}\nRelay this to the user as-is.`,
+					});
+					return;
+				case "error":
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] ${outcome.message} Relay this to the user as-is.`,
+					});
+					return;
 			}
-
-			// attempts counts completed attempts; the skill's claim bumps it.
-			// First failure retries, second blocks (DL-004).
-			const failOutput =
-				verify.kind === "fail" ? verify.output : "verification failed";
-			if (item.attempts < 2) {
-				setItemStatus(exec, root, slug, item.index, "implementing");
-				// Clear the dispatch guard so the retry is delivered.
-				lastDispatch.delete(sessionID);
-				await ctx.session.synthetic({
-					sessionID,
-					text: `[dld-run plugin] Item ${item.index} verification failed; retrying (attempt ${item.attempts + 1} of 2). Failure output:\n${failOutput.split("\n").slice(0, 10).join("\n")}`,
-				});
-				return;
-			}
-
-			blockItem(
-				exec,
-				root,
-				slug,
-				item.index,
-				failOutput || "verification failed",
-			);
-			setRunStatus(exec, root, slug, "paused");
-			appendRunEvent(exec, root, slug, "run-paused", {
-				reason: `item ${item.index} blocked`,
-			});
-			await ctx.session.synthetic({
-				sessionID,
-				text: `[dld-run plugin] Item ${item.index} blocked after two failed verifications; run ${slug} paused. Failure output:\n${failOutput.split("\n").slice(0, 10).join("\n")}\nRelay this to the user as-is.`,
-			});
 		}
 
 		// The continuation loop.
@@ -469,13 +339,13 @@ export default Plugin.define({
 					continue;
 				}
 
-				const active = activeRun(exec, root);
+				const active = await activeRun(exec, root);
 				// A failed script (missing jq, unreadable state, timeout) is not
 				// "no run" — skip silently and let the next event retry.
 				if (!active.ok) continue;
 				const slug = active.value;
 				if (!slug) continue;
-				const state = readRunState(join(root, ".dld", "runs", slug));
+				const state = readRunState(runDir(root, slug));
 				if (!state || state.status !== "active") continue;
 
 				// Completion takes priority over dispatch: an item awaiting
@@ -483,30 +353,29 @@ export default Plugin.define({
 				// transaction may pause the run (blocked item) — re-read the
 				// status afterwards rather than dispatching on stale state.
 				await runCompletionTransaction(sessionID, root, slug, state);
-				const afterTx = readRunState(join(root, ".dld", "runs", slug));
+				const afterTx = readRunState(runDir(root, slug));
 				if (!afterTx || afterTx.status !== "active") continue;
 
-				// Bounds check, on the post-transaction state.
-				const done = afterTx.items.filter(
-					(i) => i.status === "accepted" || i.status === "skipped",
-				).length;
-				if (afterTx.bounds.maxItems > 0 && done >= afterTx.bounds.maxItems) {
-					setRunStatus(exec, root, slug, "paused");
-					appendRunEvent(exec, root, slug, "run-paused", {
-						reason: "maxItems reached",
+				// Bounds check, on the post-transaction state. maxMinutes is
+				// enforced here too — this closes the gap the direction doc
+				// promised (DL-024).
+				const events = readEventsFrom(runDir(root, slug)).events;
+				const bounds = boundsExceeded(afterTx, events);
+				if (bounds) {
+					await pauseRun(exec, root, slug, `${bounds.reason} reached`);
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Run ${slug} paused: ${bounds.reason} reached. Raise the limit and resume to keep going. Relay this to the user as-is.`,
 					});
 					continue;
 				}
 
 				// Find the next item.
-				const next = nextItem(exec, root, slug);
+				const next = await nextItem(exec, root, slug);
 				if (next.kind === "blocked") {
 					// Blocked item — pause and surface it. A silent pause reads
 					// as a wedged run.
-					setRunStatus(exec, root, slug, "paused");
-					appendRunEvent(exec, root, slug, "run-paused", {
-						reason: "blocked item",
-					});
+					await pauseRun(exec, root, slug, "blocked item");
 					await ctx.session.synthetic({
 						sessionID,
 						text: `[dld-run plugin] Run ${slug} paused: an item is blocked and needs an operator answer. Run /dld-run status for details. Relay this to the user as-is.`,
@@ -515,8 +384,7 @@ export default Plugin.define({
 				}
 				if (next.kind === "error") continue; // script failure — skip, do not complete
 				if (next.kind === "complete") {
-					setRunStatus(exec, root, slug, "complete");
-					appendRunEvent(exec, root, slug, "run-completed");
+					await completeRun(exec, root, slug);
 					await ctx.session.synthetic({
 						sessionID,
 						text: `[dld-run plugin] Run ${slug} complete — every item is accepted or skipped. Relay this to the user as-is.`,
@@ -530,35 +398,38 @@ export default Plugin.define({
 				// The dispatch guard with bounded re-delivery (DL-023). The key
 				// is session+item; the re-delivery budget is per key.
 				const dispatchKey = `${slug}:${next.index}`;
-				const sessionKey = `${sessionID}:${dispatchKey}`;
-				if (lastDispatch.get(sessionID) === dispatchKey) {
-					if (!redispatched.has(sessionKey)) {
-						// First suppression: re-deliver once. The previous turn ended
-						// without advancing the item — maybe a rate limit, maybe a
-						// question. One more chance, then the loop speaks up.
-						redispatched.add(sessionKey);
+				const verdict = guard.classify(sessionID, dispatchKey);
+				if (verdict === "redeliver") {
+					// First suppression: re-deliver once. The previous turn ended
+					// without advancing the item — maybe a rate limit, maybe a
+					// question. One more chance, then the loop speaks up.
+					try {
 						await ctx.session.prompt({
 							sessionID,
 							text: dispatchText(slug, next.index, item),
 						});
-						continue;
-					}
-					// Second suppression: the item is wedged. Surface once, then
-					// stay quiet — the user decides whether to nudge or pause.
-					if (!wedged.has(sessionKey)) {
-						wedged.add(sessionKey);
-						await ctx.session.synthetic({
-							sessionID,
-							text: `[dld-run plugin] Item ${next.index} of run ${slug} appears wedged: two turns completed without the item advancing. Inspect the run (/dld-run status), nudge the agent, or pause the run. Relay this to the user as-is.`,
-						});
+						guard.record(sessionID, dispatchKey);
+					} catch {
+						// Prompt failed — clear so the next event retries fresh.
+						guard.clearSession(sessionID);
 					}
 					continue;
 				}
+				if (verdict === "wedged") {
+					// Second suppression: the item is wedged. Surface once, then
+					// stay quiet — the user decides whether to nudge or pause.
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Item ${next.index} of run ${slug} appears wedged: two turns completed without the item advancing. Inspect the run (/dld-run status), nudge the agent, or pause the run. Relay this to the user as-is.`,
+					});
+					continue;
+				}
+				if (verdict === "suppress") continue;
 
 				// Claim the item before dispatching. A failed claim aborts the
 				// dispatch — next-item would re-offer the same item next event
 				// and the loop would claim-dispatch-spin without writing anything.
-				const claimed = setItemStatus(
+				const claimed = await setItemStatus(
 					exec,
 					root,
 					slug,
@@ -573,7 +444,7 @@ export default Plugin.define({
 					continue;
 				}
 
-				lastDispatch.set(sessionID, dispatchKey);
+				guard.record(sessionID, dispatchKey);
 				try {
 					await ctx.session.prompt({
 						sessionID,
@@ -581,8 +452,7 @@ export default Plugin.define({
 					});
 				} catch {
 					// Dispatch failed — clear the guard so the next event retries.
-					lastDispatch.delete(sessionID);
-					redispatched.delete(sessionKey);
+					guard.clearSession(sessionID);
 				}
 			}
 		})().catch(() => {});
