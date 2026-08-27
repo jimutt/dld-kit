@@ -10,6 +10,9 @@ import {
 	createRun as apiCreateRun,
 	addItem as apiAddItem,
 	setRunStatus as apiSetRunStatus,
+	pauseRun as apiPauseRun,
+	resumeRun as apiResumeRun,
+	stopRun as apiStopRun,
 	appendRunEvent as apiAppendRunEvent,
 } from "../dld-core/run-api.ts";
 import { activeMinutes, readEventsFrom, readRunFrom } from "../dld-core/run-state.ts";
@@ -294,9 +297,9 @@ async function handleGoalCommand(
 					return;
 				}
 			}
-			const status = sub === "pause" ? "paused" : sub === "resume" ? "active" : "stopped";
 			const root = await projectRoot(ctx);
-			const result = await apiSetRunStatus(exec, root, slug, status);
+			const lifecycleOp = { pause: apiPauseRun, resume: apiResumeRun, stop: apiStopRun }[sub as "pause" | "resume" | "stop"];
+			const result = await lifecycleOp(exec, root, slug);
 			if (result.ok) {
 				if (sub === "resume") {
 					loop.resume();
@@ -310,10 +313,6 @@ async function handleGoalCommand(
 				}
 				const past = sub === "stop" ? "Stopped" : sub === "pause" ? "Paused" : "Resumed";
 				ctx.ui.notify(`${past} run ${slug}.`, "info");
-				// Pair the status change with its event so activeMinutes
-				// derives correctly (DL-024).
-				const eventType = sub === "pause" ? "run-paused" : sub === "resume" ? "run-resumed" : "run-stopped";
-				await apiAppendRunEvent(exec, root, slug, eventType);
 			} else {
 				ctx.ui.notify(result.error, "error");
 			}

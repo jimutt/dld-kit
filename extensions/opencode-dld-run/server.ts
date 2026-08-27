@@ -24,15 +24,19 @@ import {
 	activeRun,
 	appendRunEvent,
 	blockItem,
+	completeRun,
 	createRun,
 	addItem,
 	defaultExec,
 	guardPreconditions,
 	nextItem,
+	pauseRun,
 	repinItem,
 	resumableRun,
+	resumeRun,
 	setItemStatus,
 	setRunStatus,
+	stopRun,
 	verifyItem,
 	type Exec,
 } from "../dld-core/run-api.ts";
@@ -278,9 +282,9 @@ export default Plugin.define({
 							}
 						}
 						const past = sub === "stop" ? "stopped" : sub + "d";
-						const result = await setRunStatus(exec, root, slug, target);
+						const lifecycleOp = { pause: pauseRun, resume: resumeRun, stop: stopRun }[sub as "pause" | "resume" | "stop"];
+						const result = await lifecycleOp(exec, root, slug);
 						if (result.ok) {
-							appendRunEvent(exec, root, slug, `run-${past}`);
 							if (sub === "resume") {
 								// Clear the dispatch guard and re-delivery budgets so the
 								// in-flight item gets re-delivered fresh (DL-023), and
@@ -441,10 +445,7 @@ export default Plugin.define({
 				item.index,
 				failOutput || "verification failed",
 			);
-			await setRunStatus(exec, root, slug, "paused");
-			await appendRunEvent(exec, root, slug, "run-paused", {
-				reason: `item ${item.index} blocked`,
-			});
+			await pauseRun(exec, root, slug, `item ${item.index} blocked`);
 			await ctx.session.synthetic({
 				sessionID,
 				text: `[dld-run plugin] Item ${item.index} blocked after two failed verifications; run ${slug} paused. Failure output:\n${failOutput.split("\n").slice(0, 10).join("\n")}\nRelay this to the user as-is.`,
@@ -491,10 +492,7 @@ export default Plugin.define({
 					(i) => i.status === "accepted" || i.status === "skipped",
 				).length;
 				if (afterTx.bounds.maxItems > 0 && done >= afterTx.bounds.maxItems) {
-					await setRunStatus(exec, root, slug, "paused");
-					await appendRunEvent(exec, root, slug, "run-paused", {
-						reason: "maxItems reached",
-					});
+					await pauseRun(exec, root, slug, "maxItems reached");
 					continue;
 				}
 
@@ -503,10 +501,7 @@ export default Plugin.define({
 				if (next.kind === "blocked") {
 					// Blocked item — pause and surface it. A silent pause reads
 					// as a wedged run.
-					await await setRunStatus(exec, root, slug, "paused");
-					await await appendRunEvent(exec, root, slug, "run-paused", {
-						reason: "blocked item",
-					});
+					await pauseRun(exec, root, slug, "blocked item");
 					await ctx.session.synthetic({
 						sessionID,
 						text: `[dld-run plugin] Run ${slug} paused: an item is blocked and needs an operator answer. Run /dld-run status for details. Relay this to the user as-is.`,
@@ -515,8 +510,7 @@ export default Plugin.define({
 				}
 				if (next.kind === "error") continue; // script failure — skip, do not complete
 				if (next.kind === "complete") {
-					await setRunStatus(exec, root, slug, "complete");
-					await appendRunEvent(exec, root, slug, "run-completed");
+					await completeRun(exec, root, slug);
 					await ctx.session.synthetic({
 						sessionID,
 						text: `[dld-run plugin] Run ${slug} complete — every item is accepted or skipped. Relay this to the user as-is.`,

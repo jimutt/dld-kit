@@ -3,7 +3,8 @@ import type { Exec } from "../dld-core/run-api.ts";
 import {
 	activeRun as apiActiveRun,
 	nextItem as apiNextItem,
-	setRunStatus as apiSetRunStatus,
+	pauseRun as apiPauseRun,
+	completeRun as apiCompleteRun,
 	setItemStatus as apiSetItemStatus,
 	verifyItem as apiVerifyItem,
 	repinItem as apiRepinItem,
@@ -175,13 +176,12 @@ export class LoopController {
 
 	private async completeRun(slug: string, ctx: LoopContext, ui: LoopUi): Promise<void> {
 		const root = await this.projectRoot(ctx);
-		const result = await apiSetRunStatus(this.exec, root, slug, "complete");
+		const result = await apiCompleteRun(this.exec, root, slug);
 		if (!result.ok) {
 			ui.notify(`Could not complete run ${slug}: ${result.error}`, "error");
 			return;
 		}
 		this.invalidate();
-		await apiAppendRunEvent(this.exec, root, slug, "run-completed");
 		ui.notify(`Run ${slug} complete — every item is accepted or skipped.`, "info");
 	}
 
@@ -189,7 +189,7 @@ export class LoopController {
 		// A blocked item keeps its blocked status — pausing must not collapse
 		// the distinction the contract's transition table makes.
 		const root = await this.projectRoot(ctx);
-		const result = await apiSetRunStatus(this.exec, root, slug, "paused");
+		const result = await apiPauseRun(this.exec, root, slug, reason || undefined);
 		if (result.ok) this.invalidate();
 		ui.notify(reason || `Run ${slug} paused.`, "warning");
 	}
@@ -208,7 +208,7 @@ export class LoopController {
 
 	private async pauseAtBounds(active: ActiveRun, ctx: LoopContext, ui: LoopUi): Promise<void> {
 		const root = await this.projectRoot(ctx);
-		const result = await apiSetRunStatus(this.exec, root, active.slug, "paused");
+		const result = await apiPauseRun(this.exec, root, active.slug, "bounds reached");
 		if (!result.ok) {
 			ui.notify(`Could not pause run ${active.slug}: ${result.error}`, "error");
 			return;

@@ -179,3 +179,37 @@ export async function appendRunEvent(exec: Exec, root: string, slug: string, typ
 	const r = await run(exec, "append-event.sh", args, root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
+
+// ---------------------------------------------------------------------------
+// Lifecycle operations — status + event, paired (DL-024)
+// ---------------------------------------------------------------------------
+
+// Each lifecycle transition sets the run status AND appends the matching
+// event. The pairing is the invariant: activeMinutes derives from
+// run-paused/run-resumed markers, and a status change without its event
+// silently corrupts the count. Harnesses call these instead of pairing
+// setRunStatus + appendRunEvent by hand.
+
+export async function pauseRun(exec: Exec, root: string, slug: string, reason?: string): Promise<Result> {
+	const s = await setRunStatus(exec, root, slug, "paused");
+	if (!s.ok) return s;
+	return appendRunEvent(exec, root, slug, "run-paused", reason ? { reason } : undefined);
+}
+
+export async function resumeRun(exec: Exec, root: string, slug: string): Promise<Result> {
+	const s = await setRunStatus(exec, root, slug, "active");
+	if (!s.ok) return s;
+	return appendRunEvent(exec, root, slug, "run-resumed");
+}
+
+export async function stopRun(exec: Exec, root: string, slug: string): Promise<Result> {
+	const s = await setRunStatus(exec, root, slug, "stopped");
+	if (!s.ok) return s;
+	return appendRunEvent(exec, root, slug, "run-stopped");
+}
+
+export async function completeRun(exec: Exec, root: string, slug: string): Promise<Result> {
+	const s = await setRunStatus(exec, root, slug, "complete");
+	if (!s.ok) return s;
+	return appendRunEvent(exec, root, slug, "run-completed");
+}
