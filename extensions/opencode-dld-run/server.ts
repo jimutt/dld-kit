@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { packageRoot, runDir } from "../dld-core/paths.ts";
 import { CompletionTracker } from "../dld-core/completion.ts";
+import { DispatchGuard } from "../dld-core/dispatch-guard.ts";
 import {
 	boundsExceeded,
 	readEventsFrom,
@@ -81,19 +82,9 @@ export default Plugin.define({
 
 		// Dispatch guard (DL-020) with bounded re-delivery (DL-023).
 		//
-		// lastDispatch records which item each session was last told to work;
-		// without it every execution.succeeded re-dispatches the in-flight item
-		// and the loop spams. But a pure guard deadlocks: a turn that ends
-		// without advancing the item (rate limit, context boundary, the agent
-		// asking a question) leaves the item in-flight and suppressed forever.
-		//
-		// The bound: one re-delivery per item per session. The first
-		// suppression re-delivers (the turn may have ended for reasons
-		// unrelated to the work); the second surfaces a wedge message and the
-		// loop stays quiet. redispatched tracks the one allowed retry.
-		const lastDispatch = new Map<string, string>();
-		const redispatched = new Set<string>();
-		const wedged = new Set<string>();
+		// The dispatch guard with bounded re-delivery (DL-023), extracted
+		// as a pure state machine in dld-core (DL-024).
+		const guard = new DispatchGuard();
 
 		// @decision(DL-023)
 		// The dispatch prompt carries the state-machine protocol inline, so a
@@ -156,7 +147,7 @@ export default Plugin.define({
 							return;
 						}
 						// Kick the loop: prompt the agent to start work now.
-						lastDispatch.set(sessionID, `${result.slug}:1`);
+						guard.record(sessionID, `${result.slug}:1`);
 						await ctx.session.prompt({
 							sessionID,
 							text: `Started goal run '${result.slug}' — ${result.itemCount} item${result.itemCount === 1 ? "" : "s"}. Begin work on item 1 as the dld-run skill describes.`,
@@ -235,9 +226,7 @@ export default Plugin.define({
 								// in-flight item gets re-delivered fresh (DL-023), and
 								// interrupt any turn still running so the continuation
 								// lands immediately.
-								lastDispatch.delete(sessionID);
-								redispatched.clear();
-								wedged.clear();
+								guard.clearSession(sessionID);
 								await ctx.session.prompt({
 									sessionID,
 									text: `Run ${slug} resumed. Continue the goal run as the dld-run skill describes.`,
@@ -246,7 +235,7 @@ export default Plugin.define({
 							} else if (sub === "pause") {
 								// Pausing must stop the current work, not just the next
 								// dispatch (DL-014).
-								lastDispatch.delete(sessionID);
+								guard.clearSession(sessionID);
 								try {
 									await ctx.session.interrupt({ sessionID, continue: false });
 								} catch {
@@ -311,7 +300,7 @@ export default Plugin.define({
 					return;
 				case "retrying":
 					// Clear the dispatch guard so the retry is delivered.
-					lastDispatch.delete(sessionID);
+					guard.clearSession(sessionID);
 					await ctx.session.synthetic({
 						sessionID,
 						text: `[dld-run plugin] Item ${outcome.index} verification failed; retrying (attempt ${outcome.attempt} of 2). Failure output:\n${outcome.output.split("\n").slice(0, 10).join("\n")}`,
@@ -409,30 +398,28 @@ export default Plugin.define({
 				// The dispatch guard with bounded re-delivery (DL-023). The key
 				// is session+item; the re-delivery budget is per key.
 				const dispatchKey = `${slug}:${next.index}`;
-				const sessionKey = `${sessionID}:${dispatchKey}`;
-				if (lastDispatch.get(sessionID) === dispatchKey) {
-					if (!redispatched.has(sessionKey)) {
-						// First suppression: re-deliver once. The previous turn ended
-						// without advancing the item — maybe a rate limit, maybe a
-						// question. One more chance, then the loop speaks up.
-						redispatched.add(sessionKey);
-						await ctx.session.prompt({
-							sessionID,
-							text: dispatchText(slug, next.index, item),
-						});
-						continue;
-					}
-					// Second suppression: the item is wedged. Surface once, then
-					// stay quiet — the user decides whether to nudge or pause.
-					if (!wedged.has(sessionKey)) {
-						wedged.add(sessionKey);
-						await ctx.session.synthetic({
-							sessionID,
-							text: `[dld-run plugin] Item ${next.index} of run ${slug} appears wedged: two turns completed without the item advancing. Inspect the run (/dld-run status), nudge the agent, or pause the run. Relay this to the user as-is.`,
-						});
-					}
+				const verdict = guard.classify(sessionID, dispatchKey);
+				if (verdict === "redeliver") {
+					// First suppression: re-deliver once. The previous turn ended
+					// without advancing the item — maybe a rate limit, maybe a
+					// question. One more chance, then the loop speaks up.
+					await ctx.session.prompt({
+						sessionID,
+						text: dispatchText(slug, next.index, item),
+					});
+					guard.record(sessionID, dispatchKey);
 					continue;
 				}
+				if (verdict === "wedged") {
+					// Second suppression: the item is wedged. Surface once, then
+					// stay quiet — the user decides whether to nudge or pause.
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Item ${next.index} of run ${slug} appears wedged: two turns completed without the item advancing. Inspect the run (/dld-run status), nudge the agent, or pause the run. Relay this to the user as-is.`,
+					});
+					continue;
+				}
+				if (verdict === "suppress") continue;
 
 				// Claim the item before dispatching. A failed claim aborts the
 				// dispatch — next-item would re-offer the same item next event
@@ -452,7 +439,7 @@ export default Plugin.define({
 					continue;
 				}
 
-				lastDispatch.set(sessionID, dispatchKey);
+				guard.record(sessionID, dispatchKey);
 				try {
 					await ctx.session.prompt({
 						sessionID,
@@ -460,8 +447,7 @@ export default Plugin.define({
 					});
 				} catch {
 					// Dispatch failed — clear the guard so the next event retries.
-					lastDispatch.delete(sessionID);
-					redispatched.delete(sessionKey);
+					guard.clearSession(sessionID);
 				}
 			}
 		})().catch(() => {});
