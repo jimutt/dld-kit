@@ -117,11 +117,11 @@ export default Plugin.define({
 
 		// Resolve the run to operate on: the active one if any, otherwise
 		// (for resume/status/stop) the most recent paused or blocked one.
-		function resolveSlug(root: string, resumable: boolean): string | null {
-			const active = activeRun(exec, root);
+		async function resolveSlug(root: string, resumable: boolean): Promise<string | null> {
+			const active = await activeRun(exec, root);
 			if (active.ok && active.value) return active.value;
 			if (!resumable) return null;
-			const resumableResult = resumableRun(exec, root);
+			const resumableResult = await resumableRun(exec, root);
 			return resumableResult.ok ? resumableResult.value : null;
 		}
 
@@ -147,7 +147,7 @@ export default Plugin.define({
 
 					// @decision(DL-019)
 					if (sub === "start") {
-						const existing = resolveSlug(root, false);
+						const existing = await resolveSlug(root, false);
 						if (existing) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -166,7 +166,7 @@ export default Plugin.define({
 						// Preconditions first: dirty tree, active run, non-proposed
 						// decisions, and ID collisions all refuse before anything
 						// is created.
-						const guard = guardPreconditions(exec, root, "start", [
+						const guard = await guardPreconditions(exec, root, "start", [
 							"--decisions",
 							parsed.decisionIds.join(","),
 						]);
@@ -177,7 +177,7 @@ export default Plugin.define({
 							});
 							return;
 						}
-						const created = createRun(exec, root, parsed.slug, parsed.title);
+						const created = await createRun(exec, root, parsed.slug, parsed.title);
 						if (!created.ok) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -186,11 +186,11 @@ export default Plugin.define({
 							return;
 						}
 						for (const id of parsed.decisionIds) {
-							const added = addItem(exec, root, parsed.slug, id);
+							const added = await addItem(exec, root, parsed.slug, id);
 							if (!added.ok) {
 								// A half-populated run must not go live — the loop would
 								// start working it with items silently missing.
-								const blocked = setRunStatus(
+								const blocked = await setRunStatus(
 									exec,
 									root,
 									parsed.slug,
@@ -217,7 +217,7 @@ export default Plugin.define({
 					}
 
 					if (sub === "status") {
-						const slug = resolveSlug(root, true);
+						const slug = await resolveSlug(root, true);
 						if (!slug) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -256,7 +256,7 @@ export default Plugin.define({
 					};
 					const target = statusMap[sub];
 					if (target) {
-						const slug = resolveSlug(root, sub === "resume" || sub === "stop");
+						const slug = await resolveSlug(root, sub === "resume" || sub === "stop");
 						if (!slug) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -268,7 +268,7 @@ export default Plugin.define({
 						// have gone dirty, collisions may have appeared, or decision
 						// hashes may have drifted while the run sat idle.
 						if (sub === "resume") {
-							const guard = guardPreconditions(exec, root, "resume", [slug]);
+							const guard = await guardPreconditions(exec, root, "resume", [slug]);
 							if (!guard.ok) {
 								await ctx.session.synthetic({
 									sessionID,
@@ -278,7 +278,7 @@ export default Plugin.define({
 							}
 						}
 						const past = sub === "stop" ? "stopped" : sub + "d";
-						const result = setRunStatus(exec, root, slug, target);
+						const result = await setRunStatus(exec, root, slug, target);
 						if (result.ok) {
 							appendRunEvent(exec, root, slug, `run-${past}`);
 							if (sub === "resume") {
@@ -347,7 +347,7 @@ export default Plugin.define({
 			const key = `${slug}:${item.index}`;
 			verifiedAtEvidence.set(key, item.evidence.length);
 
-			const verify = verifyItem(exec, root, slug, item.index);
+			const verify = await verifyItem(exec, root, slug, item.index);
 
 			if (verify.kind === "infrastructure") {
 				verifiedAtEvidence.delete(key);
@@ -376,7 +376,7 @@ export default Plugin.define({
 				}
 				// The transaction: accept → repin → event. Each step checked;
 				// a failure aborts the rest and surfaces rather than half-writing.
-				const accepted = setItemStatus(
+				const accepted = await setItemStatus(
 					exec,
 					root,
 					slug,
@@ -390,7 +390,7 @@ export default Plugin.define({
 					});
 					return;
 				}
-				const repinned = repinItem(exec, root, slug, item.index);
+				const repinned = await repinItem(exec, root, slug, item.index);
 				if (!repinned.ok) {
 					await ctx.session.synthetic({
 						sessionID,
@@ -398,7 +398,7 @@ export default Plugin.define({
 					});
 					return;
 				}
-				const eventAppended = appendRunEvent(
+				const eventAppended = await appendRunEvent(
 					exec,
 					root,
 					slug,
@@ -441,8 +441,8 @@ export default Plugin.define({
 				item.index,
 				failOutput || "verification failed",
 			);
-			setRunStatus(exec, root, slug, "paused");
-			appendRunEvent(exec, root, slug, "run-paused", {
+			await setRunStatus(exec, root, slug, "paused");
+			await appendRunEvent(exec, root, slug, "run-paused", {
 				reason: `item ${item.index} blocked`,
 			});
 			await ctx.session.synthetic({
@@ -469,7 +469,7 @@ export default Plugin.define({
 					continue;
 				}
 
-				const active = activeRun(exec, root);
+				const active = await activeRun(exec, root);
 				// A failed script (missing jq, unreadable state, timeout) is not
 				// "no run" — skip silently and let the next event retry.
 				if (!active.ok) continue;
@@ -491,20 +491,20 @@ export default Plugin.define({
 					(i) => i.status === "accepted" || i.status === "skipped",
 				).length;
 				if (afterTx.bounds.maxItems > 0 && done >= afterTx.bounds.maxItems) {
-					setRunStatus(exec, root, slug, "paused");
-					appendRunEvent(exec, root, slug, "run-paused", {
+					await setRunStatus(exec, root, slug, "paused");
+					await appendRunEvent(exec, root, slug, "run-paused", {
 						reason: "maxItems reached",
 					});
 					continue;
 				}
 
 				// Find the next item.
-				const next = nextItem(exec, root, slug);
+				const next = await nextItem(exec, root, slug);
 				if (next.kind === "blocked") {
 					// Blocked item — pause and surface it. A silent pause reads
 					// as a wedged run.
-					setRunStatus(exec, root, slug, "paused");
-					appendRunEvent(exec, root, slug, "run-paused", {
+					await await setRunStatus(exec, root, slug, "paused");
+					await await appendRunEvent(exec, root, slug, "run-paused", {
 						reason: "blocked item",
 					});
 					await ctx.session.synthetic({
@@ -515,8 +515,8 @@ export default Plugin.define({
 				}
 				if (next.kind === "error") continue; // script failure — skip, do not complete
 				if (next.kind === "complete") {
-					setRunStatus(exec, root, slug, "complete");
-					appendRunEvent(exec, root, slug, "run-completed");
+					await setRunStatus(exec, root, slug, "complete");
+					await appendRunEvent(exec, root, slug, "run-completed");
 					await ctx.session.synthetic({
 						sessionID,
 						text: `[dld-run plugin] Run ${slug} complete — every item is accepted or skipped. Relay this to the user as-is.`,
@@ -558,7 +558,7 @@ export default Plugin.define({
 				// Claim the item before dispatching. A failed claim aborts the
 				// dispatch — next-item would re-offer the same item next event
 				// and the loop would claim-dispatch-spin without writing anything.
-				const claimed = setItemStatus(
+				const claimed = await setItemStatus(
 					exec,
 					root,
 					slug,

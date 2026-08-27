@@ -1,6 +1,15 @@
 import { join } from "node:path";
-import { scriptPath } from "../dld-core/paths.ts";
-import type { ExecLike } from "../dld-core/run-state.ts";
+import type { Exec } from "../dld-core/run-api.ts";
+import {
+	activeRun as apiActiveRun,
+	nextItem as apiNextItem,
+	setRunStatus as apiSetRunStatus,
+	setItemStatus as apiSetItemStatus,
+	verifyItem as apiVerifyItem,
+	repinItem as apiRepinItem,
+	blockItem as apiBlockItem,
+	appendRunEvent as apiAppendRunEvent,
+} from "../dld-core/run-api.ts";
 import { activeMinutes, readEventsFrom, readRunFrom, type RunState } from "../dld-core/run-state.ts";
 
 // @decision(DL-008) @decision(DL-004)
@@ -29,12 +38,6 @@ export interface LoopContext {
 	hasPendingMessages(): boolean;
 }
 
-interface MutationEnvelope {
-	ok: boolean;
-	code: number;
-	output: string;
-}
-
 interface ActiveRun {
 	slug: string;
 	state: RunState;
@@ -53,9 +56,9 @@ export class LoopController {
 	 * arrived, not on every turn the item sits in verifying. */
 	private verifiedAtEvidence = new Map<number, number>();
 
-	private exec: ExecLike;
+	private exec: Exec;
 
-	constructor(exec: ExecLike) {
+	constructor(exec: Exec) {
 		this.exec = exec;
 	}
 
@@ -84,12 +87,6 @@ export class LoopController {
 		return this.token;
 	}
 
-	private async runScript(name: string, args: string[]): Promise<MutationEnvelope> {
-		const result = await this.exec("bash", [scriptPath(name), ...args]);
-		const output = result.stdout.length > 0 ? result.stdout.trimEnd() : result.stderr.trimEnd();
-		return { ok: result.code === 0, code: result.code, output };
-	}
-
 	private projectRootCache = new Map<string, string>();
 
 	/** The scripts resolve .dld/ from the git root; the extension must match
@@ -97,7 +94,7 @@ export class LoopController {
 	private async projectRoot(ctx: LoopContext): Promise<string> {
 		const cached = this.projectRootCache.get(ctx.cwd);
 		if (cached) return cached;
-		const result = await this.exec("git", ["-C", ctx.cwd, "rev-parse", "--show-toplevel"]);
+		const result = await this.exec("git", ["-C", ctx.cwd, "rev-parse", "--show-toplevel"], ctx.cwd);
 		const root = result.code === 0 ? result.stdout.trim() : ctx.cwd;
 		this.projectRootCache.set(ctx.cwd, root);
 		return root;
@@ -106,10 +103,9 @@ export class LoopController {
 	/** Active run from a context, or null. Active slug resolution goes through run-state.sh. */
 	private async activeRun(ctx: LoopContext): Promise<ActiveRun | null> {
 		const root = await this.projectRoot(ctx);
-		const active = await this.runScript("run-state.sh", ["active"]);
-		if (!active.ok) return null;
-		const slug = active.output.trim();
-		if (!slug) return null;
+		const active = await apiActiveRun(this.exec, root);
+		if (!active.ok || !active.value) return null;
+		const slug = active.value;
 		const runDir = join(root, ".dld", "runs", slug);
 		const read = readRunFrom(runDir);
 		if (!read.ok) return null;
@@ -136,28 +132,21 @@ export class LoopController {
 			return false;
 		}
 
-		const next = await this.runScript("next-item.sh", [active.slug]);
-		if (!next.ok) {
-			if (next.code === 2) {
-				await this.pauseRun(active.slug, ctx, ui, next.output);
-				return false;
-			}
-			ui.notify(next.output, "error");
+		const root = await this.projectRoot(ctx);
+		const next = await apiNextItem(this.exec, root, active.slug);
+		if (next.kind === "blocked") {
+			await this.pauseRun(active.slug, ctx, ui, next.reason);
 			return false;
 		}
-
-		// Exit 0 with empty output means every item is accepted or skipped: the
-		// run is complete, not broken.
-		if (next.output.trim() === "") {
+		if (next.kind === "error") {
+			ui.notify(next.error, "error");
+			return false;
+		}
+		if (next.kind === "complete") {
 			await this.completeRun(active.slug, ctx, ui);
 			return false;
 		}
-
-		const index = Number(next.output.trim());
-		if (!Number.isInteger(index) || index < 1) {
-			ui.notify(`next-item returned an unexpected index: ${next.output.trim()}`, "error");
-			return false;
-		}
+		const index = next.index;
 
 		const item = active.state.items.find((entry) => entry.index === index);
 		if (!item) {
@@ -173,14 +162,9 @@ export class LoopController {
 		// Claim the item before dispatching so the next agent_end sees it as
 		// in-flight rather than re-dispatching the same work. next-item.sh
 		// prefers in-flight items, so claiming makes the loop single-threaded.
-		const claimed = await this.runScript("run-state.sh", [
-			"set-item-status",
-			active.slug,
-			String(item.index),
-			"implementing",
-		]);
+		const claimed = await apiSetItemStatus(this.exec, root, active.slug, item.index, "implementing");
 		if (!claimed.ok) {
-			ui.notify(`Could not claim item ${item.index}: ${claimed.output}`, "error");
+			ui.notify(`Could not claim item ${item.index}: ${claimed.error}`, "error");
 			return false;
 		}
 
@@ -190,20 +174,22 @@ export class LoopController {
 	}
 
 	private async completeRun(slug: string, ctx: LoopContext, ui: LoopUi): Promise<void> {
-		const result = await this.runScript("run-state.sh", ["set-status", slug, "complete"]);
+		const root = await this.projectRoot(ctx);
+		const result = await apiSetRunStatus(this.exec, root, slug, "complete");
 		if (!result.ok) {
-			ui.notify(`Could not complete run ${slug}: ${result.output}`, "error");
+			ui.notify(`Could not complete run ${slug}: ${result.error}`, "error");
 			return;
 		}
 		this.invalidate();
-		await this.runScript("append-event.sh", [slug, "run-completed"]);
+		await apiAppendRunEvent(this.exec, root, slug, "run-completed");
 		ui.notify(`Run ${slug} complete — every item is accepted or skipped.`, "info");
 	}
 
 	private async pauseRun(slug: string, ctx: LoopContext, ui: LoopUi, reason: string): Promise<void> {
 		// A blocked item keeps its blocked status — pausing must not collapse
 		// the distinction the contract's transition table makes.
-		const result = await this.runScript("run-state.sh", ["set-status", slug, "paused"]);
+		const root = await this.projectRoot(ctx);
+		const result = await apiSetRunStatus(this.exec, root, slug, "paused");
 		if (result.ok) this.invalidate();
 		ui.notify(reason || `Run ${slug} paused.`, "warning");
 	}
@@ -221,9 +207,10 @@ export class LoopController {
 	}
 
 	private async pauseAtBounds(active: ActiveRun, ctx: LoopContext, ui: LoopUi): Promise<void> {
-		const result = await this.runScript("run-state.sh", ["set-status", active.slug, "paused"]);
+		const root = await this.projectRoot(ctx);
+		const result = await apiSetRunStatus(this.exec, root, active.slug, "paused");
 		if (!result.ok) {
-			ui.notify(`Could not pause run ${active.slug}: ${result.output}`, "error");
+			ui.notify(`Could not pause run ${active.slug}: ${result.error}`, "error");
 			return;
 		}
 		this.invalidate();
@@ -249,9 +236,17 @@ export class LoopController {
 		if (!item) return;
 
 		this.verifiedAtEvidence.set(item.index, item.evidence.length);
-		const verify = await this.runScript("verify-item.sh", [active.slug, String(item.index)]);
+		const root = await this.projectRoot(ctx);
+		const verify = await apiVerifyItem(this.exec, root, active.slug, item.index);
 
-		if (verify.code === 0) {
+		if (verify.kind === "infrastructure") {
+			// A timeout or spawn failure is not a test failure — surface and
+			// leave the item verifying so the next turn retries.
+			ui.notify(`Item ${item.index} verification could not run: ${verify.error}`, "warning");
+			return;
+		}
+
+		if (verify.kind === "pass") {
 			if (active.state.review === "enabled") {
 				// The review step is a judgment call the loop cannot make. The item
 				// stays verifying and the agent is told to run the review before the
@@ -265,29 +260,19 @@ export class LoopController {
 				}
 				return;
 			}
-			const accepted = await this.runScript("run-state.sh", [
-				"set-item-status",
-				active.slug,
-				String(item.index),
-				"accepted",
-			]);
+			const accepted = await apiSetItemStatus(this.exec, root, active.slug, item.index, "accepted");
 			if (!accepted.ok) {
-				ui.notify(`Could not mark item ${item.index} accepted: ${accepted.output}`, "error");
+				ui.notify(`Could not mark item ${item.index} accepted: ${accepted.error}`, "error");
 				return;
 			}
-			const repinned = await this.runScript("run-state.sh", ["repin-item", active.slug, String(item.index)]);
+			const repinned = await apiRepinItem(this.exec, root, active.slug, item.index);
 			if (!repinned.ok) {
-				ui.notify(`Could not repin item ${item.index}: ${repinned.output}`, "error");
+				ui.notify(`Could not repin item ${item.index}: ${repinned.error}`, "error");
 				return;
 			}
-			const eventAppended = await this.runScript("append-event.sh", [
-				active.slug,
-				"item-accepted",
-				"--data",
-				JSON.stringify({ index: item.index }),
-			]);
+			const eventAppended = await apiAppendRunEvent(this.exec, root, active.slug, "item-accepted", { index: item.index });
 			if (!eventAppended.ok) {
-				ui.notify(`Could not record item ${item.index} acceptance: ${eventAppended.output}`, "error");
+				ui.notify(`Could not record item ${item.index} acceptance: ${eventAppended.error}`, "error");
 				return;
 			}
 			ui.notify(`Item ${item.index} accepted (verification passed, review disabled).`, "info");
@@ -302,30 +287,20 @@ export class LoopController {
 		// (0→1) so a first failure sees attempts=1 and retries; a second failure
 		// sees attempts=2 and blocks. Do not bump here — the next claim does it.
 		if (item.attempts < 2) {
-			const retried = await this.runScript("run-state.sh", [
-				"set-item-status",
-				active.slug,
-				String(item.index),
-				"implementing",
-			]);
+			const retried = await apiSetItemStatus(this.exec, root, active.slug, item.index, "implementing");
 			if (!retried.ok) {
-				ui.notify(`Could not send item ${item.index} back for a retry: ${retried.output}`, "error");
+				ui.notify(`Could not send item ${item.index} back for a retry: ${retried.error}`, "error");
 				return;
 			}
 			ui.notify(`Item ${item.index} verification failed; retrying (attempt ${item.attempts + 1}).`, "warning");
 			return;
 		}
 
-		const blocker = await this.runScript("block-item.sh", [
-			active.slug,
-			String(item.index),
-			"--reason",
-			verify.output,
-		]);
+		const blocker = await apiBlockItem(this.exec, root, active.slug, item.index, verify.output);
 		if (!blocker.ok) {
-			ui.notify(blocker.output, "error");
+			ui.notify(blocker.error, "error");
 			return;
 		}
-		ui.notify(blocker.output, "warning");
+		ui.notify(`Item ${item.index} blocked: ${verify.output}`, "warning");
 	}
 }

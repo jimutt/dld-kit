@@ -1,9 +1,17 @@
-import type { ExecOptions, ExecResult, ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExecResult, ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { formatDoctorReport, runDoctor } from "./doctor.ts";
 import { LoopController, type LoopContext, type LoopUi } from "./loop.ts";
-import { scriptPath } from "../dld-core/paths.ts";
 import { boardLines, statusLine, widgetLines } from "../dld-core/render.ts";
 import { parseStartArgs } from "../dld-core/parse-start-args.ts";
+import {
+	activeRun as apiActiveRun,
+	resumableRun as apiResumableRun,
+	guardPreconditions as apiGuardPreconditions,
+	createRun as apiCreateRun,
+	addItem as apiAddItem,
+	setRunStatus as apiSetRunStatus,
+	appendRunEvent as apiAppendRunEvent,
+} from "../dld-core/run-api.ts";
 import { activeMinutes, readEventsFrom, readRunFrom } from "../dld-core/run-state.ts";
 
 // @decision(DL-006) @decision(DL-008) @decision(DL-011)
@@ -20,8 +28,11 @@ const WIDGET_KEY = "dld-run-run";
 const CONTINUATION_DELAY_MS = 100;
 
 export default function dldGoalExtension(pi: DldGoalApi): void {
-	const loop = new LoopController((command: string, args: string[], options?: ExecOptions): Promise<ExecResult> =>
-		pi.exec(command, args, options),
+	// Adapt pi's exec to the core Exec shape. Pi's exec takes options as the
+	// third argument; core passes cwd as a string. The scripts resolve the
+	// project root internally, so the cwd parameter is informational here.
+	const loop = new LoopController((command: string, args: string[]): Promise<ExecResult> =>
+		pi.exec(command, args),
 	);
 
 	const uiAdapterFor = (ctx: ExtensionContext): LoopUi => ({
@@ -42,11 +53,11 @@ export default function dldGoalExtension(pi: DldGoalApi): void {
 	const refreshSurfaces = async (ctx: ExtensionContext) => {
 		if (!ctx.hasUI) return;
 		const root = await projectRoot(ctx);
+		const execFn = (command: string, args: string[]): Promise<ExecResult> => pi.exec(command, args);
 		const active = await (async () => {
-			const result = await pi.exec("bash", [scriptPath("run-state.sh"), "active"]);
-			if (result.code !== 0 || !result.stdout.trim()) return null;
-			const slug = result.stdout.trim().split("\n")[0] ?? "";
-			if (!slug) return null;
+			const result = await apiActiveRun(execFn, root);
+			if (!result.ok || !result.value) return null;
+			const slug = result.value;
 			const read = readRunFrom(`${root}/.dld/runs/${slug}`);
 			return read.ok ? { state: read.state, runDir: `${root}/.dld/runs/${slug}` } : null;
 		})();
@@ -213,24 +224,15 @@ async function handleGoalCommand(
 ): Promise<void> {
 	const sub = args.trim().split(/\s+/)[0] || "status";
 	const workspace = ctx.cwd;
-	const exec = (command: string, commandArgs: string[], options?: ExecOptions) => pi.exec(command, commandArgs, options);
-	const runScript = async (name: string, scriptArgs: string[]) => {
-		const result = await exec("bash", [scriptPath(name), ...scriptArgs]);
-		const output = result.stdout.length > 0 ? result.stdout.trimEnd() : result.stderr.trimEnd();
-		return { ok: result.code === 0, code: result.code, output };
-	};
+	const exec = (command: string, commandArgs: string[]): Promise<ExecResult> => pi.exec(command, commandArgs);
 
 	const resolveSlug = async (resumable = false): Promise<string | null> => {
-		const active = await runScript("run-state.sh", ["active"]);
-		if (active.ok && active.output) return active.output.trim();
+		const root = await projectRoot(ctx);
+		const active = await apiActiveRun(exec, root);
+		if (active.ok && active.value) return active.value;
 		if (!resumable) return null;
-		// A paused or blocked run has no active entry; resume and status have to
-		// find it by listing rather than asking for the active one.
-		const list = await runScript("run-state.sh", ["list"]);
-		if (!list.ok) return null;
-		const lines = list.output.split("\n").filter((l) => /\s(paused|blocked)$/.test(l));
-		const last = lines[lines.length - 1];
-		return last ? (last.split(/\s+/)[0] ?? null) : null;
+		const resumableResult = await apiResumableRun(exec, root);
+		return resumableResult.ok ? resumableResult.value : null;
 	};
 
 	switch (sub) {
@@ -247,20 +249,23 @@ async function handleGoalCommand(
 			}
 			// Preconditions first: dirty tree, active run, non-proposed decisions,
 			// and ID collisions all refuse before anything is created.
-			const guard = await runScript("guard-preconditions.sh", ["start", "--decisions", parsed.decisionIds.join(",")]);
+			const root = await projectRoot(ctx);
+			const guard = await apiGuardPreconditions(exec, root, "start", ["--decisions", parsed.decisionIds.join(",")]);
 			if (!guard.ok) {
-				ctx.ui.notify(guard.output, "error");
+				ctx.ui.notify(guard.error, "error");
 				return;
 			}
-			const created = await runScript("create-run.sh", ["--slug", parsed.slug, "--title", parsed.title]);
+			const created = await apiCreateRun(exec, root, parsed.slug, parsed.title);
 			if (!created.ok) {
-				ctx.ui.notify(created.output, "error");
+				ctx.ui.notify(created.error, "error");
 				return;
 			}
 			for (const id of parsed.decisionIds) {
-				const added = await runScript("run-state.sh", ["add-item", parsed.slug, "--decisions", id]);
+				const added = await apiAddItem(exec, root, parsed.slug, id);
 				if (!added.ok) {
-					ctx.ui.notify(`Run created but item ${id} failed: ${added.output}`, "error");
+					// Roll back: a half-populated run must not go live.
+					await apiSetRunStatus(exec, root, parsed.slug, "blocked");
+					ctx.ui.notify(`Run created but item ${id} failed: ${added.error} The run is blocked; add the missing items manually or recreate it.`, "error");
 					return;
 				}
 			}
@@ -282,14 +287,16 @@ async function handleGoalCommand(
 			// collisions may have appeared, or decisions may have drifted while
 			// the run sat idle. DL-004 requires this before resuming.
 			if (sub === "resume") {
-				const guard = await runScript("guard-preconditions.sh", ["resume", slug]);
+				const root = await projectRoot(ctx);
+				const guard = await apiGuardPreconditions(exec, root, "resume", [slug]);
 				if (!guard.ok) {
-					ctx.ui.notify(guard.output, "error");
+					ctx.ui.notify(guard.error, "error");
 					return;
 				}
 			}
 			const status = sub === "pause" ? "paused" : sub === "resume" ? "active" : "stopped";
-			const result = await runScript("run-state.sh", ["set-status", slug, status]);
+			const root = await projectRoot(ctx);
+			const result = await apiSetRunStatus(exec, root, slug, status);
 			if (result.ok) {
 				if (sub === "resume") {
 					loop.resume();
@@ -303,8 +310,12 @@ async function handleGoalCommand(
 				}
 				const past = sub === "stop" ? "Stopped" : sub === "pause" ? "Paused" : "Resumed";
 				ctx.ui.notify(`${past} run ${slug}.`, "info");
+				// Pair the status change with its event so activeMinutes
+				// derives correctly (DL-024).
+				const eventType = sub === "pause" ? "run-paused" : sub === "resume" ? "run-resumed" : "run-stopped";
+				await apiAppendRunEvent(exec, root, slug, eventType);
 			} else {
-				ctx.ui.notify(result.output, "error");
+				ctx.ui.notify(result.error, "error");
 			}
 			return;
 		}

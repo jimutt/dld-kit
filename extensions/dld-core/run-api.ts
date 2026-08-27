@@ -21,7 +21,7 @@ export interface ExecResult {
 	stderr: string;
 }
 
-export type Exec = (command: string, args: string[], cwd: string) => ExecResult;
+export type Exec = (command: string, args: string[], cwd: string) => ExecResult | Promise<ExecResult>;
 
 // The default exec: argv arrays, no shell. verify-item.sh gets a longer
 // timeout and a larger buffer — it runs the project's test suite, and the
@@ -75,7 +75,7 @@ function scriptPath(name: string): string {
 	return join(packageRoot(), "skills", "dld-run", "scripts", name);
 }
 
-function run(exec: Exec, script: string, args: string[], cwd: string): ExecResult {
+async function run(exec: Exec, script: string, args: string[], cwd: string): Promise<ExecResult> {
 	return exec("bash", [scriptPath(script), ...args], cwd);
 }
 
@@ -87,40 +87,40 @@ function outputOf(r: ExecResult): string {
 // Run lifecycle
 // ---------------------------------------------------------------------------
 
-export function createRun(exec: Exec, root: string, slug: string, title: string): Result<string> {
-	const r = run(exec, "create-run.sh", ["--slug", slug, "--title", title], root);
+export async function createRun(exec: Exec, root: string, slug: string, title: string): Promise<Result<string>> {
+	const r = await run(exec, "create-run.sh", ["--slug", slug, "--title", title], root);
 	return r.code === 0 ? ok(slug) : fail(outputOf(r));
 }
 
-export function addItem(exec: Exec, root: string, slug: string, decisionId: string): Result {
-	const r = run(exec, "run-state.sh", ["add-item", slug, "--decisions", decisionId], root);
+export async function addItem(exec: Exec, root: string, slug: string, decisionId: string): Promise<Result> {
+	const r = await run(exec, "run-state.sh", ["add-item", slug, "--decisions", decisionId], root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
 
-export function setRunStatus(exec: Exec, root: string, slug: string, status: string): Result {
-	const r = run(exec, "run-state.sh", ["set-status", slug, status], root);
+export async function setRunStatus(exec: Exec, root: string, slug: string, status: string): Promise<Result> {
+	const r = await run(exec, "run-state.sh", ["set-status", slug, status], root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
 
 /** The active run's slug, or null when no run is active. Script failure is an error, not "no run". */
-export function activeRun(exec: Exec, root: string): Result<string | null> {
-	const r = run(exec, "run-state.sh", ["active"], root);
+export async function activeRun(exec: Exec, root: string): Promise<Result<string | null>> {
+	const r = await run(exec, "run-state.sh", ["active"], root);
 	if (r.code !== 0) return fail(outputOf(r));
 	const slug = r.stdout.trim().split("\n")[0]?.trim() ?? "";
 	return ok(slug || null);
 }
 
 /** The most recent paused or blocked run's slug, or null. */
-export function resumableRun(exec: Exec, root: string): Result<string | null> {
-	const r = run(exec, "run-state.sh", ["list"], root);
+export async function resumableRun(exec: Exec, root: string): Promise<Result<string | null>> {
+	const r = await run(exec, "run-state.sh", ["list"], root);
 	if (r.code !== 0) return fail(outputOf(r));
 	const lines = r.stdout.split("\n").filter((l) => /\s(paused|blocked)$/.test(l));
 	const last = lines[lines.length - 1];
 	return ok(last ? (last.split(/\s+/)[0] ?? null) : null);
 }
 
-export function guardPreconditions(exec: Exec, root: string, mode: "start" | "resume", args: string[]): Result {
-	const r = run(exec, "guard-preconditions.sh", [mode, ...args], root);
+export async function guardPreconditions(exec: Exec, root: string, mode: "start" | "resume", args: string[]): Promise<Result> {
+	const r = await run(exec, "guard-preconditions.sh", [mode, ...args], root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
 
@@ -130,26 +130,26 @@ export function guardPreconditions(exec: Exec, root: string, mode: "start" | "re
 
 export type NextItem =
 	| { kind: "item"; index: number }
-	| { kind: "blocked" }
+	| { kind: "blocked"; reason: string }
 	| { kind: "complete" }
 	| { kind: "error"; error: string };
 
-export function nextItem(exec: Exec, root: string, slug: string): NextItem {
-	const r = run(exec, "next-item.sh", [slug], root);
-	if (r.code === 2) return { kind: "blocked" };
+export async function nextItem(exec: Exec, root: string, slug: string): Promise<NextItem> {
+	const r = await run(exec, "next-item.sh", [slug], root);
+	if (r.code === 2) return { kind: "blocked", reason: outputOf(r) };
 	if (r.code !== 0) return { kind: "error", error: outputOf(r) };
 	const index = Number(r.stdout.trim().split("\n")[0]?.trim());
 	if (!Number.isInteger(index) || index < 1) return { kind: "complete" };
 	return { kind: "item", index };
 }
 
-export function setItemStatus(exec: Exec, root: string, slug: string, index: number, status: string): Result {
-	const r = run(exec, "run-state.sh", ["set-item-status", slug, String(index), status], root);
+export async function setItemStatus(exec: Exec, root: string, slug: string, index: number, status: string): Promise<Result> {
+	const r = await run(exec, "run-state.sh", ["set-item-status", slug, String(index), status], root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
 
-export function repinItem(exec: Exec, root: string, slug: string, index: number): Result {
-	const r = run(exec, "run-state.sh", ["repin-item", slug, String(index)], root);
+export async function repinItem(exec: Exec, root: string, slug: string, index: number): Promise<Result> {
+	const r = await run(exec, "run-state.sh", ["repin-item", slug, String(index)], root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
 
@@ -158,15 +158,15 @@ export type VerifyOutcome =
 	| { kind: "fail"; output: string }
 	| { kind: "infrastructure"; error: string };
 
-export function verifyItem(exec: Exec, root: string, slug: string, index: number): VerifyOutcome {
-	const r = run(exec, "verify-item.sh", [slug, String(index)], root);
+export async function verifyItem(exec: Exec, root: string, slug: string, index: number): Promise<VerifyOutcome> {
+	const r = await run(exec, "verify-item.sh", [slug, String(index)], root);
 	if (r.code === 0) return { kind: "pass" };
 	if (r.code === 3) return { kind: "infrastructure", error: r.stderr.trim() || "verification timed out" };
 	return { kind: "fail", output: r.stdout.trim() };
 }
 
-export function blockItem(exec: Exec, root: string, slug: string, index: number, reason: string): Result {
-	const r = run(exec, "block-item.sh", [slug, String(index), "--reason", reason], root);
+export async function blockItem(exec: Exec, root: string, slug: string, index: number, reason: string): Promise<Result> {
+	const r = await run(exec, "block-item.sh", [slug, String(index), "--reason", reason], root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
 
@@ -174,8 +174,8 @@ export function blockItem(exec: Exec, root: string, slug: string, index: number,
 // Events
 // ---------------------------------------------------------------------------
 
-export function appendRunEvent(exec: Exec, root: string, slug: string, type: string, data?: unknown): Result {
+export async function appendRunEvent(exec: Exec, root: string, slug: string, type: string, data?: unknown): Promise<Result> {
 	const args = data === undefined ? [slug, type] : [slug, type, "--data", JSON.stringify(data)];
-	const r = run(exec, "append-event.sh", args, root);
+	const r = await run(exec, "append-event.sh", args, root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
 }
