@@ -1,4 +1,4 @@
-// @decision(DL-016) @decision(DL-017) @decision(DL-019) @decision(DL-020) @decision(DL-021)
+// @decision(DL-016) @decision(DL-017) @decision(DL-019) @decision(DL-020) @decision(DL-021) @decision(DL-023)
 // OpenCode V2 server plugin: the dld-run loop driver.
 //
 // Subscribes to session.execution.succeeded, reads the active run from
@@ -14,7 +14,12 @@ import { Plugin } from "@opencode-ai/plugin";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseStartArgs } from "../dld-core/parse-start-args.ts";
-import { readRunFrom, type RunState } from "../dld-core/run-state.ts";
+import { packageRoot } from "../dld-core/paths.ts";
+import {
+	readRunFrom,
+	type RunState,
+	type WorkItem,
+} from "../dld-core/run-state.ts";
 import {
 	activeRun,
 	appendRunEvent,
@@ -55,7 +60,6 @@ function readRunState(runDir: string): RunState | undefined {
 	return read.ok ? read.state : undefined;
 }
 
-
 export default Plugin.define({
 	id: "dld-run",
 	tui: true,
@@ -75,13 +79,41 @@ export default Plugin.define({
 			return root;
 		}
 
-		// Dispatch guard: which item each session was last told to work.
-		// Without this, every execution.succeeded re-dispatches the in-flight
-		// item — the agent ends a turn mid-item (question, rate limit, context
-		// boundary) and the loop spams the identical prompt. An item is only
-		// re-dispatched when the session changes (restart/resume) or the item
-		// itself advances.
+		// Dispatch guard (DL-020) with bounded re-delivery (DL-023).
+		//
+		// lastDispatch records which item each session was last told to work;
+		// without it every execution.succeeded re-dispatches the in-flight item
+		// and the loop spams. But a pure guard deadlocks: a turn that ends
+		// without advancing the item (rate limit, context boundary, the agent
+		// asking a question) leaves the item in-flight and suppressed forever.
+		//
+		// The bound: one re-delivery per item per session. The first
+		// suppression re-delivers (the turn may have ended for reasons
+		// unrelated to the work); the second surfaces a wedge message and the
+		// loop stays quiet. redispatched tracks the one allowed retry.
 		const lastDispatch = new Map<string, string>();
+		const redispatched = new Set<string>();
+		const wedged = new Set<string>();
+
+		// @decision(DL-023)
+		// The dispatch prompt carries the state-machine protocol inline, so a
+		// run works in projects without the dld-run skill loaded. "As the
+		// skill describes" is a dangling reference when the skill isn't
+		// there — the loop's correctness can't depend on content it doesn't
+		// control. Keep it to mechanics; the skill owns rationale and review.
+		function dispatchText(slug: string, index: number, item: WorkItem): string {
+			const decisions = item.decisions.map((d) => d.id).join(", ");
+			const scripts = join(packageRoot(), "skills", "dld-run", "scripts");
+			return [
+				`Continue goal run '${slug}'. Work item ${index} (${decisions}). Read the decision record(s) in decisions/records/ and implement them.`,
+				"",
+				"The run's state machine is file-based and you drive it with the scripts:",
+				`- When the implementation is done: bash ${join(scripts, "run-state.sh")} set-item-status ${slug} ${index} verifying — then add evidence of the verification you ran (test commands, their results) with bash ${join(scripts, "run-state.sh")} add-evidence ${slug} ${index} '<short description>'.`,
+				`- Never mark the item accepted yourself — the run plugin verifies the evidence and accepts or rejects the item.`,
+				`- If you hit a genuine blocker: bash ${join(scripts, "block-item.sh")} ${slug} ${index} --reason '<what is needed>'.`,
+				`- End your turn once the state is updated. The loop continues from there — do not ask whether to proceed.`,
+			].join("\n");
+		}
 
 		// Resolve the run to operate on: the active one if any, otherwise
 		// (for resume/status/stop) the most recent paused or blocked one.
@@ -134,7 +166,10 @@ export default Plugin.define({
 						// Preconditions first: dirty tree, active run, non-proposed
 						// decisions, and ID collisions all refuse before anything
 						// is created.
-						const guard = guardPreconditions(exec, root, "start", ["--decisions", parsed.decisionIds.join(",")]);
+						const guard = guardPreconditions(exec, root, "start", [
+							"--decisions",
+							parsed.decisionIds.join(","),
+						]);
 						if (!guard.ok) {
 							await ctx.session.synthetic({
 								sessionID,
@@ -155,7 +190,12 @@ export default Plugin.define({
 							if (!added.ok) {
 								// A half-populated run must not go live — the loop would
 								// start working it with items silently missing.
-								const blocked = setRunStatus(exec, root, parsed.slug, "blocked");
+								const blocked = setRunStatus(
+									exec,
+									root,
+									parsed.slug,
+									"blocked",
+								);
 								const rollbackNote = blocked.ok
 									? "The run is blocked; add the missing items manually or recreate it."
 									: "CRITICAL: the run is still ACTIVE and half-populated — stop it manually with run-state.sh set-status before doing anything else.";
@@ -242,10 +282,13 @@ export default Plugin.define({
 						if (result.ok) {
 							appendRunEvent(exec, root, slug, `run-${past}`);
 							if (sub === "resume") {
-								// Clear the dispatch guard so the in-flight item gets
-								// re-delivered to this session, and interrupt any turn
-								// still running so the continuation lands immediately.
+								// Clear the dispatch guard and re-delivery budgets so the
+								// in-flight item gets re-delivered fresh (DL-023), and
+								// interrupt any turn still running so the continuation
+								// lands immediately.
 								lastDispatch.delete(sessionID);
+								redispatched.clear();
+								wedged.clear();
 								await ctx.session.prompt({
 									sessionID,
 									text: `Run ${slug} resumed. Continue the goal run as the dld-run skill describes.`,
@@ -333,7 +376,13 @@ export default Plugin.define({
 				}
 				// The transaction: accept → repin → event. Each step checked;
 				// a failure aborts the rest and surfaces rather than half-writing.
-				const accepted = setItemStatus(exec, root, slug, item.index, "accepted");
+				const accepted = setItemStatus(
+					exec,
+					root,
+					slug,
+					item.index,
+					"accepted",
+				);
 				if (!accepted.ok) {
 					await ctx.session.synthetic({
 						sessionID,
@@ -349,7 +398,13 @@ export default Plugin.define({
 					});
 					return;
 				}
-				const eventAppended = appendRunEvent(exec, root, slug, "item-accepted", { index: item.index });
+				const eventAppended = appendRunEvent(
+					exec,
+					root,
+					slug,
+					"item-accepted",
+					{ index: item.index },
+				);
 				if (!eventAppended.ok) {
 					await ctx.session.synthetic({
 						sessionID,
@@ -366,7 +421,8 @@ export default Plugin.define({
 
 			// attempts counts completed attempts; the skill's claim bumps it.
 			// First failure retries, second blocks (DL-004).
-			const failOutput = verify.kind === "fail" ? verify.output : "verification failed";
+			const failOutput =
+				verify.kind === "fail" ? verify.output : "verification failed";
 			if (item.attempts < 2) {
 				setItemStatus(exec, root, slug, item.index, "implementing");
 				// Clear the dispatch guard so the retry is delivered.
@@ -378,9 +434,17 @@ export default Plugin.define({
 				return;
 			}
 
-			blockItem(exec, root, slug, item.index, failOutput || "verification failed");
+			blockItem(
+				exec,
+				root,
+				slug,
+				item.index,
+				failOutput || "verification failed",
+			);
 			setRunStatus(exec, root, slug, "paused");
-			appendRunEvent(exec, root, slug, "run-paused", { reason: `item ${item.index} blocked` });
+			appendRunEvent(exec, root, slug, "run-paused", {
+				reason: `item ${item.index} blocked`,
+			});
 			await ctx.session.synthetic({
 				sessionID,
 				text: `[dld-run plugin] Item ${item.index} blocked after two failed verifications; run ${slug} paused. Failure output:\n${failOutput.split("\n").slice(0, 10).join("\n")}\nRelay this to the user as-is.`,
@@ -428,7 +492,9 @@ export default Plugin.define({
 				).length;
 				if (afterTx.bounds.maxItems > 0 && done >= afterTx.bounds.maxItems) {
 					setRunStatus(exec, root, slug, "paused");
-					appendRunEvent(exec, root, slug, "run-paused", { reason: "maxItems reached" });
+					appendRunEvent(exec, root, slug, "run-paused", {
+						reason: "maxItems reached",
+					});
 					continue;
 				}
 
@@ -438,7 +504,9 @@ export default Plugin.define({
 					// Blocked item — pause and surface it. A silent pause reads
 					// as a wedged run.
 					setRunStatus(exec, root, slug, "paused");
-					appendRunEvent(exec, root, slug, "run-paused", { reason: "blocked item" });
+					appendRunEvent(exec, root, slug, "run-paused", {
+						reason: "blocked item",
+					});
 					await ctx.session.synthetic({
 						sessionID,
 						text: `[dld-run plugin] Run ${slug} paused: an item is blocked and needs an operator answer. Run /dld-run status for details. Relay this to the user as-is.`,
@@ -456,20 +524,47 @@ export default Plugin.define({
 					continue;
 				}
 
-				// The dispatch guard: don't re-deliver the item this session is
-				// already working. The agent can end a turn mid-item (question,
-				// rate limit, context boundary); that turn's completion must not
-				// trigger an identical re-dispatch.
-				const dispatchKey = `${slug}:${next.index}`;
-				if (lastDispatch.get(sessionID) === dispatchKey) continue;
-
 				const item = afterTx.items.find((i) => i.index === next.index);
 				if (!item) continue;
+
+				// The dispatch guard with bounded re-delivery (DL-023). The key
+				// is session+item; the re-delivery budget is per key.
+				const dispatchKey = `${slug}:${next.index}`;
+				const sessionKey = `${sessionID}:${dispatchKey}`;
+				if (lastDispatch.get(sessionID) === dispatchKey) {
+					if (!redispatched.has(sessionKey)) {
+						// First suppression: re-deliver once. The previous turn ended
+						// without advancing the item — maybe a rate limit, maybe a
+						// question. One more chance, then the loop speaks up.
+						redispatched.add(sessionKey);
+						await ctx.session.prompt({
+							sessionID,
+							text: dispatchText(slug, next.index, item),
+						});
+						continue;
+					}
+					// Second suppression: the item is wedged. Surface once, then
+					// stay quiet — the user decides whether to nudge or pause.
+					if (!wedged.has(sessionKey)) {
+						wedged.add(sessionKey);
+						await ctx.session.synthetic({
+							sessionID,
+							text: `[dld-run plugin] Item ${next.index} of run ${slug} appears wedged: two turns completed without the item advancing. Inspect the run (/dld-run status), nudge the agent, or pause the run. Relay this to the user as-is.`,
+						});
+					}
+					continue;
+				}
 
 				// Claim the item before dispatching. A failed claim aborts the
 				// dispatch — next-item would re-offer the same item next event
 				// and the loop would claim-dispatch-spin without writing anything.
-				const claimed = setItemStatus(exec, root, slug, next.index, "implementing");
+				const claimed = setItemStatus(
+					exec,
+					root,
+					slug,
+					next.index,
+					"implementing",
+				);
 				if (!claimed.ok) {
 					await ctx.session.synthetic({
 						sessionID,
@@ -479,15 +574,15 @@ export default Plugin.define({
 				}
 
 				lastDispatch.set(sessionID, dispatchKey);
-				const decisions = item.decisions.map((d) => d.id).join(", ");
 				try {
 					await ctx.session.prompt({
 						sessionID,
-						text: `Continue goal run '${slug}'. Work item ${next.index} (${decisions}). Implement the decision(s) as the dld-run skill describes.`,
+						text: dispatchText(slug, next.index, item),
 					});
 				} catch {
 					// Dispatch failed — clear the guard so the next event retries.
 					lastDispatch.delete(sessionID);
+					redispatched.delete(sessionKey);
 				}
 			}
 		})().catch(() => {});

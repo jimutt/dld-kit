@@ -2,7 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-023 | Bounded re-delivery and inline state-machine instructions in the dispatch prompt | proposed | opencode, dld-run, loop |
+| DL-023 | Bounded re-delivery and inline state-machine instructions in the dispatch prompt | accepted | opencode, dld-run, loop |
 | DL-022 | Create extensions/dld-core: a TypeScript-native library with a function-shaped API | accepted | dld-core, architecture, typescript |
 | DL-021 | Port the four-part completion transaction to the OpenCode plugin | accepted | opencode, dld-run, verification |
 | DL-020 | Fix loop gating, error mapping, and TUI reactivity per the spike review | accepted | opencode, dld-run, review |
