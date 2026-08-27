@@ -6,11 +6,8 @@ import {
 	pauseRun as apiPauseRun,
 	completeRun as apiCompleteRun,
 	setItemStatus as apiSetItemStatus,
-	verifyItem as apiVerifyItem,
-	repinItem as apiRepinItem,
-	blockItem as apiBlockItem,
-	appendRunEvent as apiAppendRunEvent,
 } from "../dld-core/run-api.ts";
+import { CompletionTracker } from "../dld-core/completion.ts";
 import { activeMinutes, readEventsFrom, readRunFrom, type RunState } from "../dld-core/run-state.ts";
 
 // @decision(DL-008) @decision(DL-004)
@@ -49,14 +46,7 @@ export class LoopController {
 	private token = 0;
 	/** User input suspends continuation until an explicit resume. */
 	private suspended = false;
-	/** Items already told that they are waiting on review, so turn_end does not
-	 * repeat the warning on every turn while the item stays verifying. */
-	private reviewNagged = new Set<number>();
-	/** Evidence count at the last verification per item, so verify-item.sh
-	 * (which runs the project test suite) only re-runs when new evidence
-	 * arrived, not on every turn the item sits in verifying. */
-	private verifiedAtEvidence = new Map<number, number>();
-
+	private completion = new CompletionTracker();
 	private exec: Exec;
 
 	constructor(exec: Exec) {
@@ -80,7 +70,7 @@ export class LoopController {
 	/** Mint a new token. Every queued continuation carrying an older token is void. */
 	invalidate(): number {
 		this.token += 1;
-		this.reviewNagged.clear();
+		this.completion.clear();
 		return this.token;
 	}
 
@@ -218,7 +208,9 @@ export class LoopController {
 	}
 
 	/**
-	 * Advance an item through verification and completion. Delegate every write.
+	 * Advance an item through verification and completion. The transaction
+	 * lives in dld-core's CompletionTracker; this method maps the outcome
+	 * to pi's delivery surface (notify + transcript card).
 	 */
 	async onTurnEnd(ctx: LoopContext, ui: LoopUi): Promise<void> {
 		// Suspension covers the write path too: a suspended loop mutates nothing.
@@ -227,80 +219,37 @@ export class LoopController {
 		if (!active) return;
 		if (active.state.status !== "active") return;
 
-		const item = active.state.items.find(
-			(entry) =>
-				entry.status === "verifying" &&
-				entry.evidence.length > 0 &&
-				entry.evidence.length !== this.verifiedAtEvidence.get(entry.index),
-		);
-		if (!item) return;
-
-		this.verifiedAtEvidence.set(item.index, item.evidence.length);
 		const root = await this.projectRoot(ctx);
-		const verify = await apiVerifyItem(this.exec, root, active.slug, item.index);
+		const outcome = await this.completion.step(this.exec, root, active.slug, active.state);
 
-		if (verify.kind === "infrastructure") {
-			// A timeout or spawn failure is not a test failure — surface and
-			// leave the item verifying so the next turn retries.
-			ui.notify(`Item ${item.index} verification could not run: ${verify.error}`, "warning");
-			return;
+		switch (outcome.kind) {
+			case "none":
+				return;
+			case "infrastructure":
+				ui.notify(`Item ${outcome.index} verification could not run: ${outcome.error}`, "warning");
+				return;
+			case "review-required":
+				ui.notify(
+					`Item ${outcome.index} passed mechanical checks but review is enabled — run the review subagent, then the item can be accepted.`,
+					"warning",
+				);
+				return;
+			case "accepted":
+				ui.notify(`Item ${outcome.index} accepted (verification passed, review disabled).`, "info");
+				ui.card?.([
+					`✔ item ${outcome.index} accepted · ${outcome.decisionIds.join(", ")}`,
+					...outcome.evidence.slice(0, 4).map((e) => `  ${typeof e === "string" ? e : JSON.stringify(e)}`),
+				]);
+				return;
+			case "retrying":
+				ui.notify(`Item ${outcome.index} verification failed; retrying (attempt ${outcome.attempt}).`, "warning");
+				return;
+			case "blocked":
+				ui.notify(`Item ${outcome.index} blocked: ${outcome.output}`, "warning");
+				return;
+			case "error":
+				ui.notify(outcome.message, "error");
+				return;
 		}
-
-		if (verify.kind === "pass") {
-			if (active.state.review === "enabled") {
-				// The review step is a judgment call the loop cannot make. The item
-				// stays verifying and the agent is told to run the review before the
-				// item can be accepted. Nag once per item, not every turn.
-				if (!this.reviewNagged.has(item.index)) {
-					this.reviewNagged.add(item.index);
-					ui.notify(
-						`Item ${item.index} passed mechanical checks but review is enabled — run the review subagent, then the item can be accepted.`,
-						"warning",
-					);
-				}
-				return;
-			}
-			const accepted = await apiSetItemStatus(this.exec, root, active.slug, item.index, "accepted");
-			if (!accepted.ok) {
-				ui.notify(`Could not mark item ${item.index} accepted: ${accepted.error}`, "error");
-				return;
-			}
-			const repinned = await apiRepinItem(this.exec, root, active.slug, item.index);
-			if (!repinned.ok) {
-				ui.notify(`Could not repin item ${item.index}: ${repinned.error}`, "error");
-				return;
-			}
-			const eventAppended = await apiAppendRunEvent(this.exec, root, active.slug, "item-accepted", { index: item.index });
-			if (!eventAppended.ok) {
-				ui.notify(`Could not record item ${item.index} acceptance: ${eventAppended.error}`, "error");
-				return;
-			}
-			ui.notify(`Item ${item.index} accepted (verification passed, review disabled).`, "info");
-			ui.card?.([
-				`✔ item ${item.index} accepted · ${item.decisions.map((d) => d.id).join(", ")}`,
-				...item.evidence.slice(0, 4).map((e) => `  ${typeof e === "string" ? e : JSON.stringify(e)}`),
-			]);
-			return;
-		}
-
-		// attempts counts completed attempts. The skill claims with bump-attempt
-		// (0→1) so a first failure sees attempts=1 and retries; a second failure
-		// sees attempts=2 and blocks. Do not bump here — the next claim does it.
-		if (item.attempts < 2) {
-			const retried = await apiSetItemStatus(this.exec, root, active.slug, item.index, "implementing");
-			if (!retried.ok) {
-				ui.notify(`Could not send item ${item.index} back for a retry: ${retried.error}`, "error");
-				return;
-			}
-			ui.notify(`Item ${item.index} verification failed; retrying (attempt ${item.attempts + 1}).`, "warning");
-			return;
-		}
-
-		const blocker = await apiBlockItem(this.exec, root, active.slug, item.index, verify.output);
-		if (!blocker.ok) {
-			ui.notify(blocker.error, "error");
-			return;
-		}
-		ui.notify(`Item ${item.index} blocked: ${verify.output}`, "warning");
 	}
 }

@@ -14,6 +14,7 @@ import { Plugin } from "@opencode-ai/plugin";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { packageRoot } from "../dld-core/paths.ts";
+import { CompletionTracker } from "../dld-core/completion.ts";
 import {
 	readRunFrom,
 	type RunState,
@@ -21,20 +22,16 @@ import {
 } from "../dld-core/run-state.ts";
 import {
 	activeRun,
-	appendRunEvent,
-	blockItem,
 	completeRun,
 	defaultExec,
 	guardPreconditions,
 	nextItem,
 	pauseRun,
-	repinItem,
 	resumableRun,
 	resumeRun,
 	setItemStatus,
 	stopRun,
 	startRun,
-	verifyItem,
 	type Exec,
 } from "../dld-core/run-api.ts";
 
@@ -274,128 +271,63 @@ export default Plugin.define({
 
 		// The completion transaction (DL-021): evidence counts per item, so
 		// verify-item.sh runs once per new evidence batch, not per event.
-		const verifiedAtEvidence = new Map<string, number>();
-		const reviewNagged = new Set<string>();
+
 
 		// The four-part completion transaction, ported from loop.ts onTurnEnd.
 		// Runs before the dispatch check: an item in verification takes
 		// priority over selecting new work.
+		const completion = new CompletionTracker();
+
 		async function runCompletionTransaction(
 			sessionID: string,
 			root: string,
 			slug: string,
 			state: RunState,
 		): Promise<void> {
-			const item = state.items.find(
-				(entry) =>
-					entry.status === "verifying" &&
-					entry.evidence.length > 0 &&
-					entry.evidence.length !==
-						verifiedAtEvidence.get(`${slug}:${entry.index}`),
-			);
-			if (!item) return;
-			const key = `${slug}:${item.index}`;
-			verifiedAtEvidence.set(key, item.evidence.length);
+			const outcome = await completion.step(exec, root, slug, state);
 
-			const verify = await verifyItem(exec, root, slug, item.index);
-
-			if (verify.kind === "infrastructure") {
-				verifiedAtEvidence.delete(key);
-				await ctx.session.synthetic({
-					sessionID,
-					text: `[dld-run plugin] Verification of item ${item.index} could not run: ${verify.error} The item stays verifying; fix the environment and it will retry. Relay this to the user as-is.`,
-				});
-				return;
-			}
-
-			if (verify.kind === "pass") {
-				// Fail toward more review: anything that isn't explicitly
-				// "disabled" requires it.
-				if (state.review !== "disabled") {
-					// The review is a judgment call the loop cannot make. Nag the
-					// agent once per item; the skill's flow flips the item when
-					// the review passes.
-					if (!reviewNagged.has(key)) {
-						reviewNagged.add(key);
-						await ctx.session.synthetic({
-							sessionID,
-							text: `[dld-run plugin] Item ${item.index} passed mechanical checks but review is enabled — run the review subagent as the dld-run skill describes, then the item can be accepted.`,
-						});
-					}
+			switch (outcome.kind) {
+				case "none":
 					return;
-				}
-				// The transaction: accept → repin → event. Each step checked;
-				// a failure aborts the rest and surfaces rather than half-writing.
-				const accepted = await setItemStatus(
-					exec,
-					root,
-					slug,
-					item.index,
-					"accepted",
-				);
-				if (!accepted.ok) {
+				case "infrastructure":
 					await ctx.session.synthetic({
 						sessionID,
-						text: `[dld-run plugin] Could not mark item ${item.index} accepted: ${accepted.error} Relay this to the user as-is.`,
+						text: `[dld-run plugin] Verification of item ${outcome.index} could not run: ${outcome.error} The item stays verifying; fix the environment and it will retry. Relay this to the user as-is.`,
 					});
 					return;
-				}
-				const repinned = await repinItem(exec, root, slug, item.index);
-				if (!repinned.ok) {
+				case "review-required":
 					await ctx.session.synthetic({
 						sessionID,
-						text: `[dld-run plugin] Could not repin item ${item.index}: ${repinned.error} Relay this to the user as-is.`,
+						text: `[dld-run plugin] Item ${outcome.index} passed mechanical checks but review is enabled — run the review subagent as the dld-run skill describes, then the item can be accepted.`,
 					});
 					return;
-				}
-				const eventAppended = await appendRunEvent(
-					exec,
-					root,
-					slug,
-					"item-accepted",
-					{ index: item.index },
-				);
-				if (!eventAppended.ok) {
+				case "accepted":
 					await ctx.session.synthetic({
 						sessionID,
-						text: `[dld-run plugin] Could not record item ${item.index} acceptance: ${eventAppended.error} Relay this to the user as-is.`,
+						text: `[dld-run plugin] Item ${outcome.index} accepted (verification passed, review disabled) · ${outcome.decisionIds.join(", ")}. Relay this to the user as-is.`,
 					});
 					return;
-				}
-				await ctx.session.synthetic({
-					sessionID,
-					text: `[dld-run plugin] Item ${item.index} accepted (verification passed, review disabled) · ${item.decisions.map((d) => d.id).join(", ")}. Relay this to the user as-is.`,
-				});
-				return;
+				case "retrying":
+					// Clear the dispatch guard so the retry is delivered.
+					lastDispatch.delete(sessionID);
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Item ${outcome.index} verification failed; retrying (attempt ${outcome.attempt} of 2). Failure output:\n${outcome.output.split("\n").slice(0, 10).join("\n")}`,
+					});
+					return;
+				case "blocked":
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] Item ${outcome.index} blocked after two failed verifications; run ${slug} paused. Failure output:\n${outcome.output.split("\n").slice(0, 10).join("\n")}\nRelay this to the user as-is.`,
+					});
+					return;
+				case "error":
+					await ctx.session.synthetic({
+						sessionID,
+						text: `[dld-run plugin] ${outcome.message} Relay this to the user as-is.`,
+					});
+					return;
 			}
-
-			// attempts counts completed attempts; the skill's claim bumps it.
-			// First failure retries, second blocks (DL-004).
-			const failOutput =
-				verify.kind === "fail" ? verify.output : "verification failed";
-			if (item.attempts < 2) {
-				setItemStatus(exec, root, slug, item.index, "implementing");
-				// Clear the dispatch guard so the retry is delivered.
-				lastDispatch.delete(sessionID);
-				await ctx.session.synthetic({
-					sessionID,
-					text: `[dld-run plugin] Item ${item.index} verification failed; retrying (attempt ${item.attempts + 1} of 2). Failure output:\n${failOutput.split("\n").slice(0, 10).join("\n")}`,
-				});
-				return;
-			}
-
-			blockItem(
-				exec,
-				root,
-				slug,
-				item.index,
-				failOutput || "verification failed",
-			);
-			await pauseRun(exec, root, slug, `item ${item.index} blocked`);
-			await ctx.session.synthetic({
-				sessionID,
-				text: `[dld-run plugin] Item ${item.index} blocked after two failed verifications; run ${slug} paused. Failure output:\n${failOutput.split("\n").slice(0, 10).join("\n")}\nRelay this to the user as-is.`,
-			});
 		}
 
 		// The continuation loop.
