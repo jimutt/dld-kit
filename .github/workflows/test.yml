@@ -32,7 +32,7 @@ jobs:
           bun-version: "1.2.23"
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: bun install --frozen-lockfile
 
       - name: Typecheck
         run: npx tsc --noEmit
