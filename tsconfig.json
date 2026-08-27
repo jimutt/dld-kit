@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2023"],
+    "target": "ES2024",
+    "lib": [
+      "ES2024"
+    ],
     "module": "Preserve",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -12,7 +14,15 @@
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
-    "types": ["bun"]
+    "types": [
+      "bun"
+    ],
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/solid",
+    "erasableSyntaxOnly": true
   },
-  "include": ["extensions/**/*.ts"]
+  "include": [
+    "extensions/**/*.ts",
+    "extensions/**/*.tsx"
+  ]
 }

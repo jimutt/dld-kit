@@ -2,6 +2,14 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-023 | Bounded re-delivery and inline state-machine instructions in the dispatch prompt | accepted | opencode, dld-run, loop |
+| DL-022 | Create extensions/dld-core: a TypeScript-native library with a function-shaped API | accepted | dld-core, architecture, typescript |
+| DL-021 | Port the four-part completion transaction to the OpenCode plugin | accepted | opencode, dld-run, verification |
+| DL-020 | Fix loop gating, error mapping, and TUI reactivity per the spike review | accepted | opencode, dld-run, review |
+| DL-019 | Implement start in the OpenCode plugin: full lifecycle, and agent-safe error messages | accepted | opencode, dld-run, ux |
+| DL-018 | Full implementation: complete UI surface after the spike proves the loop | proposed | opencode, extension, dld-run |
+| DL-017 | Spike scope: validate state sharing, loop dispatch, exec, status, and widget | accepted | opencode, spike, dld-run |
+| DL-016 | Build the OpenCode dld-run as a V2 combined plugin: server + CLI, shared state layer | accepted | opencode, extension, dld-run |
 | DL-015 | Rename dld-goal to dld-run: the command is a run, not a goal | accepted | dld-goal, naming, ux |
 | DL-014 | Amend DL-008: Esc suspends the loop; pause aborts the current turn | accepted | dld-goal, extension, execution |
 | DL-013 | Amend DL-008: continuation is a scheduled dispatch, not an awaited handler | accepted | dld-goal, extension, execution |

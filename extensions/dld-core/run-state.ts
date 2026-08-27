@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { scriptPath } from "./paths.ts";
 
 // @decision(DL-001) @decision(DL-007)
 // The extension reads run state directly and delegates every mutation to the

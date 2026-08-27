@@ -55,7 +55,11 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "~0.83.0",
     "@earendil-works/pi-tui": "~0.83.0",
+    "@opencode-ai/plugin": "^0.0.0-beta-18269",
+    "@opentui/core": "^0.5.8",
+    "@opentui/solid": "^0.5.8",
     "@types/bun": "^1.2.0",
-    "typescript": "^5.6.0"
+    "solid-js": "1.9.12",
+    "typescript": "^7.0.2"
   }
 }

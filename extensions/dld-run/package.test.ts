@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import { packageRoot } from "./paths.ts";
+import { packageRoot } from "../dld-core/paths.ts";
 
 interface PiManifest {
 	extensions?: string[];

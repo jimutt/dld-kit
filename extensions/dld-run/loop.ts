@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { scriptPath } from "./paths.ts";
-import type { ExecLike } from "./run-state.ts";
-import { activeMinutes, readEventsFrom, readRunFrom, type RunState } from "./run-state.ts";
+import { scriptPath } from "../dld-core/paths.ts";
+import type { ExecLike } from "../dld-core/run-state.ts";
+import { activeMinutes, readEventsFrom, readRunFrom, type RunState } from "../dld-core/run-state.ts";
 
 // @decision(DL-008) @decision(DL-004)
 // In-session continuation: agent_end advances an active run when everything
@@ -53,7 +53,11 @@ export class LoopController {
 	 * arrived, not on every turn the item sits in verifying. */
 	private verifiedAtEvidence = new Map<number, number>();
 
-	constructor(private exec: ExecLike) {}
+	private exec: ExecLike;
+
+	constructor(exec: ExecLike) {
+		this.exec = exec;
+	}
 
 	suspend(): void {
 		this.suspended = true;
