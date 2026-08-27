@@ -10,6 +10,7 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { packageRoot } from "./paths.ts";
+import { parseStartArgs } from "./parse-start-args.ts";
 
 // ---------------------------------------------------------------------------
 // The exec seam
@@ -178,6 +179,63 @@ export async function appendRunEvent(exec: Exec, root: string, slug: string, typ
 	const args = data === undefined ? [slug, type] : [slug, type, "--data", JSON.stringify(data)];
 	const r = await run(exec, "append-event.sh", args, root);
 	return r.code === 0 ? ok(undefined) : fail(outputOf(r));
+}
+
+// ---------------------------------------------------------------------------
+// Start flow (DL-024)
+// ---------------------------------------------------------------------------
+
+// The full start flow: reject when a run is active, parse args, guard
+// preconditions, create the run, add items — with rollback to blocked on
+// failure so a half-populated run never goes live. The harness keeps only
+// the dispatch kick (how it tells the agent to start working).
+
+export type StartOutcome =
+	| { ok: true; slug: string; itemCount: number }
+	| { ok: false; error: string };
+
+export async function startRun(
+	exec: Exec,
+	root: string,
+	args: string[],
+): Promise<StartOutcome> {
+	// Reject when a run is already active.
+	const existing = await activeRun(exec, root);
+	if (existing.ok && existing.value) {
+		return { ok: false, error: `A run is already active: ${existing.value}` };
+	}
+
+	const parsed = parseStartArgs(args);
+	if (!("slug" in parsed)) return { ok: false, error: parsed.error };
+
+	// Guard preconditions.
+	const guard = await guardPreconditions(exec, root, "start", [
+		"--decisions",
+		parsed.decisionIds.join(","),
+	]);
+	if (!guard.ok) return { ok: false, error: guard.error };
+
+	// Create.
+	const created = await createRun(exec, root, parsed.slug, parsed.title);
+	if (!created.ok) return { ok: false, error: created.error };
+
+	// Add items — roll back to blocked on failure. If the rollback itself
+	// fails the run is ACTIVE and half-populated: say so explicitly.
+	for (const id of parsed.decisionIds) {
+		const added = await addItem(exec, root, parsed.slug, id);
+		if (!added.ok) {
+			const blocked = await setRunStatus(exec, root, parsed.slug, "blocked");
+			const note = blocked.ok
+				? "The run is blocked; add the missing items manually or recreate it."
+				: "CRITICAL: the run is still ACTIVE and half-populated — stop it manually with run-state.sh set-status before doing anything else.";
+			return {
+				ok: false,
+				error: `Run ${parsed.slug} created but item ${id} failed: ${added.error} ${note}`,
+			};
+		}
+	}
+
+	return { ok: true, slug: parsed.slug, itemCount: parsed.decisionIds.length };
 }
 
 // ---------------------------------------------------------------------------

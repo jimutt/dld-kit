@@ -13,7 +13,6 @@
 import { Plugin } from "@opencode-ai/plugin";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { parseStartArgs } from "../dld-core/parse-start-args.ts";
 import { packageRoot } from "../dld-core/paths.ts";
 import {
 	readRunFrom,
@@ -25,8 +24,6 @@ import {
 	appendRunEvent,
 	blockItem,
 	completeRun,
-	createRun,
-	addItem,
 	defaultExec,
 	guardPreconditions,
 	nextItem,
@@ -35,8 +32,8 @@ import {
 	resumableRun,
 	resumeRun,
 	setItemStatus,
-	setRunStatus,
 	stopRun,
+	startRun,
 	verifyItem,
 	type Exec,
 } from "../dld-core/run-api.ts";
@@ -151,70 +148,19 @@ export default Plugin.define({
 
 					// @decision(DL-019)
 					if (sub === "start") {
-						const existing = await resolveSlug(root, false);
-						if (existing) {
+						const result = await startRun(exec, root, args.slice(1));
+						if (!result.ok) {
 							await ctx.session.synthetic({
 								sessionID,
-								text: `[dld-run plugin] A run is already active: ${existing}. Relay this to the user as-is.`,
+								text: `[dld-run plugin] ${result.error} Relay this to the user as-is.`,
 							});
 							return;
-						}
-						const parsed = parseStartArgs(args.slice(1));
-						if (!("slug" in parsed)) {
-							await ctx.session.synthetic({
-								sessionID,
-								text: `[dld-run plugin] ${parsed.error} Relay this to the user as-is.`,
-							});
-							return;
-						}
-						// Preconditions first: dirty tree, active run, non-proposed
-						// decisions, and ID collisions all refuse before anything
-						// is created.
-						const guard = await guardPreconditions(exec, root, "start", [
-							"--decisions",
-							parsed.decisionIds.join(","),
-						]);
-						if (!guard.ok) {
-							await ctx.session.synthetic({
-								sessionID,
-								text: `[dld-run plugin] Preconditions failed: ${guard.error} Relay this to the user as-is.`,
-							});
-							return;
-						}
-						const created = await createRun(exec, root, parsed.slug, parsed.title);
-						if (!created.ok) {
-							await ctx.session.synthetic({
-								sessionID,
-								text: `[dld-run plugin] Could not create run: ${created.error} Relay this to the user as-is.`,
-							});
-							return;
-						}
-						for (const id of parsed.decisionIds) {
-							const added = await addItem(exec, root, parsed.slug, id);
-							if (!added.ok) {
-								// A half-populated run must not go live — the loop would
-								// start working it with items silently missing.
-								const blocked = await setRunStatus(
-									exec,
-									root,
-									parsed.slug,
-									"blocked",
-								);
-								const rollbackNote = blocked.ok
-									? "The run is blocked; add the missing items manually or recreate it."
-									: "CRITICAL: the run is still ACTIVE and half-populated — stop it manually with run-state.sh set-status before doing anything else.";
-								await ctx.session.synthetic({
-									sessionID,
-									text: `[dld-run plugin] Run ${parsed.slug} created but item ${id} failed: ${added.error} ${rollbackNote} Relay this to the user as-is.`,
-								});
-								return;
-							}
 						}
 						// Kick the loop: prompt the agent to start work now.
-						lastDispatch.set(sessionID, `${parsed.slug}:1`);
+						lastDispatch.set(sessionID, `${result.slug}:1`);
 						await ctx.session.prompt({
 							sessionID,
-							text: `Started goal run '${parsed.slug}' — ${parsed.decisionIds.length} item${parsed.decisionIds.length === 1 ? "" : "s"} (${parsed.title}). Begin work on item 1 as the dld-run skill describes.`,
+							text: `Started goal run '${result.slug}' — ${result.itemCount} item${result.itemCount === 1 ? "" : "s"}. Begin work on item 1 as the dld-run skill describes.`,
 							delivery,
 						});
 						return;

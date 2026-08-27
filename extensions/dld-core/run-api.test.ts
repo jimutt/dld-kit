@@ -103,3 +103,91 @@ describe("lifecycle operations pair status and event", () => {
 		expect(calls).toHaveLength(1);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// startRun (DL-024 item 3)
+// ---------------------------------------------------------------------------
+
+import { startRun } from "./run-api.ts";
+
+describe("startRun", () => {
+	test("rejects when a run is already active", async () => {
+		const root = makeTempProject();
+		const { exec } = recordingExec([
+			{ code: 0, stdout: "existing-run\n", stderr: "" }, // active
+		]);
+		const result = await startRun(exec, root, ["DL-001", "new-run"]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("already active");
+	});
+
+	test("rejects on parse failure", async () => {
+		const root = makeTempProject();
+		const { exec } = recordingExec([
+			{ code: 0, stdout: "\n", stderr: "" }, // no active run
+		]);
+		const result = await startRun(exec, root, ["--bogus-flag"]); // missing value
+		expect(result.ok).toBe(false);
+	});
+
+	test("rejects when guard preconditions fail", async () => {
+		const root = makeTempProject();
+		const { exec } = recordingExec([
+			{ code: 0, stdout: "\n", stderr: "" }, // active: none
+			{ code: 1, stdout: "", stderr: "working tree is dirty" }, // guard
+		]);
+		const result = await startRun(exec, root, ["DL-001", "test"]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("dirty");
+	});
+
+	test("creates and populates on the happy path", async () => {
+		const root = makeTempProject();
+		const { exec, calls } = recordingExec([
+			{ code: 0, stdout: "\n", stderr: "" }, // active: none
+			{ code: 0, stdout: "", stderr: "" }, // guard
+			{ code: 0, stdout: "", stderr: "" }, // create-run
+			{ code: 0, stdout: "", stderr: "" }, // add-item DL-001
+			{ code: 0, stdout: "", stderr: "" }, // add-item DL-002
+		]);
+		const result = await startRun(exec, root, ["DL-001", "DL-002", "test"]);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.slug).toBe("dl-001-002");
+			expect(result.itemCount).toBe(2);
+		}
+	});
+
+	test("rolls back to blocked when add-item fails", async () => {
+		const root = makeTempProject();
+		const { exec, calls } = recordingExec([
+			{ code: 0, stdout: "\n", stderr: "" }, // active: none
+			{ code: 0, stdout: "", stderr: "" }, // guard
+			{ code: 0, stdout: "", stderr: "" }, // create-run
+			{ code: 1, stdout: "", stderr: "DL-002 is not proposed" }, // add-item fails
+			{ code: 0, stdout: "", stderr: "" }, // rollback: set-status blocked
+		]);
+		const result = await startRun(exec, root, ["DL-001", "DL-002", "test"]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("blocked");
+			expect(result.error).toContain("DL-002");
+		}
+		// The rollback call happened
+		expect(calls).toHaveLength(5);
+	});
+
+	test("critical message when the rollback itself fails", async () => {
+		const root = makeTempProject();
+		const { exec } = recordingExec([
+			{ code: 0, stdout: "\n", stderr: "" }, // active: none
+			{ code: 0, stdout: "", stderr: "" }, // guard
+			{ code: 0, stdout: "", stderr: "" }, // create-run
+			{ code: 1, stdout: "", stderr: "not proposed" }, // add-item fails
+			{ code: 1, stdout: "", stderr: "invalid transition" }, // rollback fails too
+		]);
+		const result = await startRun(exec, root, ["DL-001", "test"]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("CRITICAL");
+	});
+});

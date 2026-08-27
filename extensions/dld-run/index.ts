@@ -2,18 +2,15 @@ import type { ExecResult, ExtensionAPI, ExtensionCommandContext, ExtensionContex
 import { formatDoctorReport, runDoctor } from "./doctor.ts";
 import { LoopController, type LoopContext, type LoopUi } from "./loop.ts";
 import { boardLines, statusLine, widgetLines } from "../dld-core/render.ts";
-import { parseStartArgs } from "../dld-core/parse-start-args.ts";
+
 import {
 	activeRun as apiActiveRun,
 	resumableRun as apiResumableRun,
 	guardPreconditions as apiGuardPreconditions,
-	createRun as apiCreateRun,
-	addItem as apiAddItem,
-	setRunStatus as apiSetRunStatus,
+	startRun as apiStartRun,
 	pauseRun as apiPauseRun,
 	resumeRun as apiResumeRun,
 	stopRun as apiStopRun,
-	appendRunEvent as apiAppendRunEvent,
 } from "../dld-core/run-api.ts";
 import { activeMinutes, readEventsFrom, readRunFrom } from "../dld-core/run-state.ts";
 
@@ -240,40 +237,15 @@ async function handleGoalCommand(
 
 	switch (sub) {
 		case "start": {
-			const existing = await resolveSlug();
-			if (existing) {
-				ctx.ui.notify(`A run is already active: ${existing}`, "warning");
-				return;
-			}
-			const parsed = parseStartArgs(args.trim().replace(/^start\s*/, "").split(/\s+/).filter(Boolean));
-			if (!("slug" in parsed)) {
-				ctx.ui.notify(parsed.error, "warning");
-				return;
-			}
-			// Preconditions first: dirty tree, active run, non-proposed decisions,
-			// and ID collisions all refuse before anything is created.
 			const root = await projectRoot(ctx);
-			const guard = await apiGuardPreconditions(exec, root, "start", ["--decisions", parsed.decisionIds.join(",")]);
-			if (!guard.ok) {
-				ctx.ui.notify(guard.error, "error");
+			const startArgs = args.trim().replace(/^start\s*/, "").split(/\s+/).filter(Boolean);
+			const result = await apiStartRun(exec, root, startArgs);
+			if (!result.ok) {
+				ctx.ui.notify(result.error, "error");
 				return;
-			}
-			const created = await apiCreateRun(exec, root, parsed.slug, parsed.title);
-			if (!created.ok) {
-				ctx.ui.notify(created.error, "error");
-				return;
-			}
-			for (const id of parsed.decisionIds) {
-				const added = await apiAddItem(exec, root, parsed.slug, id);
-				if (!added.ok) {
-					// Roll back: a half-populated run must not go live.
-					await apiSetRunStatus(exec, root, parsed.slug, "blocked");
-					ctx.ui.notify(`Run created but item ${id} failed: ${added.error} The run is blocked; add the missing items manually or recreate it.`, "error");
-					return;
-				}
 			}
 			loop.resume();
-			ctx.ui.notify(`Started run ${parsed.slug} · ${parsed.decisionIds.length} item${parsed.decisionIds.length === 1 ? "" : "s"} · ${parsed.title}`, "info");
+			ctx.ui.notify(`Started run ${result.slug} · ${result.itemCount} item${result.itemCount === 1 ? "" : "s"}`, "info");
 			scheduleContinuation(ctx);
 			return;
 		}
