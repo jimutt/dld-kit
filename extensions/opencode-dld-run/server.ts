@@ -403,11 +403,16 @@ export default Plugin.define({
 					// First suppression: re-deliver once. The previous turn ended
 					// without advancing the item — maybe a rate limit, maybe a
 					// question. One more chance, then the loop speaks up.
-					await ctx.session.prompt({
-						sessionID,
-						text: dispatchText(slug, next.index, item),
-					});
-					guard.record(sessionID, dispatchKey);
+					try {
+						await ctx.session.prompt({
+							sessionID,
+							text: dispatchText(slug, next.index, item),
+						});
+						guard.record(sessionID, dispatchKey);
+					} catch {
+						// Prompt failed — clear so the next event retries fresh.
+						guard.clearSession(sessionID);
+					}
 					continue;
 				}
 				if (verdict === "wedged") {

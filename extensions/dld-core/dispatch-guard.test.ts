@@ -47,6 +47,29 @@ describe("DispatchGuard", () => {
 		guard.record("s1", "run:1");
 		guard.clearSession("s1");
 		expect(guard.classify("s1", "run:1")).toBe("new");
+		// The budget is restored: record then suppress once more.
+		guard.record("s1", "run:1");
+		expect(guard.classify("s1", "run:1")).toBe("redeliver");
+	});
+
+	test("clearSession after wedge resets fully", () => {
+		const guard = new DispatchGuard();
+		guard.record("s1", "run:1");
+		guard.classify("s1", "run:1"); // redeliver
+		guard.record("s1", "run:1");
+		guard.classify("s1", "run:1"); // wedged
+		guard.clearSession("s1");
+		expect(guard.classify("s1", "run:1")).toBe("new");
+	});
+
+	test("clearSession does not clear prefix-matching sessions", () => {
+		const guard = new DispatchGuard();
+		guard.record("s1", "run:1");
+		guard.record("s12", "run:1");
+		guard.classify("s1", "run:1"); // redeliver s1 — marks s1:run:1
+		guard.clearSession("s1");       // clears s1:run:1 only
+		// s12's budget is intact: first suppression still redelivers
+		expect(guard.classify("s12", "run:1")).toBe("redeliver");
 	});
 
 	test("clear resets everything", () => {

@@ -49,12 +49,14 @@ export class DispatchGuard {
 	/** Clear a session's dispatch state — on resume, pause, or retry. */
 	clearSession(session: string): void {
 		this.lastDispatch.delete(session);
-		// Clear all re-delivery and wedge state for this session.
+		// Clear re-delivery and wedge state for this session. The key format
+		// is `${session}:${dispatchKey}` — match the session exactly.
+		const prefix = `${session}:`;
 		for (const key of this.redispatched) {
-			if (key.startsWith(`${session}:`)) this.redispatched.delete(key);
+			if (key.startsWith(prefix)) this.redispatched.delete(key);
 		}
 		for (const key of this.wedged) {
-			if (key.startsWith(`${session}:`)) this.wedged.delete(key);
+			if (key.startsWith(prefix)) this.wedged.delete(key);
 		}
 	}
 
