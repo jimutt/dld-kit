@@ -13,9 +13,9 @@ The repository has two test layers with a runner each. They cover different code
 
 ### Pi extension (bun)
 
-- Tests run with `bun test` and live beside the code they cover, as `*.test.ts` in `extensions/dld-run/`. Pi loads only `index.ts` from an extension directory, so colocated tests are never loaded as extensions.
+- Tests run with `bun test` and live beside the code they cover, as `*.test.ts` in `extensions/pi-dld-run/`. Pi loads only `index.ts` from an extension directory, so colocated tests are never loaded as extensions.
 - The extension is typechecked with `npx tsc --noEmit`, which requires `npm install` for the pi type definitions. Typecheck is part of the definition of done, not an optional extra — it is the only mechanism that catches a drift between our assumptions and the real pi API.
-- Tests exercise the extension through the fake in `extensions/dld-run/testing/fake-pi.ts`, never a live harness.
+- Tests exercise the extension through the fake in `extensions/pi-dld-run/testing/fake-pi.ts`, never a live harness.
 - The fake's surface is declared with `Pick<ExtensionAPI, ...>` and assigned without type assertions, so the compiler rejects a fake that no longer matches pi. Do not reach for `as` to silence a mismatch — it converts a compile error into a runtime `TypeError`. Where a partial object genuinely cannot be typed (a context object standing in for a large interface), confine the assertion and comment why.
 - Prefer dependency injection over module-level side effects, so failure branches are reachable from tests. A check that can only read the real filesystem can only ever be tested in the happy case.
 
