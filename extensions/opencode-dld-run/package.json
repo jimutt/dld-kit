@@ -1,0 +1,17 @@
+{
+	"name": "opencode-dld-run",
+	"version": "0.9.0",
+	"private": true,
+	"type": "module",
+	"description": "OpenCode plugin for dld-run: the goal-loop driver and its TUI surfaces.",
+	"exports": {
+		".": "./server.ts",
+		"./tui": "./tui.tsx"
+	},
+	"peerDependencies": {
+		"@opencode-ai/plugin": "beta",
+		"@opentui/core": ">=0.5.8",
+		"@opentui/solid": ">=0.5.8",
+		"solid-js": ">=1.9.0"
+	}
+}

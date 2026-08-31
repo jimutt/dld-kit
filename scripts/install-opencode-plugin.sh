@@ -29,11 +29,13 @@ if [[ ! -d .git ]]; then
 	exit 1
 fi
 
-SERVER_SRC="$DLD_KIT/extensions/opencode-dld-run/server.ts"
-TUI_SRC="$DLD_KIT/extensions/opencode-dld-run/tui.tsx"
+PLUGIN_SRC="$DLD_KIT/extensions/opencode-dld-run"
+SERVER_SRC="$PLUGIN_SRC/server.ts"
+TUI_SRC="$PLUGIN_SRC/tui.tsx"
+MANIFEST_SRC="$PLUGIN_SRC/package.json"
 GUARD_SRC="$DLD_KIT/skills/dld-run/scripts/guard-preconditions.sh"
 
-for f in "$SERVER_SRC" "$TUI_SRC" "$GUARD_SRC"; do
+for f in "$SERVER_SRC" "$TUI_SRC" "$MANIFEST_SRC" "$GUARD_SRC"; do
 	[[ -f "$f" ]] || { echo "Error: missing $f — is $DLD_KIT a dld-kit checkout?" >&2; exit 1; }
 done
 
@@ -45,23 +47,34 @@ if [[ ! -d "$DLD_KIT/node_modules/@opencode-ai/plugin" ]]; then
 fi
 
 PLUGIN_DIR=".opencode/plugins"
-TUI_DIR="$PLUGIN_DIR/tui"
-mkdir -p "$TUI_DIR"
+mkdir -p "$PLUGIN_DIR"
 
-# Clean up after the older copy-and-patch installer, whose copied dld-core
-# shadowed the real one and resolved packageRoot() to the project root.
-rm -rf .opencode/dld-core
-[[ -L "$PLUGIN_DIR/dld-run.ts" ]] || rm -f "$PLUGIN_DIR/dld-run.ts"
-[[ -L "$TUI_DIR/dld-run.tsx" ]] || rm -f "$TUI_DIR/dld-run.tsx"
+# OpenCode discovers loose .ts files and immediate plugin *package*
+# directories under .opencode/plugins/. Only a package exposing a "./tui"
+# export gets its CLI plugin loaded, so the whole directory is linked as one
+# package rather than the two files being dropped in individually — a stray
+# tui.tsx under plugins/ is never discovered, which is why the run had no UI
+# surfaces.
+rm -rf .opencode/dld-core "$PLUGIN_DIR/tui"
+rm -f "$PLUGIN_DIR/dld-run.ts"
+rm -rf "$PLUGIN_DIR/dld-run"
 
-ln -sfn "$SERVER_SRC" "$PLUGIN_DIR/dld-run.ts"
-ln -sfn "$TUI_SRC" "$TUI_DIR/dld-run.tsx"
+ln -sfn "$PLUGIN_SRC" "$PLUGIN_DIR/dld-run"
 
 # Verify rather than assume: load the plugin the way OpenCode will, then ask
 # dld-core where it thinks its scripts live. A silent misresolution here is
 # what made the previous installer's failure so hard to diagnose.
 echo "Verifying resolution through the symlink..."
-bun -e "await import('$PWD/$PLUGIN_DIR/dld-run.ts');" >/dev/null || {
+bun -e "
+const server = await import('$PWD/$PLUGIN_DIR/dld-run/server.ts');
+const tui = await import('$PWD/$PLUGIN_DIR/dld-run/tui.tsx');
+for (const [name, mod] of [['server', server], ['tui', tui]]) {
+	const def = mod.default;
+	if (typeof def?.id !== 'string' || typeof def?.setup !== 'function') {
+		throw new Error(name + ' export is not a { id, setup } plugin definition');
+	}
+}
+" >/dev/null || {
 	echo "Error: the symlinked plugin failed to load." >&2
 	exit 1
 }
@@ -83,8 +96,8 @@ case "$RESOLVED" in
 esac
 
 echo "dld-run plugin installed:"
-echo "  server: $PROJECT/$PLUGIN_DIR/dld-run.ts -> $SERVER_SRC"
-echo "  tui:    $PROJECT/$TUI_DIR/dld-run.tsx -> $TUI_SRC"
+echo "  package: $PROJECT/$PLUGIN_DIR/dld-run -> $PLUGIN_SRC"
+echo "           . -> server.ts (server runtime), ./tui -> tui.tsx (CLI surfaces)"
 echo
 echo "Plugins load in OpenCode's background service, not the TUI. If a running"
 echo "session does not pick this up, restart the service:"
