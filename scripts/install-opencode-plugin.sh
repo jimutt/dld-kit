@@ -82,23 +82,28 @@ esac
 # one-line re-exports of the modules in dld-kit, so the code still has exactly
 # one home and edits there take effect on reload.
 rm -rf .opencode/dld-core "$PLUGIN_DIR/tui"
-rm -f "$PLUGIN_DIR/dld-run.ts" "$PKG_DIR/package.json" "$PKG_DIR/server.ts" "$PKG_DIR/tui.tsx"
+rm -f "$PLUGIN_DIR/dld-run.ts" "$PKG_DIR/package.json" "$PKG_DIR/index.ts" "$PKG_DIR/server.ts" "$PKG_DIR/tui.tsx"
 
+# The server entrypoint must be index.ts. A plugin directory is resolved by
+# its index file, not by package.json "main" or "exports" — pointing those at
+# server.ts produced "configured plugin directory has no index entrypoint"
+# and the plugin was dropped from the location's plugin set entirely, while
+# still logging a "loading plugin" line.
 cat > "$PKG_DIR/package.json" <<'MANIFEST'
 {
 	"name": "opencode-dld-run",
 	"version": "0.9.0",
 	"private": true,
 	"type": "module",
-	"main": "./server.ts",
+	"main": "./index.ts",
 	"exports": {
-		".": "./server.ts",
+		".": "./index.ts",
 		"./tui": "./tui.tsx"
 	}
 }
 MANIFEST
 
-printf 'export { default } from "%s";\n' "$SERVER_SRC" > "$PKG_DIR/server.ts"
+printf 'export { default } from "%s";\n' "$SERVER_SRC" > "$PKG_DIR/index.ts"
 printf 'export { default } from "%s";\n' "$TUI_SRC" > "$PKG_DIR/tui.tsx"
 
 # Belt and braces: also register the package explicitly. Auto-discovery of
@@ -131,7 +136,7 @@ fi
 # what made the previous installer's failure so hard to diagnose.
 echo "Verifying the installed package loads..."
 bun -e "
-const server = await import('$PWD/$PKG_DIR/server.ts');
+const server = await import('$PWD/$PKG_DIR/index.ts');
 const tui = await import('$PWD/$PKG_DIR/tui.tsx');
 for (const [name, mod] of [['server', server], ['tui', tui]]) {
 	const def = mod.default;
@@ -162,7 +167,7 @@ esac
 
 echo "dld-run plugin installed:"
 echo "  package: $PROJECT/$PKG_DIR (re-exports $PLUGIN_SRC)"
-echo "           .     -> server.ts (server runtime)"
+echo "           .     -> index.ts (server runtime)"
 echo "           ./tui -> tui.tsx  (CLI surfaces)"
 echo
 echo "Plugins load in OpenCode's background service, not the TUI. If a running"
