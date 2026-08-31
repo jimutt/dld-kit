@@ -10,6 +10,11 @@ import type { RunState, WorkItem } from "./run-state.ts";
 
 const WIDGET_HEIGHT = 5;
 
+// The sidebar is a fixed width in practice. Rows are laid out to fit inside
+// it: a row that overflows wraps, which puts the status on its own line and
+// reads as a rendering bug.
+const WIDGET_WIDTH = 34;
+
 function elapsedLabel(state: RunState, activeMinutes?: number): string {
 	// Active time is what the bound measures; wall-clock since creation counts
 	// overnight pauses, which is why a resumed run showed 703m of nothing.
@@ -56,7 +61,20 @@ export function widgetLines(state: RunState, activeMinutes?: number): string[] {
 	const items = state.items;
 	const total = items.length;
 	const done = items.filter((i) => i.status === "accepted" || i.status === "skipped").length;
-	const header = `dld-run ${state.slug} ─── ${done}/${total} · ${elapsedLabel(state, activeMinutes)}`;
+	// Keep the header on one line, shedding the least useful detail first: the
+	// bound suffix on the elapsed label goes before the slug, which is the
+	// run's identity and the last thing worth losing.
+	const headerFor = (slug: string, elapsed: string) => `dld-run ${slug} ─── ${done}/${total} · ${elapsed}`;
+	const elapsed = elapsedLabel(state, activeMinutes);
+	let header = headerFor(state.slug, elapsed);
+	if (header.length > WIDGET_WIDTH) {
+		header = headerFor(state.slug, elapsed.replace(/\/.*$/, ""));
+	}
+	if (header.length > WIDGET_WIDTH) {
+		const over = header.length - WIDGET_WIDTH;
+		const slug = `${state.slug.slice(0, Math.max(1, state.slug.length - over - 1))}…`;
+		header = headerFor(slug, elapsed.replace(/\/.*$/, ""));
+	}
 
 	if (total === 0) {
 		return [header, "  no items yet", "", "", ""];
@@ -81,11 +99,23 @@ export function widgetLines(state: RunState, activeMinutes?: number): string[] {
 	}
 
 	const lines = [header];
-	for (const item of windowItems) {
-		const ids = decisionIds(item);
-		const label = `${itemIcon(item.status)} ${item.index}  ${ids || "—"}`;
-		const right = item.status === "accepted" ? "accepted" : item.status;
-		lines.push(`  ${label.padEnd(28)} ${right}`);
+	const rows = windowItems.map((item) => ({
+		label: `${itemIcon(item.status)} ${item.index}  ${decisionIds(item) || "—"}`,
+		right: item.status === "accepted" ? "accepted" : item.status,
+	}));
+
+	// One label column for the window, wide enough for its longest label but
+	// never so wide that the status is pushed past the sidebar edge. A fixed
+	// column was both wasteful for short IDs and overflowing for long ones.
+	const widestRight = Math.max(...rows.map((r) => r.right.length));
+	const budget = WIDGET_WIDTH - 2 - 1 - widestRight;
+	const labelWidth = Math.max(1, Math.min(Math.max(...rows.map((r) => r.label.length)), budget));
+
+	for (const row of rows) {
+		const label = row.label.length > labelWidth
+			? `${row.label.slice(0, Math.max(0, labelWidth - 1))}…`
+			: row.label.padEnd(labelWidth);
+		lines.push(`  ${label} ${row.right}`);
 	}
 	while (lines.length < WIDGET_HEIGHT - (reserveMore ? 1 : 0)) lines.push("");
 	if (reserveMore) {
