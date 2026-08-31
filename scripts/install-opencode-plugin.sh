@@ -48,7 +48,28 @@ fi
 
 PLUGIN_DIR=".opencode/plugins"
 PKG_DIR="$PLUGIN_DIR/dld-run"
+
+# A previous version of this installer linked $PKG_DIR straight at dld-kit's
+# extension directory. Writing into a path that is a symlink to a directory
+# resolves through it, so removing and rewriting "the plugin's files" would
+# delete and overwrite dld-kit's own sources. Drop the link itself first, and
+# only then create a real directory.
+[[ -L "$PKG_DIR" ]] && rm -f "$PKG_DIR"
+[[ -L "$PLUGIN_DIR" ]] && rm -f "$PLUGIN_DIR"
+
 mkdir -p "$PKG_DIR"
+
+# Belt and braces for the same class of mistake: never write into anything
+# that resolves inside the dld-kit checkout.
+PKG_REAL="$(cd "$PKG_DIR" && pwd -P)"
+KIT_REAL="$(cd "$DLD_KIT" && pwd -P)"
+case "$PKG_REAL/" in
+	"$KIT_REAL"/*)
+		echo "Error: $PKG_DIR resolves to $PKG_REAL, inside the dld-kit checkout." >&2
+		echo "Refusing to write there — remove that path and re-run." >&2
+		exit 1
+		;;
+esac
 
 # Only a package exposing a "./tui" export gets its CLI plugin loaded, so the
 # plugin is installed as a package directory rather than as loose files: a
