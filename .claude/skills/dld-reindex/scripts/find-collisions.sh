@@ -25,7 +25,13 @@ if ! git -C "$PROJECT_ROOT" rev-parse --verify --quiet "$BASE^{commit}" >/dev/nu
   exit 1
 fi
 
-TAKEN=$(bash "$SCRIPT_DIR/list-taken-ids.sh" --base "$BASE")
+# @decision(DL-025)
+# Collision detection asks the narrow question: which claims conflict with
+# mine? Decisions already in this branch's history are mine, however they got
+# here — including via a PR this branch is stacked on. They stay taken for ID
+# allocation, which is why the filter is requested here rather than baked into
+# list-taken-ids.sh.
+TAKEN=$(bash "$SCRIPT_DIR/list-taken-ids.sh" --base "$BASE" --exclude-contained)
 
 LOCAL_ADDED=$(git -C "$PROJECT_ROOT" diff --name-only --diff-filter=A "$BASE"...HEAD -- "$RECORDS_DIR_REL" 2>/dev/null || true)
 
