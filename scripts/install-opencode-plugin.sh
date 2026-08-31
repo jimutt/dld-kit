@@ -47,27 +47,71 @@ if [[ ! -d "$DLD_KIT/node_modules/@opencode-ai/plugin" ]]; then
 fi
 
 PLUGIN_DIR=".opencode/plugins"
-mkdir -p "$PLUGIN_DIR"
+PKG_DIR="$PLUGIN_DIR/dld-run"
+mkdir -p "$PKG_DIR"
 
-# OpenCode discovers loose .ts files and immediate plugin *package*
-# directories under .opencode/plugins/. Only a package exposing a "./tui"
-# export gets its CLI plugin loaded, so the whole directory is linked as one
-# package rather than the two files being dropped in individually — a stray
-# tui.tsx under plugins/ is never discovered, which is why the run had no UI
-# surfaces.
+# Only a package exposing a "./tui" export gets its CLI plugin loaded, so the
+# plugin is installed as a package directory rather than as loose files: a
+# stray tui.tsx under plugins/ is never discovered, which is why the run had
+# no UI surfaces.
+#
+# The directory and its files are real, not symlinks. A symlinked plugin
+# *directory* is skipped by directory discovery (a symlink is not a directory
+# to readdir), even though a symlinked loose file is picked up. The files are
+# one-line re-exports of the modules in dld-kit, so the code still has exactly
+# one home and edits there take effect on reload.
 rm -rf .opencode/dld-core "$PLUGIN_DIR/tui"
-rm -f "$PLUGIN_DIR/dld-run.ts"
-rm -rf "$PLUGIN_DIR/dld-run"
+rm -f "$PLUGIN_DIR/dld-run.ts" "$PKG_DIR/package.json" "$PKG_DIR/server.ts" "$PKG_DIR/tui.tsx"
 
-ln -sfn "$PLUGIN_SRC" "$PLUGIN_DIR/dld-run"
+cat > "$PKG_DIR/package.json" <<'MANIFEST'
+{
+	"name": "opencode-dld-run",
+	"version": "0.9.0",
+	"private": true,
+	"type": "module",
+	"main": "./server.ts",
+	"exports": {
+		".": "./server.ts",
+		"./tui": "./tui.tsx"
+	}
+}
+MANIFEST
+
+printf 'export { default } from "%s";\n' "$SERVER_SRC" > "$PKG_DIR/server.ts"
+printf 'export { default } from "%s";\n' "$TUI_SRC" > "$PKG_DIR/tui.tsx"
+
+# Belt and braces: also register the package explicitly. Auto-discovery of
+# .opencode/plugins/ is documented, but an explicit entry is what the docs
+# guarantee for "configured plugins that expose a TUI component are loaded
+# automatically by the CLI". Paths resolve relative to the config file.
+CONFIG=".opencode/opencode.json"
+if [[ -f "$CONFIG" ]]; then
+	if command -v jq >/dev/null 2>&1; then
+		if ! jq -e '(.plugins // []) | index("./plugins/dld-run")' "$CONFIG" >/dev/null 2>&1; then
+			tmp="$(mktemp)"
+			jq '.plugins = ((.plugins // []) + ["./plugins/dld-run"] | unique)' "$CONFIG" > "$tmp" && mv "$tmp" "$CONFIG"
+			echo "  registered ./plugins/dld-run in $CONFIG"
+		fi
+	else
+		echo "  note: jq not found — add \"./plugins/dld-run\" to \"plugins\" in $CONFIG yourself" >&2
+	fi
+else
+	cat > "$CONFIG" <<'CONFIGJSON'
+{
+	"$schema": "https://opencode.ai/config.json",
+	"plugins": ["./plugins/dld-run"]
+}
+CONFIGJSON
+	echo "  wrote $CONFIG registering ./plugins/dld-run"
+fi
 
 # Verify rather than assume: load the plugin the way OpenCode will, then ask
 # dld-core where it thinks its scripts live. A silent misresolution here is
 # what made the previous installer's failure so hard to diagnose.
-echo "Verifying resolution through the symlink..."
+echo "Verifying the installed package loads..."
 bun -e "
-const server = await import('$PWD/$PLUGIN_DIR/dld-run/server.ts');
-const tui = await import('$PWD/$PLUGIN_DIR/dld-run/tui.tsx');
+const server = await import('$PWD/$PKG_DIR/server.ts');
+const tui = await import('$PWD/$PKG_DIR/tui.tsx');
 for (const [name, mod] of [['server', server], ['tui', tui]]) {
 	const def = mod.default;
 	if (typeof def?.id !== 'string' || typeof def?.setup !== 'function') {
@@ -96,8 +140,9 @@ case "$RESOLVED" in
 esac
 
 echo "dld-run plugin installed:"
-echo "  package: $PROJECT/$PLUGIN_DIR/dld-run -> $PLUGIN_SRC"
-echo "           . -> server.ts (server runtime), ./tui -> tui.tsx (CLI surfaces)"
+echo "  package: $PROJECT/$PKG_DIR (re-exports $PLUGIN_SRC)"
+echo "           .     -> server.ts (server runtime)"
+echo "           ./tui -> tui.tsx  (CLI surfaces)"
 echo
 echo "Plugins load in OpenCode's background service, not the TUI. If a running"
 echo "session does not pick this up, restart the service:"
