@@ -680,3 +680,54 @@ describe("commands", () => {
 		expect(pi.notifications.some((n) => n.message === "No active run.")).toBe(true);
 	});
 });
+
+describe("dispatch guard", () => {
+	test("re-delivers once when the item doesn't advance, then wedges", async () => {
+		const pi = makePi();
+		writeState("payments", activeState());
+		installStatefulScripts(pi, "payments");
+		pi.onExec({ command: "bash", argsContain: ["next-item.sh"] }, { stdout: "1\n", code: 0 });
+		dldGoalExtension(pi.api);
+
+		// First dispatch
+		await pi.emit("agent_end", {});
+		await settle();
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(1);
+
+		// Second agent_end with the same item: re-delivers once
+		await pi.emit("agent_end", {});
+		await settle();
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(2);
+
+		// Third agent_end: wedged — no dispatch, warning instead
+		await pi.emit("agent_end", {});
+		await settle();
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation")).toHaveLength(2);
+		expect(pi.notifications.some((n) => n.message.includes("appears wedged"))).toBe(true);
+	});
+
+	test("invalidation clears the guard so a resumed run dispatches fresh", async () => {
+		const pi = makePi();
+		writeState("payments", activeState());
+		installStatefulScripts(pi, "payments");
+		pi.onExec({ command: "bash", argsContain: ["next-item.sh"] }, { stdout: "1\n", code: 0 });
+		dldGoalExtension(pi.api);
+
+		// Dispatch, re-deliver, wedge
+		await pi.emit("agent_end", {});
+		await settle();
+		await pi.emit("agent_end", {});
+		await settle();
+		await pi.emit("agent_end", {});
+		await settle();
+		expect(pi.notifications.some((n) => n.message.includes("appears wedged"))).toBe(true);
+
+		// Pause + resume clears the guard
+		await pi.invokeCommand("dld-run", "pause");
+		await pi.invokeCommand("dld-run", "resume");
+		await pi.emit("agent_end", {});
+		await settle();
+		// Fresh dispatch after resume
+		expect(pi.messages.filter((m) => m.customType === "dld-run:continuation").length).toBeGreaterThan(2);
+	});
+});
