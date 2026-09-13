@@ -82,11 +82,27 @@ describe("widgetLines", () => {
 		expect(lines.some((l) => l.includes("▸ 28") || l.includes("28"))).toBe(true);
 	});
 
-	test("every line is short enough for a narrow terminal", () => {
+	test("every line fits the sidebar", () => {
 		const many = Array.from({ length: 30 }, (_, i) => item(i + 1, "pending", [`DL-${i}`]));
 		for (const line of widgetLines(stateWith(many))) {
-			expect(line.length).toBeLessThanOrEqual(60);
+			expect(line.length).toBeLessThanOrEqual(34);
 		}
+	});
+
+	test("the bound suffix is shed before the slug is touched", () => {
+		const state = stateWith([item(1, "verifying", ["DL-001"])], { slug: "dl-001-008" });
+		const header = widgetLines(state)[0]!;
+		expect(header.length).toBeLessThanOrEqual(34);
+		expect(header).toContain("dl-001-008");
+		expect(header).not.toContain("/120m");
+	});
+
+	test("a slug too long even without the bound is truncated", () => {
+		const state = stateWith([item(1, "verifying", ["DL-001"])], { slug: "a-rather-long-run-slug" });
+		const header = widgetLines(state)[0]!;
+		expect(header.length).toBeLessThanOrEqual(34);
+		expect(header).toContain("…");
+		expect(header).toContain("a-rather");
 	});
 });
 
@@ -138,5 +154,42 @@ describe("boardLines", () => {
 		expect(lines.join("\n")).toContain("item 2 · DL-011 · blocked");
 		expect(lines.join("\n")).toContain("which sandbox?");
 		expect(lines.join("\n")).toContain("esc to close");
+	});
+});
+
+describe("widgetLines row width", () => {
+	// The sidebar is a fixed width. A row wider than it wraps, which puts the
+	// status on a line of its own and reads as a layout bug.
+	const WIDTH = 34;
+
+	test("rows keep the status on the label's line", () => {
+		const state = stateWith([
+			item(1, "accepted", ["DL-004"]),
+			item(2, "verifying", ["DL-005"]),
+			item(3, "pending", ["DL-006"]),
+		]);
+		for (const line of widgetLines(state)) {
+			expect(line.length).toBeLessThanOrEqual(WIDTH);
+		}
+	});
+
+	test("long decision lists are truncated, not wrapped", () => {
+		const state = stateWith([
+			item(1, "implementing", ["DL-001", "DL-002", "DL-003"]),
+			item(2, "pending", ["DL-004"]),
+		]);
+		const lines = widgetLines(state);
+		for (const line of lines) {
+			expect(line.length).toBeLessThanOrEqual(WIDTH);
+		}
+		expect(lines.some((l) => l.includes("…") && l.includes("implementing"))).toBe(true);
+	});
+
+	test("the label column tracks the window, not a fixed gutter", () => {
+		const state = stateWith([item(1, "accepted", ["DL-004"]), item(2, "pending", ["DL-005"])]);
+		const rows = widgetLines(state).slice(1).filter((l) => l.trim().length > 0);
+		// A fixed 28-column gutter produced rows of 39 characters for IDs this
+		// short; sized to the window they come in well under the sidebar width.
+		for (const row of rows) expect(row.length).toBeLessThan(28);
 	});
 });
