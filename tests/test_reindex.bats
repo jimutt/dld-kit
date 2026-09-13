@@ -707,3 +707,108 @@ EOF
   run grep -c "DL-005\|DL-006" decisions/INDEX.md
   refute_output "0"
 }
+
+# --- list-taken-ids.sh: open-PR ancestry (DL-025) -----------------------------
+#
+# These need a GitHub-looking remote and a `gh` on PATH. The fake gh ignores
+# --jq and prints the TSV the real one would produce, which is what the script
+# consumes.
+
+fake_gh() {
+  # $1: TSV lines for `gh pr list` (may be empty)
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat > "$BATS_TEST_TMPDIR/bin/gh" <<EOF
+#!/usr/bin/env bash
+case "\$1" in
+  auth) exit 0 ;;
+  pr) printf '%s' '$1' ;;
+  *) exit 0 ;;
+esac
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/gh"
+  git remote add origin https://github.com/acme/repo.git 2>/dev/null || true
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+  export PATH
+}
+
+@test "list-taken-ids: a stacked PR's IDs are still taken by default" {
+  # They are in this branch's tree, so ID allocation must not reuse them.
+  git checkout -b decisions --quiet
+  create_decision "DL-002" "proposed"
+  git add -A && git commit --quiet -m "add DL-002"
+  git update-ref refs/remotes/origin/decisions HEAD
+  git checkout -b slice --quiet
+
+  fake_gh "decisions	decisions/records/DL-002.md
+"
+  run bash "$REINDEX_DIR/list-taken-ids.sh" --base main
+  assert_success
+  assert_output --partial "DL-002"
+}
+
+@test "list-taken-ids: --exclude-contained drops a stacked PR's IDs" {
+  git checkout -b decisions --quiet
+  create_decision "DL-002" "proposed"
+  git add -A && git commit --quiet -m "add DL-002"
+  git update-ref refs/remotes/origin/decisions HEAD
+  git checkout -b slice --quiet
+
+  fake_gh "decisions	decisions/records/DL-002.md
+"
+  run bash "$REINDEX_DIR/list-taken-ids.sh" --base main --exclude-contained
+  assert_success
+  refute_output --partial "DL-002"
+  assert_output --partial "DL-001"
+}
+
+@test "find-collisions: a stacked PR's decisions are not collisions" {
+  git checkout -b decisions --quiet
+  create_decision "DL-002" "proposed"
+  git add -A && git commit --quiet -m "add DL-002"
+  git update-ref refs/remotes/origin/decisions HEAD
+  git checkout -b slice --quiet
+
+  fake_gh "decisions	decisions/records/DL-002.md
+"
+  run bash "$REINDEX_DIR/find-collisions.sh" --base main
+  assert_success
+  refute_output --partial "DL-002"
+}
+
+@test "list-taken-ids: an unrelated PR's IDs are taken" {
+  # other branch is published but is not in this branch's history.
+  git checkout -b other --quiet
+  create_decision "DL-003" "proposed"
+  git add -A && git commit --quiet -m "add DL-003"
+  git update-ref refs/remotes/origin/other HEAD
+  git checkout feature --quiet
+
+  fake_gh "other	decisions/records/DL-003.md
+"
+  run bash "$REINDEX_DIR/list-taken-ids.sh" --base main --exclude-contained
+  assert_success
+  assert_output --partial "DL-003"
+}
+
+@test "list-taken-ids: an unfetched PR head is treated as foreign" {
+  # No refs/remotes/origin/ghost exists, so ancestry can't be established and
+  # the IDs stay in the taken set rather than being silently dropped.
+  fake_gh "ghost	decisions/records/DL-004.md
+"
+  run bash "$REINDEX_DIR/list-taken-ids.sh" --base main --exclude-contained
+  assert_success
+  assert_output --partial "DL-004"
+}
+
+@test "list-taken-ids: the current branch's own PR is not taken" {
+  git checkout -b mine --quiet
+  create_decision "DL-005" "proposed"
+  git add -A && git commit --quiet -m "add DL-005"
+  git update-ref refs/remotes/origin/mine HEAD
+
+  fake_gh "mine	decisions/records/DL-005.md
+"
+  run bash "$REINDEX_DIR/list-taken-ids.sh" --base main --exclude-contained
+  assert_success
+  refute_output --partial "DL-005"
+}

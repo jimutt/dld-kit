@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Output the set of decision IDs taken on the base branch and (best-effort) open PRs.
 # One DL-NNN per line, sorted unique.
-# Usage: list-taken-ids.sh [--base <ref>]
+# Usage: list-taken-ids.sh [--base <ref>] [--exclude-contained]
+#
+# --exclude-contained drops PRs whose head branch is already an ancestor of
+# HEAD. Those IDs are still *taken* — they are in this branch's tree — so the
+# flag is off by default and the plain output stays a faithful answer to "which
+# IDs are claimed anywhere", which is what ID allocation needs. Callers asking
+# the narrower question "which claims conflict with mine" opt in.
 # Default base: origin/main
 # Emits a stderr note when the open-PR scan is skipped (gh missing, repo not on GitHub,
 # or gh not authenticated). Exits 0 in all those cases — the base-branch scan is the
@@ -13,9 +19,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../dld-common/scripts/common.sh"
 
 BASE="origin/main"
+EXCLUDE_CONTAINED=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --base) BASE="$2"; shift 2 ;;
+    --exclude-contained) EXCLUDE_CONTAINED=true; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -48,12 +56,36 @@ PR_BASE="${BASE#origin/}"
 
   # IDs in files touched by open PRs targeting this base. Scope to paths under
   # the records dir so an unrelated PR touching e.g. notes/DL-007-meeting.md
-  # doesn't poison the taken set. A PR whose head is the current branch is not
-  # a collision: it holds this branch's own decisions.
+  # doesn't poison the taken set.
+  #
+  # @decision(DL-025)
+  # A PR whose head is this branch holds this branch's own decisions, so it is
+  # never a competing claim.
+  #
+  # With --exclude-contained, a PR this branch is stacked on is dropped too:
+  # its head is an ancestor of HEAD, so its decisions are already in this
+  # branch's tree. That is the normal DLD workflow — decisions land as one PR,
+  # implementation branches are cut from it — and without the filter every
+  # decision such a branch exists to implement reads as a collision. It is
+  # opt-in because those IDs remain taken for allocation purposes.
+  #
+  # When the head ref is absent locally, ancestry can't be established and the
+  # PR stays in the set: an unfetched branch is treated as foreign, so a
+  # missing fetch can't silently drop a real claim.
   if [[ -z "$SKIP_REASON" ]]; then
     CURRENT_BRANCH="$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)"
-    gh pr list --state open --base "$PR_BASE" --json files,headRefName --limit 100 \
-      --jq ".[] | select(.headRefName != \"$CURRENT_BRANCH\") | .files[].path" 2>/dev/null \
+    while IFS=$'\t' read -r head path; do
+      [[ -z "$head" || -z "$path" ]] && continue
+      [[ "$head" == "$CURRENT_BRANCH" ]] && continue
+      if [[ "$EXCLUDE_CONTAINED" == true ]] \
+        && git -C "$PROJECT_ROOT" merge-base --is-ancestor "origin/$head" HEAD 2>/dev/null; then
+        continue
+      fi
+      printf '%s\n' "$path"
+    done < <(
+      gh pr list --state open --base "$PR_BASE" --json files,headRefName --limit 100 \
+        --jq '.[] | .headRefName as $h | .files[].path | [$h, .] | @tsv' 2>/dev/null || true
+    ) \
       | grep -E "^${RECORDS_DIR_REL}/" \
       | grep -oE 'DL-[0-9]+' || true
   fi

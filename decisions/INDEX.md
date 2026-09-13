@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-025 | Collision detection ignores decisions this branch already contains | accepted | dld-reindex, guards |
 | DL-024 | Deepen dld-core: unified Exec, lifecycle ops, startRun, CompletionTracker, bounds, paths, DispatchGuard | proposed | dld-run, dld-core, pi-package, opencode |
 | DL-023 | Bounded re-delivery and inline state-machine instructions in the dispatch prompt | accepted | opencode, dld-run, loop |
 | DL-022 | Create extensions/dld-core: a TypeScript-native library with a function-shaped API | accepted | dld-core, architecture, typescript |
