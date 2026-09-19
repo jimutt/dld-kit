@@ -1,0 +1,3 @@
+mode: flat
+decisions_dir: decisions
+implement_review: false

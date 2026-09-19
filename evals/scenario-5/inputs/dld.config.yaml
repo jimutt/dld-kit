@@ -1,0 +1,8 @@
+mode: flat
+decisions_dir: decisions
+
+snapshot_artifacts:
+  - title: ONBOARDING.md
+    prompt: "Write a concise onboarding guide for a new developer joining the payment service team. Summarize the key architectural choices, the authentication approach, and the most important operational concerns they should understand in their first week."
+  - title: OVERVIEW.md
+    prompt: "Provide a high-level architectural overview of the payment service."

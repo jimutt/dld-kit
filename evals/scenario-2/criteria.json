@@ -1,0 +1,66 @@
+{
+  "context": "Tests whether the agent correctly implements a proposed DLD decision by adding mandatory @decision annotations in source code at declaration level, updating the decision record's references and status, regenerating the index, running annotation verification, and proactively looking up existing @decision annotations before modifying annotated code.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "@decision annotation present",
+      "description": "Source code (src/processor.py or any new module) contains at least one `# @decision(DL-001)` annotation",
+      "max_score": 15,
+      "category": "INTENT"
+    },
+    {
+      "name": "Annotation at declaration level",
+      "description": "The `@decision(DL-001)` annotation appears on its own comment line immediately before a function or class definition, NOT on a line that also contains code or repeated on every line of the function body",
+      "max_score": 10,
+      "category": "DESIGN"
+    },
+    {
+      "name": "Bare annotation (no rationale restatement)",
+      "description": "The `@decision(DL-001)` annotation line does NOT include an inline explanation or paraphrase of the decision rationale (e.g., no '# @decision(DL-001) — because we validate input' or '# @decision(DL-001) use validate_input for safety')",
+      "max_score": 8,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "DL-001 references populated",
+      "description": "The `references` field in `decisions/records/DL-001.md` YAML frontmatter is non-empty and contains at least one path entry pointing to the annotated source file",
+      "max_score": 10,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "DL-001 status accepted",
+      "description": "`decisions/records/DL-001.md` frontmatter shows `status: accepted`",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "INDEX.md updated",
+      "description": "`decisions/INDEX.md` shows DL-001 with `status: accepted` (regenerated after the status update)",
+      "max_score": 8,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "validate_input function created",
+      "description": "A `validate_input` function (or equivalent callable) exists in the source code that checks for required fields and raises a `ValueError` with a descriptive message when validation fails",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "process_data calls validate_input first",
+      "description": "`process_data` calls `validate_input` (or equivalent) as its first statement before any transformation logic executes",
+      "max_score": 10,
+      "category": "DESIGN"
+    },
+    {
+      "name": "Verification script run",
+      "description": "`steps.md` mentions running `.tessl/skills/dld-implement/scripts/verify-annotations.sh DL-001` (or equivalent) and includes its output or outcome",
+      "max_score": 9,
+      "category": "INTENT"
+    },
+    {
+      "name": "DL-000 looked up before modifying processor",
+      "description": "`steps.md` explicitly mentions reading or looking up decision DL-000 before modifying `src/processor.py`, because the file contained a `@decision(DL-000)` annotation",
+      "max_score": 10,
+      "category": "INTEGRATION"
+    }
+  ]
+}

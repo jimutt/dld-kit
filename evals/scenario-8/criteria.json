@@ -1,0 +1,78 @@
+{
+  "context": "Tests whether the agent correctly batches tightly coupled decisions (DL-001 user model + DL-002 validation in the same file) while implementing independent decisions separately (DL-003 logging in its own file), and whether it applies @decision annotations correctly, updates decision records, and runs the verification script.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "DL-001 and DL-002 both annotated in models.py",
+      "description": "src/models.py carries annotations for BOTH DL-001 and DL-002, reflecting that they were implemented together against the same code. They may share one annotation line ('# @decision(DL-001) @decision(DL-002)') or sit on separate declarations within the file - the kit permits sharing a line but does not require it, so both forms earn full credit. Award nothing only if one of the two decisions has no annotation in this file.",
+      "max_score": 15,
+      "category": "DESIGN"
+    },
+    {
+      "name": "DL-003 in separate file",
+      "description": "src/logging_config.py contains a @decision(DL-003) annotation AND does NOT contain @decision(DL-001) or @decision(DL-002), confirming DL-003 was implemented independently",
+      "max_score": 10,
+      "category": "DESIGN"
+    },
+    {
+      "name": "DL-001 status accepted",
+      "description": "decisions/records/DL-001.md has 'status: accepted' in its YAML frontmatter",
+      "max_score": 8,
+      "category": "INTENT"
+    },
+    {
+      "name": "DL-002 status accepted",
+      "description": "decisions/records/DL-002.md has 'status: accepted' in its YAML frontmatter",
+      "max_score": 8,
+      "category": "INTENT"
+    },
+    {
+      "name": "DL-003 status accepted",
+      "description": "decisions/records/DL-003.md has 'status: accepted' in its YAML frontmatter",
+      "max_score": 8,
+      "category": "INTENT"
+    },
+    {
+      "name": "DL-001 references populated",
+      "description": "decisions/records/DL-001.md has a non-empty 'references' field in its YAML frontmatter listing at least one source path",
+      "max_score": 6,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "DL-002 references populated",
+      "description": "decisions/records/DL-002.md has a non-empty 'references' field in its YAML frontmatter listing at least one source path",
+      "max_score": 6,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "DL-003 references populated",
+      "description": "decisions/records/DL-003.md has a non-empty 'references' field in its YAML frontmatter listing at least one source path",
+      "max_score": 6,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "Annotation at declaration level",
+      "description": "In src/models.py the @decision annotation(s) appear adjacent to a class or function definition (not on a random intermediate line), and in src/logging_config.py the @decision(DL-003) annotation appears adjacent to a function or constant definition",
+      "max_score": 8,
+      "category": "DESIGN"
+    },
+    {
+      "name": "Bare annotation, no rationale restatement",
+      "description": "The @decision annotations in src/models.py and src/logging_config.py do NOT have explanatory comments restating the rationale (e.g., no 'because we need X' or 'this uses Y approach' comments paired with the annotation)",
+      "max_score": 5,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "INDEX.md regenerated",
+      "description": "decisions/INDEX.md lists all three decisions (DL-001, DL-002, DL-003) with status 'accepted'",
+      "max_score": 8,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "steps.md batching rationale",
+      "description": "steps.md exists and explicitly states that DL-001 and DL-002 were implemented together (batched) because they share the same code or types, while DL-003 was implemented separately",
+      "max_score": 12,
+      "category": "INTENT"
+    }
+  ]
+}

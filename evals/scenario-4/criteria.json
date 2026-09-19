@@ -1,0 +1,54 @@
+{
+  "context": "Tests whether the agent correctly edits an accepted, uncommitted DLD decision record by removing content cleanly (without adding negative phrasing), updating the title, and regenerating the index — all per the dld-adjust skill instructions.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "JSON columns content deleted",
+      "description": "The 'Alternatives Considered' section or any subsection discussing JSON columns is entirely absent from DL-001.md — the paragraphs mentioning JSON columns are deleted, not merely commented out",
+      "max_score": 20,
+      "category": "INTENT"
+    },
+    {
+      "name": "No negative replacement phrasing",
+      "description": "DL-001.md does NOT contain any phrase like 'decided not to use JSON', 'chose against JSON', 'rejected JSON', or any other negative restatement of the removed content",
+      "max_score": 20,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "No editorial change notes",
+      "description": "DL-001.md does NOT contain editorial annotations such as 'Updated on', 'Previously we', 'This was changed from', 'Originally', or any similar changelog-style note",
+      "max_score": 15,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "Title updated in frontmatter",
+      "description": "The YAML frontmatter of DL-001.md has title: Relational Schema for Orders Table (or equivalent quoted form)",
+      "max_score": 15,
+      "category": "INTENT"
+    },
+    {
+      "name": "Document reads coherently",
+      "description": "DL-001.md reads as a complete, coherent document with no dangling references, broken section headers, or orphaned sentences that imply content was removed",
+      "max_score": 10,
+      "category": "DESIGN"
+    },
+    {
+      "name": "INDEX.md title updated",
+      "description": "decisions/INDEX.md contains 'Relational Schema for Orders Table' as the title for DL-001 (i.e. the index was regenerated after the title change)",
+      "max_score": 10,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "INDEX.md still contains DL-001",
+      "description": "decisions/INDEX.md still lists DL-001 with status accepted and the updated title — the row was not removed",
+      "max_score": 5,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "Core decision body preserved",
+      "description": "The Decision, Context, Rationale, and Consequences sections of DL-001.md are still present and unchanged (content about the relational schema approach is intact)",
+      "max_score": 5,
+      "category": "MUST_NOT"
+    }
+  ]
+}

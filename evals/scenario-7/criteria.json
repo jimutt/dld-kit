@@ -1,0 +1,60 @@
+{
+  "context": "Tests whether the agent correctly plans a multi-decision feature using the DLD dld-plan workflow, including running next-id.sh before each decision, using printf with \\n for body content, applying a consistent kebab-case grouping tag, and regenerating INDEX.md after all decisions are created.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "Kebab-case tag applied",
+      "description": "All new decision records share a common tag in their frontmatter `tags` field that is in kebab-case format (e.g., `user-auth`, `user-authentication`, `auth-feature` — not bare `auth` or `feature`)",
+      "max_score": 17,
+      "category": "DESIGN"
+    },
+    {
+      "name": "Tag is feature-specific",
+      "description": "The shared tag is specific to the user authentication feature — it is NOT a generic tag like `feature`, `auth`, `backend`, or `general`",
+      "max_score": 10,
+      "category": "DESIGN"
+    },
+    {
+      "name": "All decisions share the same tag",
+      "description": "Every newly created decision record has the same grouping tag in its frontmatter — no new decision records are missing the tag",
+      "max_score": 10,
+      "category": "DESIGN"
+    },
+    {
+      "name": "At least two decisions created",
+      "description": "At least two new decision records exist under `decisions/records/` (e.g. DL-002.md and DL-003.md)",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "INDEX.md regenerated",
+      "description": "`decisions/INDEX.md` lists ALL decision records including every newly created decision (not just DL-001)",
+      "max_score": 17,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "New decisions status proposed",
+      "description": "All newly created decision records have `status: proposed` in their YAML frontmatter (planning stage, not yet implemented)",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "Incremental ID assignment",
+      "description": "New decision IDs are sequential starting from DL-002 (i.e., each new record gets the next available ID, not a batch of IDs chosen upfront without running next-id.sh between each)",
+      "max_score": 10,
+      "category": "REUSE"
+    },
+    {
+      "name": "DL-001 status unchanged",
+      "description": "The existing `decisions/records/DL-001.md` still has `status: accepted` — it was not modified by the planning operation",
+      "max_score": 10,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "Records have well-formed section structure",
+      "max_score": 6,
+      "description": "Each new decision record body contains the standard sections (Context, Decision, Rationale, Consequences) as real markdown headings - not a run-on paragraph, and no literal backslash-n sequences left unrendered in the file.",
+      "category": "DESIGN"
+    }
+  ]
+}

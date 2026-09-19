@@ -1,0 +1,54 @@
+{
+  "context": "Tests whether the agent correctly uses the DLD dld-decide workflow: running next-id.sh before creating a decision, using printf with \\n for newlines and %% to escape percent signs, updating the status of superseded decisions while leaving amended decisions untouched, and regenerating the index afterwards.",
+  "type": "weighted_checklist",
+  "checklist": [
+    {
+      "name": "New decision file created",
+      "description": "A new decision file DL-003.md exists in decisions/records/",
+      "max_score": 10,
+      "category": "INTENT"
+    },
+    {
+      "name": "Percent signs render literally",
+      "description": "The new decision record's body contains the literal strings '100%' and '90%' rendered correctly. Unescaped '%' in a printf format string mangles or drops surrounding text, so intact percentages are the observable evidence that %% escaping was applied.",
+      "max_score": 14,
+      "category": "EDGE_CASE"
+    },
+    {
+      "name": "DL-001 superseded status",
+      "description": "The status field in decisions/records/DL-001.md is 'superseded'",
+      "max_score": 14,
+      "category": "INTENT"
+    },
+    {
+      "name": "DL-002 status unchanged",
+      "description": "The status field in decisions/records/DL-002.md remains 'accepted' (not changed to superseded or any other value)",
+      "max_score": 14,
+      "category": "MUST_NOT"
+    },
+    {
+      "name": "INDEX.md updated",
+      "description": "decisions/INDEX.md contains a row for DL-003 and shows DL-001 with status 'superseded'",
+      "max_score": 10,
+      "category": "INTEGRATION"
+    },
+    {
+      "name": "New decision amends DL-002",
+      "max_score": 14,
+      "description": "The new decision's YAML frontmatter has an 'amends' field containing DL-002, recording the amendment relationship without changing DL-002's own status.",
+      "category": "DESIGN"
+    },
+    {
+      "name": "New decision supersedes DL-001",
+      "max_score": 12,
+      "description": "The new decision's YAML frontmatter has a 'supersedes' field containing DL-001.",
+      "category": "DESIGN"
+    },
+    {
+      "name": "Required body content present",
+      "max_score": 12,
+      "description": "The body states that Redis will handle 100% of API response caching and that cache hit rates should exceed 90% under normal load.",
+      "category": "INTENT"
+    }
+  ]
+}
