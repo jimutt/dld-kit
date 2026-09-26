@@ -21,6 +21,8 @@ cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
 
 Other agents can copy the portable skills from `skills/` into their skills directory. Install through npm, `npx skills` and plugin marketplaces arrives with 1.0.
 
+The skills need Node.js 20+ and git. Copy `dld-common` along with the others: it contains the `dld` CLI the skills run.
+
 Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
 
 ### New feature or change
@@ -250,7 +252,6 @@ The review subagent operates with limited context and may flag false positives. 
 ## Development
 
 ```bash
-git submodule update --init --recursive   # first time only, vendors bats
 bun install                               # dev dependencies (Bun is a dev tool; the CLI runs on Node 20+)
 npm run lint && npm run typecheck && npm test
 ```

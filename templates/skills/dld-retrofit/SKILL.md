@@ -1,7 +1,7 @@
 ---
 name: dld-retrofit
 description: Bootstrap DLD decisions from an existing codebase. Analyzes code to infer rationale, generates decision records, and adds `@decision` annotations.
-compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 ---
 
 # /dld-retrofit — Retrofit Decisions onto Existing Code
@@ -12,14 +12,11 @@ You are helping the developer bootstrap DLD in an existing codebase by generatin
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-{{script dld-common/scripts/next-id.sh}}
-{{script dld-common/scripts/regenerate-index.sh}}
-{{script dld-decide/scripts/create-decision.sh}}
-```
+{{dld-setup}}
+
+This skill uses: `next-id`, `regenerate-index`, `create-decision`.
 
 ## Prerequisites
 
@@ -127,12 +124,12 @@ For each approved decision:
 1. Read the relevant code to understand what it does and infer the rationale
 2. Write the decision record with Context, Decision, and Rationale sections. The **Context** should describe the problem the code solves. The **Decision** should describe what the code does. The **Rationale** should be your best inference of *why* — acknowledge when you're inferring rather than stating known facts (e.g., "likely chosen because..." or "this approach avoids...").
 3. Include a Consequences section only when trade-offs are apparent from the code
-4. Assign sequential IDs using the next-id script
-5. Create each record using the create-decision script
+4. Assign sequential IDs using `next-id`
+5. Create each record using `create-decision`
 
 ```bash
-ID=$(bash {{script dld-common/scripts/next-id.sh}})
-printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n..." | bash {{script dld-decide/scripts/create-decision.sh}} \
+ID=$({{dld}} next-id)
+printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n..." | {{dld}} create-decision \
   --id "$ID" \
   --title "Title" \
   --tags "tag1, tag2" \
@@ -153,7 +150,7 @@ Then update each decision record's `references` field directly in the YAML front
 Since the code already exists, these decisions go directly to `accepted` status:
 
 ```bash
-bash {{script dld-common/scripts/update-status.sh}} DL-NNN accepted
+{{dld}} update-status DL-NNN accepted
 ```
 
 Do this for each generated decision.
@@ -161,7 +158,7 @@ Do this for each generated decision.
 ## Step 8: Regenerate INDEX.md
 
 ```bash
-bash {{script dld-common/scripts/regenerate-index.sh}}
+{{dld}} regenerate-index
 ```
 
 ## Step 9: Summary and next steps

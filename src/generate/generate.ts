@@ -55,12 +55,18 @@ function readSupportingFile(ctx: Context, path: string, source: string): string 
 }
 
 // @decision(DL-033)
-function manifest(template: SkillTemplate, adapter: Adapter, body: string, version: string) {
+function manifest(
+  template: SkillTemplate,
+  adapter: Adapter,
+  { body, usesDld }: { body: string; usesDld: boolean },
+  version: string,
+) {
   const fields = adapter.fields.flatMap((field) => template.lines[field] ?? []);
   return [
     "---",
     ...fields,
     ...adapter.extraFrontmatter,
+    ...(usesDld ? adapter.dldFrontmatter : []),
     "metadata:",
     `  dld-kit-version: "${version}"`,
     "---",
@@ -70,16 +76,27 @@ function manifest(template: SkillTemplate, adapter: Adapter, body: string, versi
 }
 
 // @decision(DL-032)
+export interface GenerateOptions {
+  /** The templates directory as named in the generated-file notice. */
+  sourceDir?: string;
+  /**
+   * Built files added to the output, keyed `<skill>/<path>`, such as the bundled CLI at
+   * `dld-common/scripts/dld.mjs` (DL-035). Placeholders can reference them like template files.
+   */
+  extraFiles?: ReadonlyMap<string, GeneratedFile>;
+}
+
+// @decision(DL-032) @decision(DL-035)
 /**
  * Renders every skill under `templatesDir` (`<skill>/SKILL.md` plus supporting files) for
- * `adapter`. `sourceDir` is the templates directory as named in the generated-file notice.
+ * `adapter`, adding `extraFiles` to the output.
  */
 export function generateSkills(
   ctx: Context,
   templatesDir: string,
   adapter: Adapter,
   version: string,
-  sourceDir = "templates/skills",
+  { sourceDir = "templates/skills", extraFiles = new Map() }: GenerateOptions = {},
 ): GeneratedFiles {
   const skills = ctx.fs
     .readDir(templatesDir)
@@ -95,20 +112,25 @@ export function generateSkills(
     support.set(skill, files);
     for (const file of files) provided.add(`${skill}/${file}`);
   }
+  for (const path of extraFiles.keys()) {
+    if (provided.has(path)) throw new DldError(`${sourceDir}/${path}: also generated; remove it`);
+    provided.add(path);
+  }
 
   const output: GeneratedFiles = new Map();
   for (const skill of skills) {
     const path = join(templatesDir, skill, MANIFEST);
     const source = `${sourceDir}/${skill}/${MANIFEST}`;
     const template = parseTemplate(ctx.fs.readFile(path), skill, source);
-    const body = renderBody(
-      template,
-      (ref) => provided.has(`${ref.skill}/${ref.path}`),
-      (ref) => adapter.scriptRef(skill, ref),
-    );
+    const rendered = renderBody(template, {
+      exists: (ref) => provided.has(`${ref.skill}/${ref.path}`),
+      script: (ref) => adapter.scriptRef(skill, ref),
+      dld: () => adapter.dld(skill),
+      dldSetup: () => adapter.dldSetup(skill),
+    });
     if (!template.internal || adapter.internalManifest) {
       output.set(`${skill}/${MANIFEST}`, {
-        content: manifest(template, adapter, body, version),
+        content: manifest(template, adapter, rendered, version),
         mode: 0o644,
       });
     }
@@ -120,7 +142,8 @@ export function generateSkills(
       });
     }
   }
-  return output;
+  for (const [path, file] of extraFiles) output.set(path, { ...file, mode: normalMode(file.mode) });
+  return new Map([...output].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
 export interface OutputDiff {

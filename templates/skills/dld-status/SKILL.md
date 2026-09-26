@@ -8,9 +8,9 @@ compatibility: No external dependencies.
 
 You are generating a quick overview of the decision log state for the developer.
 
-## Script Paths
+## Files read
 
-This skill has no dedicated scripts. It reads decision files and state files directly:
+This skill runs no commands. It reads decision files and state files directly:
 - `dld.config.yaml` — project configuration (decisions directory, mode)
 - `decisions/records/DL-*.md` — all decision records (scan YAML frontmatter for status, tags, timestamp, namespace)
 - `decisions/.dld-state.yaml` — run tracking state for audit and snapshot (may not exist)

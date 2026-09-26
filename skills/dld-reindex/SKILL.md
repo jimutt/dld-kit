@@ -1,7 +1,7 @@
 ---
 name: dld-reindex
 description: Resolve decision ID collisions between a local branch and the base branch (and open PRs) before rebasing. Renames colliding local decisions with git mv, rewrites cross-references and annotations, then squashes branch commits into a single rebase-clean reindex commit.
-compatibility: Requires bash and git. Open-PR scanning additionally needs the `gh` CLI authenticated against a GitHub remote — the skill falls back gracefully when unavailable.
+compatibility: Requires Node.js 20+ and git. Open-PR scanning additionally needs the `gh` CLI authenticated against a GitHub remote — the skill falls back gracefully when unavailable.
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -19,26 +19,13 @@ If the branch has already been pushed, finishing the reindex will require a `--f
 
 Use the `AskUserQuestion` tool when prompting for consent and at the finish step. Everything else is deterministic.
 
-**Do not redirect any command output to `/tmp` files.** The scripts in this skill emit only what you need to act on; piping to `/tmp/*.txt`, `tee`-ing into scratch files, or stashing stderr separately is unnecessary and creates clutter outside the repo. If a command's output is too long to read in one go, narrow it (`| tail -N`, `| head -N`, or pass a more specific flag) rather than persisting it.
+**Do not redirect any command output to `/tmp` files.** The commands in this skill emit only what you need to act on; piping to `/tmp/*.txt`, `tee`-ing into scratch files, or stashing stderr separately is unnecessary and creates clutter outside the repo. If a command's output is too long to read in one go, narrow it (`| tail -N`, `| head -N`, or pass a more specific flag) rather than persisting it.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-../dld-common/scripts/common.sh
-../dld-common/scripts/regenerate-index.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-Skill-specific scripts:
-```
-scripts/resolve-base.sh
-scripts/plan-renames.sh
-scripts/find-collisions.sh
-scripts/list-taken-ids.sh
-scripts/rename-decision.sh
-scripts/find-stale-mentions.sh
-scripts/commit-reindex.sh
-```
+This skill uses: `regenerate-index`, `resolve-base`, `plan-renames`, `find-collisions`, `list-taken-ids`, `rename-decision`, `find-stale-mentions`, `commit-reindex`.
 
 ## Prerequisites
 
@@ -52,17 +39,17 @@ scripts/commit-reindex.sh
 ## Step 1: Resolve the base ref
 
 ```bash
-BASE=$(bash scripts/resolve-base.sh)
+BASE=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" resolve-base)
 ```
 
-`resolve-base.sh` prefers the branch's upstream when it tracks a *different* branch (the typical "feature → main" setup). It falls back to `origin/main` if the upstream is unset OR if the upstream tracks the same branch name as the current branch (i.e. it's just the remote copy of this same branch, not a useful collision base).
+`resolve-base` prefers the branch's upstream when it tracks a *different* branch (the typical "feature → main" setup). It falls back to `origin/main` if the upstream is unset OR if the upstream tracks the same branch name as the current branch (i.e. it's just the remote copy of this same branch, not a useful collision base).
 
 The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex origin/develop`) — honor it if present.
 
 ## Step 2: Plan the renames
 
 ```bash
-bash scripts/plan-renames.sh --base "$BASE"
+node "<skill-dir>/../dld-common/scripts/dld.mjs" plan-renames --base "$BASE"
 ```
 
 Output is tab-separated, one rename per line:
@@ -75,9 +62,9 @@ If the output is empty, exit with:
 
 > No ID collisions detected. Safe to rebase onto `$BASE`.
 
-`plan-renames.sh` may print a stderr note like `[dld-reindex] open PRs not scanned: gh CLI not installed`. **Always surface this to the user** so they know the renamed IDs were chosen against base-branch state only and may still collide with an open PR.
+`plan-renames` may print a stderr note like `[dld-reindex] open PRs not scanned: gh CLI not installed`. **Always surface this to the user** so they know the renamed IDs were chosen against base-branch state only and may still collide with an open PR.
 
-The underlying helpers (`find-collisions.sh`, `list-taken-ids.sh`) remain available for debugging, but the SKILL flow always goes through `plan-renames.sh`.
+The underlying helpers (`find-collisions`, `list-taken-ids`) remain available for debugging, but the SKILL flow always goes through `plan-renames`.
 
 ## Step 3: Get explicit consent for the history rewrite
 
@@ -97,10 +84,10 @@ If the user cancels, exit without touching anything.
 For each line in the plan, call:
 
 ```bash
-bash scripts/rename-decision.sh --old DL-OLD --new DL-NEW --path <relative-path> --base "$BASE"
+node "<skill-dir>/../dld-common/scripts/dld.mjs" rename-decision --old DL-OLD --new DL-NEW --path <relative-path> --base "$BASE"
 ```
 
-`rename-decision.sh` does all of:
+`rename-decision` does all of:
 
 - `git mv` the file from `DL-OLD.md` to `DL-NEW.md`.
 - Patches the `id:` frontmatter field in the renamed file.
@@ -110,14 +97,14 @@ bash scripts/rename-decision.sh --old DL-OLD --new DL-NEW --path <relative-path>
 
 The substitution is digit-aware: renaming `DL-100` will not accidentally rewrite `DL-1000`.
 
-**Note on plain-text DL-NNN mentions in code:** In non-decision files (source code, READMEs, etc.) `rename-decision.sh`'s rewrite is **scoped to `` `@decision` ``(DL-NNN) annotations only**. Bare `DL-NNN` references in comments, log strings, or test fixtures are left untouched here to avoid false-positive matches against unrelated identifiers. Step 5 handles them.
+**Note on plain-text DL-NNN mentions in code:** In non-decision files (source code, READMEs, etc.) `rename-decision`'s rewrite is **scoped to `` `@decision` ``(DL-NNN) annotations only**. Bare `DL-NNN` references in comments, log strings, or test fixtures are left untouched here to avoid false-positive matches against unrelated identifiers. Step 5 handles them.
 
 ## Step 5: Review plain-text DL-OLD mentions
 
 After all renames are applied (but before the squash), find any remaining bare `DL-OLD` references in non-decision changed files:
 
 ```bash
-echo "$PLAN" | bash scripts/find-stale-mentions.sh --base "$BASE"
+echo "$PLAN" | node "<skill-dir>/../dld-common/scripts/dld.mjs" find-stale-mentions --base "$BASE"
 ```
 
 Output is tab-separated, one match per line: `<path>\t<line>\t<DL-OLD>\t<DL-NEW>\t<line-content>`. Empty output means nothing to review.
@@ -133,10 +120,10 @@ Surface the list of matches to the user with your verdicts before you finish, so
 
 ## Step 6: Squash and commit
 
-Pipe the rename plan into `commit-reindex.sh`:
+Pipe the rename plan into `commit-reindex`:
 
 ```bash
-echo "$PLAN" | bash scripts/commit-reindex.sh --base "$BASE"
+echo "$PLAN" | node "<skill-dir>/../dld-common/scripts/dld.mjs" commit-reindex --base "$BASE"
 ```
 
 This:
@@ -147,7 +134,7 @@ This:
 4. Stages **only** an explicit path list derived from the original branch diff and the rename plan — the old paths (for deletions), the new paths (for additions), every other file the branch touched. Untracked unrelated paths (e.g. `.claude/worktrees`, scratch files, in-progress edits to unrelated files) are deliberately NOT swept in.
 5. Commits with a templated message that lists the renames in the subject and preserves the original branch commits' subjects in the body.
 
-**Do not use `git add -A` or `git commit -a` anywhere in this flow.** Use only `commit-reindex.sh` to commit. Targeting paths explicitly is the whole point of this step.
+**Do not use `git add -A` or `git commit -a` anywhere in this flow.** Use only `commit-reindex` to commit. Targeting paths explicitly is the whole point of this step.
 
 ## Step 7: Push (if the user chose force-push)
 
@@ -173,7 +160,7 @@ Print:
 - The next steps:
 
 > 1. `git rebase $BASE`
-> 2. `bash ../dld-common/scripts/regenerate-index.sh` (to repopulate INDEX.md with the renamed locals — the reindex commit intentionally leaves INDEX.md alone to keep the rebase conflict-free; INDEX.md is missing the renamed rows until you regenerate)
+> 2. `node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index` (to repopulate INDEX.md with the renamed locals — the reindex commit intentionally leaves INDEX.md alone to keep the rebase conflict-free; INDEX.md is missing the renamed rows until you regenerate)
 > 3. Commit the INDEX.md update
 
 The skill never rebases or merges — that is always the user's call.
@@ -182,4 +169,4 @@ The skill never rebases or merges — that is always the user's call.
 
 - **Already-conflicted rebases.** If the user is mid-rebase with conflicts, tell them to `git rebase --abort` first and re-run this skill.
 - **Preserving per-commit granularity.** The squash trades original commit boundaries for a deterministic rewrite. A future `--preserve-history` flag could perform a cherry-pick walk that rewrites each commit individually, but the edge cases (commits modifying an already-renamed file, merge commits, partial reruns) make it materially more complex than the squash.
-- **Cross-namespace ID reconciliation** in namespaced projects. IDs are assumed globally unique across namespaces, matching `next-id.sh`.
+- **Cross-namespace ID reconciliation** in namespaced projects. IDs are assumed globally unique across namespaces, matching `next-id`.

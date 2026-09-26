@@ -130,6 +130,29 @@ describe("renameDecision", () => {
     );
   });
 
+  test("a second rename also updates the file renamed by the first", () => {
+    const p = branched();
+    const withBody = (id: string, amends: string, body: string) =>
+      recordText(id, "proposed")
+        .replace("amends: []", `amends: [${amends}]`)
+        .replace("## Context", body);
+    p.write(
+      "decisions/records/DL-205.md",
+      withBody("DL-205", "", "This decision precedes DL-206. See DL-206 for the follow-up."),
+    );
+    p.write("decisions/records/DL-206.md", withBody("DL-206", "DL-205", "Builds on DL-205."));
+    p.commitAll("local");
+    rename(p, "DL-205", "DL-211");
+    rename(p, "DL-206", "DL-212");
+    const first = read(p, "decisions/records/DL-211.md");
+    expect(first).toContain("precedes DL-212");
+    expect(first).toContain("See DL-212");
+    expect(first).not.toContain("DL-206");
+    const second = read(p, "decisions/records/DL-212.md");
+    expect(second).toContain("amends: [DL-211]");
+    expect(second).toContain("Builds on DL-211");
+  });
+
   test("keeps the namespace directory", () => {
     const p = branched();
     p.write("decisions/records/auth/DL-002.md", recordText("DL-002", "proposed"));

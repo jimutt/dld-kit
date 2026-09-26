@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { recordText, type TempProject, tempProject } from "../test-helpers.ts";
+import { NAMESPACED_CONFIG, recordText, type TempProject, tempProject } from "../test-helpers.ts";
 import { loadProject } from "./project.ts";
 import {
   collectActiveDecisions,
@@ -27,6 +28,24 @@ describe("collectActiveDecisions", () => {
     writeRecord(project, "DL-003", "proposed");
     expect(collectActiveDecisions(project.ctx, loadProject(project.ctx))).toBe(
       `${recordText("DL-002")}===DLD_DECISION_BOUNDARY===\n${recordText("DL-010")}`,
+    );
+  });
+
+  test("is empty with no accepted records", () => {
+    project = tempProject();
+    project.write("decisions/records/.gitkeep");
+    expect(collectActiveDecisions(project.ctx, loadProject(project.ctx))).toBe("");
+    writeRecord(project, "DL-001", "proposed");
+    expect(collectActiveDecisions(project.ctx, loadProject(project.ctx))).toBe("");
+  });
+
+  test("collects accepted records across namespaces in ID order", () => {
+    project = tempProject(NAMESPACED_CONFIG);
+    project.write("decisions/records/billing/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/auth/DL-002.md", recordText("DL-002", "proposed"));
+    project.write("decisions/records/auth/DL-003.md", recordText("DL-003"));
+    expect(collectActiveDecisions(project.ctx, loadProject(project.ctx))).toBe(
+      `${recordText("DL-001")}===DLD_DECISION_BOUNDARY===\n${recordText("DL-003")}`,
     );
   });
 
@@ -61,10 +80,72 @@ describe("detectSnapshotChanges", () => {
   });
 
   test("is full when an artifact is missing", () => {
+    for (const artifact of ["OVERVIEW.md", "SNAPSHOT.md"]) {
+      project = tempProject();
+      snapshotted(project);
+      project.git("rm", "-q", `decisions/${artifact}`);
+      expect(detect(project)).toEqual({ mode: "full" });
+      project.cleanup();
+    }
+    project = undefined;
+  });
+
+  test("is full when the state file has only an audit section", () => {
     project = tempProject();
-    snapshotted(project);
-    project.git("rm", "-q", "decisions/OVERVIEW.md");
+    writeRecord(project, "DL-001");
+    project.write("decisions/SNAPSHOT.md");
+    project.write("decisions/OVERVIEW.md");
+    project.write(
+      "decisions/.dld-state.yaml",
+      "audit:\n  last_run: 2026-01-10T08:00:00Z\n  commit_hash: abc1234\n",
+    );
     expect(detect(project)).toEqual({ mode: "full" });
+  });
+
+  test("reports new decisions without a commit baseline", () => {
+    project = tempProject();
+    writeRecord(project, "DL-001");
+    project.write("decisions/SNAPSHOT.md");
+    project.write("decisions/OVERVIEW.md");
+    project.write(
+      "decisions/.dld-state.yaml",
+      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 1\n  artifacts:\n    SNAPSHOT.md: 2026-01-15T10:00:00Z\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n",
+    );
+    writeRecord(project, "DL-002");
+    const changes = detect(project);
+    expect(changes).toMatchObject({ mode: "incremental", newDecisions: ["DL-002"] });
+    expect(formatSnapshotChanges(changes)).toContain("new_decisions: DL-002\n");
+  });
+
+  test("falls back to an earlier commit at last_run and reports later changes", () => {
+    const p = tempProject();
+    project = p;
+    // Commits dated explicitly, so last_run falls between them.
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
+    );
+    const commitAt = (date: string, message: string) => {
+      execFileSync("git", ["add", "-A"], { cwd: p.root, env });
+      execFileSync("git", ["commit", "-qm", message], {
+        cwd: p.root,
+        env: { ...env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+      });
+    };
+    writeRecord(p, "DL-001");
+    writeRecord(p, "DL-002");
+    p.write("decisions/SNAPSHOT.md");
+    p.write("decisions/OVERVIEW.md");
+    commitAt("2026-01-10T10:00:00Z", "snapshot");
+    p.write(
+      "decisions/.dld-state.yaml",
+      "snapshot:\n  last_run: 2026-01-10T12:00:00Z\n  decisions_included: 2\n  artifacts:\n    SNAPSHOT.md: 2026-01-10T12:00:00Z\n    OVERVIEW.md: 2026-01-10T12:00:00Z\n",
+    );
+    commitAt("2026-01-10T12:00:00Z", "state");
+    writeRecord(p, "DL-001", "superseded");
+    commitAt("2026-01-11T10:00:00Z", "change");
+    const changes = detect(p);
+    expect(changes).toMatchObject({ mode: "incremental", modifiedDecisions: ["DL-001"] });
+    expect(changes.mode === "incremental" && changes.commitRange).toMatch(/^[0-9a-f]+\.\.HEAD$/);
   });
 
   test("reports new accepted and modified earlier decisions in ascending order", () => {
@@ -136,6 +217,16 @@ describe("detectSnapshotChanges", () => {
 });
 
 describe("updateSnapshotState", () => {
+  test("records zero when no decision is accepted", () => {
+    project = tempProject();
+    writeRecord(project, "DL-001", "proposed");
+    const result = updateSnapshotState(project.ctx, loadProject(project.ctx), []);
+    expect(result.highest).toBe(0);
+    expect(readFileSync(join(project.root, "decisions/.dld-state.yaml"), "utf8")).toContain(
+      "  decisions_included: 0\n",
+    );
+  });
+
   test("records the highest accepted ID and artifact timestamps", () => {
     project = tempProject();
     writeRecord(project, "DL-001");

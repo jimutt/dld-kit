@@ -1,6 +1,6 @@
 # Development Practices
 
-dld-kit is moving from bash scripts to a TypeScript CLI and library for 1.0 (see `docs/plan/v1.md`). Until the port is complete both layers exist; the practices below cover each, and the shell section retires with the scripts.
+dld-kit's skills run their mechanical operations through a TypeScript CLI and library (see `docs/plan/v1.md`), bundled into the skills as a single file.
 
 ## Testing
 
@@ -8,20 +8,15 @@ dld-kit is moving from bash scripts to a TypeScript CLI and library for 1.0 (see
 - Tests must not touch the developer's real repo — fixtures create a temporary git project and tear it down.
 - All test suites and the typecheck must pass before a commit.
 
-### Shell scripts (bats) — during the port
-
-- Tests use [bats-core](https://github.com/bats-core/bats-core), vendored as a git submodule at `tests/bats/`. Run the suite with `npm run test:bats` (or `tests/run.sh`), and against the CLI with `npm run test:bats:cli`. If bats is missing, run `git submodule update --init --recursive`.
-- One test file per script or area: `tests/test_<script-or-area>.bats`, using `load 'test_helper/common'` and the shared fixtures (`setup_flat_project`, `setup_namespaced_project`, `create_decision`, `teardown_project`).
-- The bats suite is the behavioural specification for the port. A ported command is listed in `tests/cli-ported.txt` and must pass the same bats tests as the script it replaces, in CLI mode, before the script is removed. Do not weaken or delete a bats test to make a port pass.
-
-### TypeScript (bun)
+### Test layers
 
 - Unit tests run with `bun test` (`npm run test:unit`) and live beside the code they cover as `*.test.ts`.
 - CLI integration tests live in `tests/cli/` and run the built `dist/dld.mjs` under `node` (`npm run test:cli`).
 - Typecheck (`npm run typecheck`) and Biome (`npm run lint`) are part of the definition of done.
 - Unit coverage is measured with `npm run test:coverage`. Every file under `src/` must stay at or above 90% of lines and functions (DL-020); CI reports coverage and its change on each PR.
 - Prefer dependency injection (filesystem, git, clock, process execution) over module-level side effects, so failure branches are reachable from unit tests. A function that can only touch the real filesystem can only ever be tested in the happy case.
-- The library is tested through unit tests against its functions; the CLI is covered by a thinner set of integration tests against the command surface.
+- The library is tested through unit tests against its functions; the CLI is covered by a thinner set of integration tests against the command surface. Bun tests are the behavioural specification: a behaviour without a test is not guaranteed (DL-037).
+- `npm run check:generated` verifies the committed skills match the templates and the current CLI build (DL-033, DL-035).
 
 ## TypeScript
 
@@ -35,18 +30,12 @@ dld-kit is moving from bash scripts to a TypeScript CLI and library for 1.0 (see
 - Fail loudly: a clear message on stderr and a non-zero exit code. Distinguish "nothing found" from "something broke" in exit codes.
 - Writes that must not be observed half-finished use a temp file plus rename.
 
-## Shell scripts — until retired
-
-- Pure bash plus POSIX tools (`grep`, `sed`, `awk`, `find`, `git`). No new dependencies.
-- Every script starts with `#!/usr/bin/env bash` and `set -euo pipefail`, resolves paths with `BASH_SOURCE`, and sources shared helpers from `dld-common/scripts/common.sh`.
-- No new scripts. New mechanical behaviour goes into the TypeScript library.
-
 ## Skills
 
 - Skills are generated from canonical templates in `templates/skills/` (DL-031). Edit the templates only and run `npm run generate`; never edit `skills/` or `.claude/skills/` by hand. `npm run check:generated` (part of `npm test` and CI) fails when the output is out of date (DL-033).
-- Reference a skill's supporting files with `{{script <skill>/<path>}}`, never a literal path; each adapter renders the path its harness needs (DL-032).
+- Skills reach mechanical operations only through the bundled CLI: `{{dld}} <command>`, with `{{dld-setup}}` before the first command (DL-036). No shell scripts in skills; new mechanical behaviour becomes a `dld` command. Other supporting files are referenced with `{{script <skill>/<path>}}`, never a literal path.
 - Skills that ask the user anything use the `AskUserQuestion` tool rather than waiting for freeform replies.
-- SKILL.md documents the commands or scripts it uses, checks prerequisites before doing work, and ends by suggesting next steps.
+- SKILL.md lists the `dld` commands it uses, checks prerequisites before doing work, and ends by suggesting next steps.
 - In markdown, escape the annotation pattern as `` `@decision` ``.
 
 ## Decision records

@@ -2,6 +2,7 @@
 name: dld-adjust
 description: Adjust or update existing decision records. Handles permission gating for accepted decisions and correctly interprets adjustment requests.
 user_invocable: true
+allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -15,13 +16,11 @@ You are helping the developer adjust one or more existing decision records. Your
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-.claude/skills/dld-common/scripts/update-status.sh
-.claude/skills/dld-common/scripts/regenerate-index.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
+
+This skill uses: `update-status`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -131,7 +130,7 @@ If multiple decisions are being adjusted, process them one at a time.
 If any decision titles or metadata changed:
 
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" regenerate-index
 ```
 
 ## Step 6: Suggest next steps

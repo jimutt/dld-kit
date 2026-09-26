@@ -1,7 +1,7 @@
 ---
 name: dld-decide
 description: Record a single development decision as a markdown file with YAML frontmatter. Collects context, rationale, and code references interactively.
-compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 ---
 
 # /dld-decide — Record a Decision
@@ -12,19 +12,11 @@ You are helping the developer record a development decision. This should be a fo
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-{{script dld-common/scripts/next-id.sh}}
-{{script dld-common/scripts/regenerate-index.sh}}
-{{script dld-common/scripts/update-status.sh}}
-```
+{{dld-setup}}
 
-Skill-specific scripts:
-```
-{{script dld-decide/scripts/create-decision.sh}}
-```
+This skill uses: `next-id`, `regenerate-index`, `update-status`, `create-decision`.
 
 ## Prerequisites
 
@@ -74,9 +66,9 @@ If the project is namespaced, determine which namespace this decision belongs to
 
 ### 5. Assign ID
 
-Run the next-id script:
+Run `next-id`:
 ```bash
-bash {{script dld-common/scripts/next-id.sh}}
+{{dld}} next-id
 ```
 
 This outputs the next available ID (e.g., `DL-004`).
@@ -85,9 +77,9 @@ This outputs the next available ID (e.g., `DL-004`).
 
 Compose the markdown body with the relevant sections (Context, Decision, Rationale, Consequences). Omit sections that aren't relevant, but always include Context and Decision.
 
-Then run the create-decision script, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body argument — use `\n` escape sequences so the entire command stays on one logical line):
+Then run `create-decision`, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body argument — use `\n` escape sequences so the entire command stays on one logical line):
 ```bash
-printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was decided.\n\n## Rationale\n\nWhy this choice.\n\n## Consequences\n\nWhat becomes easier or harder." | bash {{script dld-decide/scripts/create-decision.sh}} \
+printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was decided.\n\n## Rationale\n\nWhy this choice.\n\n## Consequences\n\nWhat becomes easier or harder." | {{dld}} create-decision \
   --id "DL-NNN" \
   --title "Short descriptive title" \
   --namespace "billing" \
@@ -97,13 +89,13 @@ printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was de
   --body-stdin
 ```
 
-Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. The script creates the file with YAML frontmatter and the body content, and outputs the file path.
+Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. The command creates the file with YAML frontmatter and the body content, and outputs the file path.
 
 > **Note:** If the body contains literal `%` characters, escape them as `%%` (printf format string requirement).
 
 If this decision supersedes others, also update their status:
 ```bash
-bash {{script dld-common/scripts/update-status.sh}} DL-003 superseded
+{{dld}} update-status DL-003 superseded
 ```
 
 **Do not** update the status of amended decisions — they stay `accepted`.
@@ -111,7 +103,7 @@ bash {{script dld-common/scripts/update-status.sh}} DL-003 superseded
 ### 7. Regenerate INDEX.md
 
 ```bash
-bash {{script dld-common/scripts/regenerate-index.sh}}
+{{dld}} regenerate-index
 ```
 
 ### 8. Suggest next steps

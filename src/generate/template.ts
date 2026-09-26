@@ -83,41 +83,68 @@ export interface ScriptRef {
   path: string;
 }
 
-const PLACEHOLDER_START = /\{\{\s*script/g;
-const PLACEHOLDER = /\{\{script ([a-z0-9-]+)\/([A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\}\}/y;
+/** How each placeholder renders, and which files exist for `{{script}}` to reference. */
+export interface Renderers {
+  exists(ref: ScriptRef): boolean;
+  script(ref: ScriptRef): string;
+  /** `{{dld}}`: the command prefix that runs the bundled CLI. */
+  dld(): string;
+  /** `{{dld-setup}}`: the paragraph telling the agent what the commands need. */
+  dldSetup(): string;
+}
 
-// @decision(DL-031)
+/** The bundled CLI every `{{dld}}` placeholder relies on (DL-035). */
+export const BUNDLED_CLI: ScriptRef = { skill: "dld-common", path: "scripts/dld.mjs" };
+
+const PLACEHOLDER_START = /\{\{\s*(?:script|dld)/g;
+const SCRIPT = /\{\{script ([a-z0-9-]+)\/([A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\}\}/y;
+const DLD = /\{\{dld(-setup)?\}\}/y;
+
+// @decision(DL-031) @decision(DL-036)
 /**
- * Replaces every `{{script <skill>/<path>}}` in the body. Other `{{...}}` text is left as is.
- * A malformed `{{script` placeholder, or one naming a file `exists` rejects, is an error.
+ * Replaces every `{{script <skill>/<path>}}`, `{{dld}}` and `{{dld-setup}}` in the body, and
+ * reports whether the body runs the CLI. Other `{{...}}` text is left as is. A malformed
+ * placeholder, or one naming a file that does not exist, is an error.
  */
 export function renderBody(
   template: SkillTemplate,
-  exists: (ref: ScriptRef) => boolean,
-  render: (ref: ScriptRef) => string,
-): string {
+  renderers: Renderers,
+): { body: string; usesDld: boolean } {
   const { body } = template;
   let out = "";
   let last = 0;
+  let usesDld = false;
   for (const start of body.matchAll(PLACEHOLDER_START)) {
     const at = start.index;
     const line = template.bodyLine + (body.slice(0, at).match(/\n/g)?.length ?? 0);
     const fail = (message: string) => new DldError(`${template.source}:${line}: ${message}`);
-    PLACEHOLDER.lastIndex = at;
-    const match = PLACEHOLDER.exec(body);
-    const [text, skill, path] = match ?? [];
+    DLD.lastIndex = at;
+    const dld = DLD.exec(body);
+    if (dld !== null) {
+      if (!renderers.exists(BUNDLED_CLI)) {
+        throw fail(`{{dld}} needs the bundled CLI at ${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`);
+      }
+      usesDld = true;
+      out += body.slice(last, at) + (dld[1] === undefined ? renderers.dld() : renderers.dldSetup());
+      last = at + dld[0].length;
+      continue;
+    }
+    SCRIPT.lastIndex = at;
+    const [text, skill, path] = SCRIPT.exec(body) ?? [];
     if (text === undefined || skill === undefined || path === undefined) {
-      throw fail("malformed placeholder; expected {{script <skill>/<path>}}");
+      throw fail(
+        "malformed placeholder; expected {{script <skill>/<path>}}, {{dld}} or {{dld-setup}}",
+      );
     }
     if (path.split("/").some((segment) => segment === "." || segment === "..")) {
       throw fail(`placeholder path '${skill}/${path}' must not contain '.' or '..'`);
     }
     const ref = { skill, path };
-    if (!exists(ref)) throw fail(`no template provides ${skill}/${path}`);
-    out += body.slice(last, at) + render(ref);
+    if (!renderers.exists(ref)) throw fail(`no template provides ${skill}/${path}`);
+    out += body.slice(last, at) + renderers.script(ref);
     last = at + text.length;
   }
-  return out + body.slice(last);
+  return { body: out + body.slice(last), usesDld };
 }
 
 function isField(key: string): key is TemplateField {

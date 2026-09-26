@@ -1,7 +1,7 @@
 ---
 name: dld-adjust
 description: Adjust or update existing decision records. Handles permission gating for accepted decisions and correctly interprets adjustment requests.
-compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -15,13 +15,11 @@ You are helping the developer adjust one or more existing decision records. Your
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-../dld-common/scripts/update-status.sh
-../dld-common/scripts/regenerate-index.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+
+This skill uses: `update-status`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -131,7 +129,7 @@ If multiple decisions are being adjusted, process them one at a time.
 If any decision titles or metadata changed:
 
 ```bash
-bash ../dld-common/scripts/regenerate-index.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index
 ```
 
 ## Step 6: Suggest next steps

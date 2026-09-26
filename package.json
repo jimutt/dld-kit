@@ -34,12 +34,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.src.json",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "npm run check:generated && npm run test:unit && npm run test:cli && npm run test:bats && npm run test:bats:cli",
+    "test": "npm run check:generated && npm run test:unit && npm run test:cli",
     "test:unit": "bun test src",
     "test:coverage": "bun test --coverage src",
     "test:cli": "npm run build && bun test tests/cli",
-    "test:bats": "tests/run.sh",
-    "test:bats:cli": "npm run build && node scripts/bats-cli.mjs",
     "check:pack": "node scripts/check-pack.mjs"
   },
   "devDependencies": {

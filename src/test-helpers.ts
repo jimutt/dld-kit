@@ -21,7 +21,7 @@ export interface TempProject {
   cleanup(): void;
 }
 
-/** A temporary git repository with a flat dld.config.yaml, like the bats fixtures. */
+/** A temporary git repository with a flat dld.config.yaml. */
 export function tempProject(
   config: string | null = FLAT_CONFIG,
   overrides: Partial<Context> = {},
@@ -169,7 +169,7 @@ export function captureIo(): Io & { out: string; err: string } {
 export const NAMESPACED_CONFIG =
   "decisions_dir: decisions\nmode: namespaced\nnamespaces:\n  - billing\n  - auth\nannotation_prefix: '@decision'\n";
 
-/** A record in the bats fixture layout. */
+/** A record in the layout create-decision writes. */
 export function recordText(id: string, status = "accepted", extra = ""): string {
   return `---
 id: ${id}
@@ -196,7 +196,7 @@ export interface BranchedProject extends TempProject {
 
 /**
  * A project whose `main` branch holds DL-001 and INDEX.md, checked out on a `feature` branch
- * that starts there, like the reindex bats fixture.
+ * that starts there.
  */
 export function branchedProject(
   config: string = FLAT_CONFIG,

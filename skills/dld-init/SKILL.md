@@ -1,7 +1,7 @@
 ---
 name: dld-init
 description: Bootstrap DLD (Decision-Linked Development) in a repository. Creates dld.config.yaml, the decisions/ directory, and INDEX.md. Run once per project.
-compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -15,14 +15,11 @@ You are initializing Decision-Linked Development (DLD) in this repository. This 
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
-## Script Paths
+## Commands
 
-Skill-specific scripts:
-```
-scripts/create-config.sh
-scripts/create-directories.sh
-scripts/create-empty-index.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+
+This skill uses: `create-config`, `create-directories`, `create-empty-index`.
 
 ## Prerequisites
 
@@ -44,25 +41,25 @@ If namespaced, ask for the initial namespace list. Suggest they can add more lat
 
 ### 2. Create `dld.config.yaml`
 
-Run the create-config script:
+Run `create-config`:
 ```bash
-bash scripts/create-config.sh <mode> [namespace1 namespace2 ...]
+node "<skill-dir>/../dld-common/scripts/dld.mjs" create-config <mode> [namespace1 namespace2 ...]
 ```
 
 Example flat:
 ```bash
-bash scripts/create-config.sh flat
+node "<skill-dir>/../dld-common/scripts/dld.mjs" create-config flat
 ```
 
 Example namespaced:
 ```bash
-bash scripts/create-config.sh namespaced billing auth shared
+node "<skill-dir>/../dld-common/scripts/dld.mjs" create-config namespaced billing auth shared
 ```
 
 ### 3. Create directory structure
 
 ```bash
-bash scripts/create-directories.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" create-directories
 ```
 
 This reads mode and namespaces from `dld.config.yaml` (created in step 2).
@@ -70,7 +67,7 @@ This reads mode and namespaces from `dld.config.yaml` (created in step 2).
 ### 4. Create initial INDEX.md
 
 ```bash
-bash scripts/create-empty-index.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" create-empty-index
 ```
 
 This reads mode from `dld.config.yaml`.

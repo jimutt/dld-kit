@@ -30,6 +30,24 @@ const pairs = (p: TempProject, all = false) =>
   findMissingAmends(p.ctx, loadProject(p.ctx), { all }).map((m) => `${m.source}:${m.referenced}`);
 
 describe("findMissingAmends", () => {
+  test("finds nothing without records", () => {
+    project = tempProject();
+    project.write("decisions/records/.gitkeep");
+    expect(pairs(project)).toEqual([]);
+  });
+
+  test("does not resurface a reference when only the referenced record changed", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-001.md", record("DL-001", "Original."));
+    project.write("decisions/records/DL-002.md", record("DL-002", "Changes DL-001."));
+    project.git("add", ".");
+    project.git("commit", "-qm", "records");
+    updateAuditState(project.ctx, loadProject(project.ctx));
+    project.write("decisions/records/DL-001.md", record("DL-001", "Original (revised)."));
+    expect(pairs(project)).toEqual([]);
+    expect(pairs(project, true)).toEqual(["DL-002:DL-001"]);
+  });
+
   test("lists undeclared body mentions, sorted, ignoring self and declared IDs", () => {
     project = tempProject();
     project.write(
