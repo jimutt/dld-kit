@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import {
   existsSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -18,6 +19,8 @@ export const nodeFileSystem: FileSystem = {
   exists: (path) => existsSync(path),
   isDirectory: (path) =>
     fsCall("read", path, () => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false),
+  isRegularFile: (path) =>
+    fsCall("read", path, () => lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false),
   readFile: (path) => fsCall("read", path, () => readFileSync(path, "utf8")),
   readDir: (path) =>
     fsCall("read", path, () =>
@@ -47,6 +50,9 @@ function fsCall<T>(operation: string, path: string, run: () => T): T {
   }
 }
 
+/** Large repositories list tens of MB of paths; execFileSync's default is 1 MB. */
+const GIT_MAX_BUFFER = 1024 * 1024 * 1024;
+
 export function nodeGit(cwd: string, env: Context["env"]): Context["git"] {
   return (args) => {
     try {
@@ -54,10 +60,14 @@ export function nodeGit(cwd: string, env: Context["env"]): Context["git"] {
         cwd,
         env,
         encoding: "utf8",
+        maxBuffer: GIT_MAX_BUFFER,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
       if (hasCode(error, "ENOENT")) throw new DldError("git is not installed or not on PATH");
+      if (hasCode(error, "ENOBUFS")) {
+        throw new DldError(`git ${args.join(" ")} produced more output than dld can buffer`);
+      }
       if (hasStatus(error)) throw new GitCommandError(args, String(error.stderr ?? "").trim());
       throw error;
     }

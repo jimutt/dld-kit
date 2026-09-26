@@ -17,7 +17,7 @@ export function writeFileAtomic(ctx: Context, path: string, content: string): vo
     ctx.fs.writeFile(temp, content);
     ctx.fs.rename(temp, path);
   } catch (error) {
-    ctx.fs.remove(temp);
+    removeQuietly(ctx, temp);
     throw error;
   }
 }
@@ -38,6 +38,15 @@ export function createFileExclusive(
     if (error instanceof FsError && error.code === "EEXIST") throw new DldError(existsMessage);
     throw error;
   } finally {
-    ctx.fs.remove(temp);
+    removeQuietly(ctx, temp);
+  }
+}
+
+/** Best-effort cleanup that never replaces the error being reported. */
+function removeQuietly(ctx: Context, path: string): void {
+  try {
+    ctx.fs.remove(path);
+  } catch {
+    // The temp file is left behind with a recognisable name.
   }
 }

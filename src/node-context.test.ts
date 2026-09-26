@@ -14,6 +14,13 @@ describe("node context", () => {
     expect(project.ctx.git(["rev-parse", "--is-inside-work-tree"]).trim()).toBe("true");
   });
 
+  test("git returns output larger than execFileSync's default 1 MB buffer", () => {
+    project = tempProject();
+    project.write("big.txt", "x".repeat(3 * 1024 * 1024));
+    project.git("add", "big.txt");
+    expect(project.ctx.git(["show", ":big.txt"]).length).toBe(3 * 1024 * 1024);
+  });
+
   test("git throws GitCommandError with stderr on a non-zero exit", () => {
     project = tempProject();
     const ctx = project.ctx;

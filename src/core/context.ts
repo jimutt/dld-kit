@@ -13,6 +13,8 @@ export interface DirEntry {
 export interface FileSystem {
   exists(path: string): boolean;
   isDirectory(path: string): boolean;
+  /** True only for a regular file; symlinks, devices and FIFOs are not followed or counted. */
+  isRegularFile(path: string): boolean;
   readFile(path: string): string;
   readDir(path: string): DirEntry[];
   writeFile(path: string, content: string): void;

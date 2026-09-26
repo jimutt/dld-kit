@@ -44,6 +44,6 @@ export function createDirectories(ctx: Context, { config, paths }: Project): voi
     const dir = join(paths.recordsDir, namespace);
     ctx.fs.mkdir(dir);
     const keep = join(dir, ".gitkeep");
-    if (!ctx.fs.exists(keep)) ctx.fs.writeFile(keep, "");
+    if (!ctx.fs.exists(keep)) createFileExclusive(ctx, keep, "", `${keep} already exists.`);
   }
 }

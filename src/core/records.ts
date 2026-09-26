@@ -80,12 +80,10 @@ export function parseRecord(text: string, source: string): DecisionRecord {
   const block = frontmatterBlock(text);
   if (block === undefined) throw invalid("no frontmatter between --- lines");
 
-  const doc = parseDocument(block.lines.slice(block.start + 1, block.end).join("\n"), {
-    logLevel: "silent",
-  });
+  const frontmatter = block.lines.slice(block.start + 1, block.end);
+  const doc = parseDocument(frontmatter.join("\n"), { logLevel: "silent" });
   const problem = doc.errors[0] ?? doc.warnings[0];
-  if (problem !== undefined) throw invalid(`frontmatter is not valid YAML: ${problem.message}`);
-  const raw: unknown = doc.toJS();
+  const raw: unknown = problem === undefined ? doc.toJS() : legacyFields(frontmatter);
   if (!isRecord(raw)) throw invalid("frontmatter must be a mapping");
 
   const string = (key: string): string | undefined => {
@@ -126,6 +124,32 @@ export function parseRecord(text: string, source: string): DecisionRecord {
     tags: list("tags"),
     references: references(raw.references, invalid),
   };
+}
+
+/**
+ * Reads frontmatter that is not valid YAML the way regenerate-index.sh did: the first
+ * `<field>:` line per field, surrounding quotes stripped, `[a, b]` lists split on commas.
+ * Records written by create-decision.sh with an unescaped `"` in the title need this.
+ */
+function legacyFields(lines: readonly string[]): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  const lists = new Set(["supersedes", "amends", "tags"]);
+  for (const line of lines) {
+    const match = /^([A-Za-z_]+):\s*(.*)$/.exec(line);
+    if (match === null) continue;
+    const [, key = "", rawValue = ""] = match;
+    if (key in fields) continue;
+    const value = rawValue.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1");
+    fields[key] = lists.has(key)
+      ? value
+          .replace(/^\[|\]$/g, "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item !== "")
+      : value;
+  }
+  delete fields.references;
+  return fields;
 }
 
 function references(value: unknown, invalid: (message: string) => DldError): Reference[] {
@@ -174,9 +198,21 @@ export interface NewRecord {
   body: string;
 }
 
-/** A double-quoted YAML scalar. */
+const YAML_ESCAPES: Record<string, string> = {
+  "\\": "\\\\",
+  '"': '\\"',
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+};
+
+/** A double-quoted YAML scalar; backslashes, quotes and control characters are escaped. */
 function quoted(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the point
+  const escaped = value.replace(/[\\"\x00-\x1f\x7f]/g, (char) => {
+    return YAML_ESCAPES[char] ?? `\\x${char.charCodeAt(0).toString(16).padStart(2, "0")}`;
+  });
+  return `"${escaped}"`;
 }
 
 // @decision(DL-014)

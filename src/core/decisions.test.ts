@@ -76,6 +76,7 @@ describe("createDecision", () => {
       "invalid namespace '..'",
     ],
     ["a namespace with a separator", { namespace: "a/b" }, "invalid namespace 'a/b'"],
+    ["a namespace that is not a plain name", { namespace: "a: b" }, "invalid namespace 'a: b'"],
   ])("rejects %s", (_name, override, message) => {
     project = tempProject(NAMESPACED_CONFIG);
     const ctx = project.ctx;

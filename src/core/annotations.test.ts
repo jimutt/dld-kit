@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { rmSync } from "node:fs";
+import { rmSync, symlinkSync } from "node:fs";
 import { type TempProject, tempProject } from "../test-helpers.ts";
 import { missingAnnotations, type ScanOptions, scanAnnotations } from "./annotations.ts";
 
@@ -66,6 +66,12 @@ describe("scanAnnotations", () => {
     expect(scanAnnotations(ctx, { ...options, prefix: "x.y" }).map((a) => a.id)).toEqual([
       "DL-003",
     ]);
+  });
+
+  test("skips symlinks, even to files with annotations", () => {
+    const { ctx, options } = setup({ "real.ts": "// @decision(DL-001)" });
+    symlinkSync(`${options.root}/real.ts`, `${options.root}/link.ts`);
+    expect(scanAnnotations(ctx, options).map((a) => a.file)).toEqual(["real.ts"]);
   });
 
   test("skips tracked files that were deleted", () => {

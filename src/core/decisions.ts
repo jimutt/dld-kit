@@ -62,5 +62,5 @@ export function createDecision(ctx: Context, project: Project, input: CreateDeci
 }
 
 function isSafeDirName(name: string): boolean {
-  return name !== "" && name !== "." && name !== ".." && !/[/\\]/.test(name);
+  return name !== "." && name !== ".." && /^[A-Za-z0-9._-]+$/.test(name);
 }

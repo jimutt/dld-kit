@@ -1,4 +1,4 @@
-import { basename, join, relative } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 import type { Mode } from "./config.ts";
 import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
@@ -70,7 +70,7 @@ export function collectIndexRows(
     throw error;
   }
   const localNames = new Set(localFiles.map((path) => basename(path)));
-  const recordsRel = relative(paths.root, paths.recordsDir);
+  const recordsRel = relative(paths.root, paths.recordsDir).split(sep).join("/");
   const basePaths = git("ls-tree", "-r", "--name-only", includeBase, "--", recordsRel)
     .split("\n")
     .filter((path) => RECORD_FILE.test(basename(path)) && !localNames.has(basename(path)));

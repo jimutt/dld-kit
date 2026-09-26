@@ -71,8 +71,8 @@ export function scanAnnotations(ctx: Context, options: ScanOptions): Annotation[
   const found: Annotation[] = [];
   for (const file of listScannableFiles(ctx, options)) {
     const path = join(options.root, file);
-    // Deleted-but-tracked files and submodule directories appear in git's list.
-    if (!ctx.fs.exists(path) || ctx.fs.isDirectory(path)) continue;
+    // git also lists deleted-but-tracked files, submodule directories and symlinks.
+    if (!ctx.fs.isRegularFile(path)) continue;
     const text = ctx.fs.readFile(path);
     if (text.slice(0, BINARY_SNIFF_BYTES).includes("\0")) continue;
     text.split("\n").forEach((content, index) => {

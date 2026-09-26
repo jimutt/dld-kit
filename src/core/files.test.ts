@@ -30,6 +30,21 @@ describe("writeFileAtomic", () => {
   });
 });
 
+test("a failing cleanup does not hide the original error", () => {
+  const { fs, ctx } = setup();
+  fs.rename = (from) => {
+    throw new FsError("rename", from, "EACCES");
+  };
+  fs.link = (_existing, newPath) => {
+    throw new FsError("create", newPath, "EACCES");
+  };
+  fs.remove = (path) => {
+    throw new FsError("remove", path, "EBUSY");
+  };
+  expect(() => writeFileAtomic(ctx, "/d/INDEX.md", "new")).toThrow(/cannot rename .*EACCES/);
+  expect(() => createFileExclusive(ctx, "/d/x", "new", "exists")).toThrow(/cannot create .*EACCES/);
+});
+
 describe("createFileExclusive", () => {
   test("creates a new file and leaves no temp file", () => {
     const { fs, ctx } = setup();

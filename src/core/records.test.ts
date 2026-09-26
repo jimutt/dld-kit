@@ -52,10 +52,45 @@ describe("parseRecord", () => {
     expect(record.references).toEqual([{ path: "src/a.ts", symbol: "f" }, { path: "src/b.ts" }]);
   });
 
+  test("reads legacy records whose frontmatter is not valid YAML, like regenerate-index.sh", () => {
+    // create-decision.sh wrote titles without escaping quotes.
+    const text = `---
+id: DL-007
+title: "Use "yaml" package"
+timestamp: 2026-01-15T10:00:00Z
+status: accepted
+supersedes: [DL-001, DL-002]
+amends: []
+namespace: 'billing'
+tags: [a,b]
+references:
+  - path: src/x.ts
+---
+
+body
+`;
+    expect(parseRecord(text, "f")).toEqual({
+      id: "DL-007",
+      title: 'Use "yaml" package',
+      status: "accepted",
+      timestamp: "2026-01-15T10:00:00Z",
+      supersedes: ["DL-001", "DL-002"],
+      amends: [],
+      namespace: "billing",
+      tags: ["a", "b"],
+      references: [],
+    });
+  });
+
+  test("still validates legacy records", () => {
+    expect(parseError('---\nid: DL-1\ntitle: "a "b""\nstatus: done\n---\n')).toContain(
+      "'status' must be one of",
+    );
+  });
+
   test.each([
     ["no frontmatter", "# just text\n", "no frontmatter"],
     ["unclosed frontmatter", "---\nid: DL-1\n", "no frontmatter"],
-    ["invalid YAML", "---\nid: [\n---\n", "not valid YAML"],
     ["not a mapping", "---\n- a\n---\n", "must be a mapping"],
     ["missing id", "---\ntitle: T\nstatus: accepted\n---\n", "'id' is required"],
     [
@@ -144,6 +179,17 @@ Text
     const text = renderNewRecord({ ...base, namespace: "billing" });
     expect(text).toEndWith("references: []\n---\n\n");
     expect(text).toContain("amends: [DL-001]\nnamespace: billing\ntags: [a,b]\n");
+  });
+
+  test.each([
+    ["newlines", "a\n---\nb"],
+    ["carriage returns and tabs", "a\r\tb"],
+    ["other control characters", "bell\u0007 del\u007f"],
+    ["quotes, backslashes and unicode", 'say "hi" \\ — ok'],
+  ])("round-trips titles with %s", (_name, title) => {
+    const text = renderNewRecord({ ...base, title });
+    expect(text.split("\n")[2]).toStartWith('title: "');
+    expect(parseRecord(text, "f").title).toBe(title);
   });
 
   test("escapes quotes and backslashes in the title so the YAML stays valid", () => {
