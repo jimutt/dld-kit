@@ -50,7 +50,8 @@
     "test:unit": "bun test src",
     "test:coverage": "bun test --coverage src",
     "test:cli": "npm run build && bun test tests/cli",
-    "check:pack": "node scripts/check-pack.mjs"
+    "check:pack": "node scripts/check-pack.mjs",
+    "check:installers": "node scripts/check-installers.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

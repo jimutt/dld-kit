@@ -45,14 +45,52 @@ export function packageSource(ctx: Context, cliPath: string, command: string): I
 /** Owned skill directories are `dld-*` (DL-033). */
 const isOwned = (name: string) => name.startsWith("dld-");
 
+/** The `dld-*` skills in a layout's directory: directories, and symlinks to them (DL-051). */
 function ownedSkills(ctx: Context, root: string, layout: SkillLayout): string[] {
   const dir = join(root, layout.dir);
   if (!ctx.fs.isDirectory(dir)) return [];
   return ctx.fs
     .readDir(dir)
-    .filter((entry) => entry.isDirectory && isOwned(entry.name))
+    .filter((entry) => !entry.isFile && isOwned(entry.name))
     .map((entry) => entry.name)
     .sort();
+}
+
+// @decision(DL-051)
+/** Fails when a `dld-*` entry in the layout's directory is a symlink: another installer manages it. */
+function refuseSymlinkedSkills(ctx: Context, root: string, layout: SkillLayout): void {
+  const dir = join(root, layout.dir);
+  if (!ctx.fs.isDirectory(dir)) return;
+  const linked = ctx.fs
+    .readDir(dir)
+    .filter((entry) => isOwned(entry.name) && !entry.isDirectory && !entry.isFile)
+    .map((entry) => `${layout.dir}/${entry.name}`)
+    .sort();
+  if (linked.length === 0) return;
+  throw new DldError(
+    `${linked.join(", ")} ${linked.length === 1 ? "is a symlink" : "are symlinks"}, so another installer, such as npx skills, manages these skills. Update them with npx skills update, or remove them and run this command again.`,
+  );
+}
+
+const SKILLS_LOCK = "skills-lock.json";
+
+// @decision(DL-051)
+/** A warning when npx skills' lock file lists `dld-*` skills: both tools would update them. */
+export function skillsLockWarning(ctx: Context, root: string): string[] {
+  const path = join(root, SKILLS_LOCK);
+  if (!ctx.fs.isRegularFile(path)) return [];
+  let skills: unknown;
+  try {
+    skills = JSON.parse(ctx.fs.readFile(path))?.skills;
+  } catch {
+    return [];
+  }
+  if (typeof skills !== "object" || skills === null) return [];
+  const listed = Object.keys(skills).filter(isOwned).sort();
+  if (listed.length === 0) return [];
+  return [
+    `${SKILLS_LOCK} lists ${listed.join(", ")}: npx skills manages those skills, so dld update and npx skills update overwrite each other's copies. Update them with one of the two.`,
+  ];
 }
 
 /** The skill layouts that already hold `dld-*` skills under `root`. */
@@ -162,19 +200,24 @@ export interface InstallRequest {
 export interface InstallPlan {
   skills: { layout: SkillLayout; files: GeneratedFiles }[];
   rule: RulePlan;
+  warnings: string[];
 }
 
-// @decision(DL-040) @decision(DL-043)
+// @decision(DL-040) @decision(DL-043) @decision(DL-051)
 /**
  * Renders everything an install writes, and checks it can be written, without touching the
  * project: a failure here leaves nothing half-installed.
  */
 export function planInstall(ctx: Context, root: string, request: InstallRequest): InstallPlan {
+  const layouts = LAYOUTS.filter((layout) => request.layouts.has(layout));
+  for (const layout of layouts) {
+    refuseSymlinkedDir(ctx, root, layout.dir);
+    refuseSymlinkedSkills(ctx, root, layout);
+  }
   if (!request.force) checkDowngrade(installedStamps(ctx, root), request.version);
-  const skills = LAYOUTS.filter((layout) => request.layouts.has(layout)).map((layout) => {
+  const skills = layouts.map((layout) => {
     const { source } = request;
     if (source === undefined) throw new DldError("installing skills needs the skill templates");
-    refuseSymlinkedDir(ctx, root, layout.dir);
     const cli = new Map([
       [`${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`, { content: source.cli, mode: 0o755 }],
     ]);
@@ -184,7 +227,8 @@ export function planInstall(ctx: Context, root: string, request: InstallRequest)
     return { layout, files };
   });
   const rule = planRule(ctx, root, request.rules, request.version, { codex: request.codex });
-  return { skills, rule };
+  const warnings = layouts.length > 0 ? skillsLockWarning(ctx, root) : [];
+  return { skills, rule, warnings };
 }
 
 export interface InstallReport {
@@ -212,6 +256,6 @@ export function applyInstall(ctx: Context, root: string, plan: InstallPlan): Ins
     skills,
     ruleWritten: plan.rule.writes.map((write) => write.path),
     ruleRemoved: plan.rule.removals,
-    warnings: plan.rule.warnings,
+    warnings: [...plan.warnings, ...plan.rule.warnings],
   };
 }
