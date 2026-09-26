@@ -9040,31 +9040,56 @@ var AGENTS_LAYOUT = {
   dir: ".agents/skills"
 };
 var LAYOUTS = [CLAUDE_LAYOUT, AGENTS_LAYOUT];
+var AGENTS_FIRST = ["AGENTS.md", "CLAUDE.md"];
 var HARNESSES = [
   {
     name: "claude",
     title: "Claude Code",
     layout: CLAUDE_LAYOUT,
     rule: "claude-file",
-    markers: [".claude", "CLAUDE.md"]
+    markers: [".claude", "CLAUDE.md"],
+    instructions: ["CLAUDE.md", "AGENTS.md"]
   },
   {
     name: "antigravity",
     title: "Antigravity",
     layout: AGENTS_LAYOUT,
     rule: "agents-file",
-    markers: [".agents/rules", ".agent", "GEMINI.md"]
+    markers: [".agents/rules", ".agent", "GEMINI.md"],
+    instructions: ["AGENTS.md"]
   },
-  { name: "codex", title: "Codex", layout: AGENTS_LAYOUT, rule: "block", markers: [".codex"] },
-  { name: "cursor", title: "Cursor", layout: AGENTS_LAYOUT, rule: "block", markers: [".cursor"] },
+  {
+    name: "codex",
+    title: "Codex",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".codex"],
+    instructions: ["AGENTS.md"]
+  },
+  {
+    name: "cursor",
+    title: "Cursor",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".cursor"],
+    instructions: ["AGENTS.md"]
+  },
   {
     name: "opencode",
     title: "OpenCode",
     layout: AGENTS_LAYOUT,
     rule: "block",
-    markers: [".opencode", "opencode.json", "opencode.jsonc"]
+    markers: [".opencode", "opencode.json", "opencode.jsonc"],
+    instructions: AGENTS_FIRST
   },
-  { name: "pi", title: "Pi", layout: AGENTS_LAYOUT, rule: "block", markers: [".pi"] }
+  {
+    name: "pi",
+    title: "Pi",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".pi"],
+    instructions: AGENTS_FIRST
+  }
 ];
 var GENERIC_MARKERS = ["AGENTS.md", ".agents/skills"];
 var HARNESS_NAMES = HARNESSES.map((harness) => harness.name);
@@ -9361,6 +9386,18 @@ function legacyBlockWarnings(claudeMd, ruleInstalled) {
   return [
     ruleInstalled ? `${section} dld-kit now installs the rule separately, so that section can be removed.` : `${section} Install the rule with dld install-rule --agent <name> before removing it.`
   ];
+}
+function loadsRule(ctx, root, harness) {
+  if (harness.rule !== "block" && ctx.fs.exists(join15(root, RULE_FILES[harness.rule]))) {
+    return true;
+  }
+  const file = harness.instructions.find((name) => ctx.fs.exists(join15(root, name)));
+  if (file === void 0) return false;
+  return ctx.fs.readFile(join15(root, file)).split(/\r?\n/).some((line) => line === BLOCK_START || LEGACY_HEADING.test(line));
+}
+function sessionContext(ctx, root, harness, text = RULE_TEXT) {
+  if (!ctx.fs.exists(join15(root, CONFIG_FILE))) return void 0;
+  return loadsRule(ctx, root, harness) ? void 0 : text;
 }
 function refuseSymlinkedDir(ctx, root, dir) {
   let current = "";
@@ -9868,6 +9905,49 @@ origin/main.
   }
 };
 
+// src/cli/commands/session-context.ts
+var sessionContextCommand = {
+  name: "session-context",
+  summary: "Print the DLD rule for a session hook, unless the agent loads it already",
+  usage: `Usage: dld session-context --agent <name>
+
+Print the always-on DLD rule, for a harness hook that adds it to the session context.
+Prints nothing outside a project with dld.config.yaml, or when the agent already loads
+the rule there (its rule file, or the dld-kit block in the instruction file it reads).
+Never fails the session: other errors print one line on stderr and exit 0.
+
+Options:
+  --agent <name>  The agent whose session this is
+
+Agents: ${HARNESS_NAMES.join(", ")}.
+`,
+  run(args, io, ctx) {
+    const { values } = parseCommandArgs({
+      args: [...args],
+      options: { agent: { type: "string" } }
+    });
+    const [harness, ...others] = parseAgents(values.agent === void 0 ? [] : [values.agent]);
+    if (harness === void 0 || others.length > 0) {
+      throw new UsageError(`name one agent with --agent (${HARNESS_NAMES.join(", ")})`);
+    }
+    let root;
+    try {
+      root = findProjectRoot(ctx);
+    } catch {
+      return EXIT_OK;
+    }
+    try {
+      const text = sessionContext(ctx, root, harness);
+      if (text !== void 0) io.stdout(text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      io.stderr(`dld session-context: ${message}
+`);
+    }
+    return EXIT_OK;
+  }
+};
+
 // src/cli/commands/update.ts
 import { join as join18 } from "node:path";
 var updateCommand = {
@@ -10020,6 +10100,7 @@ var COMMANDS = [
   initCommand,
   updateCommand,
   installRuleCommand,
+  sessionContextCommand,
   createConfigCommand,
   createDirectoriesCommand,
   createEmptyIndexCommand,

@@ -1,21 +1,31 @@
 // @decision(DL-033)
-// Generates skills/ and .claude/skills/ from templates/skills/, and this repository's Claude Code
-// rule file from templates/rules/, or with --check reports drift.
+// Generates skills/, .claude/skills/ and the Claude Code plugin's skills from templates/skills/,
+// this repository's Claude Code rule file from templates/rules/, and the plugin and marketplace
+// manifests from package.json; with --check it reports drift instead.
 // Runs with Bun (a development tool); the generator itself is Node-compatible library code.
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { version } from "../package.json";
+import pkg from "../package.json";
 import { DldError } from "../src/core/errors.ts";
 import { writeFileAtomic } from "../src/core/files.ts";
-import { ADAPTERS } from "../src/generate/adapters.ts";
+import { agentSkillsAdapter, claudeCodeAdapter } from "../src/generate/adapters.ts";
 import { diffOutput, generateSkills, writeOutput } from "../src/generate/generate.ts";
+import { CLAUDE_PLUGIN_SKILLS, renderPluginFiles } from "../src/generate/plugins.ts";
 import { CLAUDE_RULE_FILE, RULE_TEXT, renderRuleFile } from "../src/generate/rule.ts";
 import { createNodeContext } from "../src/node-context.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const check = process.argv.includes("--check");
 const ctx = createNodeContext(root, process.env);
+const { version } = pkg;
+
+// @decision(DL-048)
+const OUTPUTS = [
+  { adapter: agentSkillsAdapter, dir: agentSkillsAdapter.outputDir },
+  { adapter: claudeCodeAdapter, dir: claudeCodeAdapter.outputDir },
+  { adapter: claudeCodeAdapter, dir: CLAUDE_PLUGIN_SKILLS },
+];
 
 // @decision(DL-035)
 // The skills ship the CLI built from this checkout, so build it first.
@@ -37,40 +47,41 @@ const extraFiles = new Map([
 
 let drift = 0;
 try {
-  for (const adapter of ADAPTERS) {
+  for (const { adapter, dir } of OUTPUTS) {
     const files = generateSkills(ctx, join(root, "templates/skills"), adapter, version, {
       extraFiles,
     });
-    const outDir = join(root, adapter.outputDir);
+    const outDir = join(root, dir);
     const diff = check ? diffOutput(ctx, outDir, files) : writeOutput(ctx, outDir, files);
     const report = [
-      ...diff.changed.map((p) => `changed: ${adapter.outputDir}/${p}`),
-      ...diff.missing.map((p) => `missing: ${adapter.outputDir}/${p}`),
-      ...diff.extra.map((p) => `extra:   ${adapter.outputDir}/${p}`),
+      ...diff.changed.map((p) => `changed: ${dir}/${p}`),
+      ...diff.missing.map((p) => `missing: ${dir}/${p}`),
+      ...diff.extra.map((p) => `extra:   ${dir}/${p}`),
     ];
     drift += report.length;
     if (check) {
       for (const line of report) console.error(line);
     } else {
       const written = diff.changed.length + diff.missing.length;
-      console.log(
-        `${adapter.outputDir}: ${files.size} files, ${written} written, ${diff.extra.length} removed`,
-      );
+      console.log(`${dir}: ${files.size} files, ${written} written, ${diff.extra.length} removed`);
     }
   }
 
-  // @decision(DL-047)
-  const rulePath = join(root, CLAUDE_RULE_FILE);
-  const rule = renderRuleFile("claude-file", RULE_TEXT, version);
-  const current = existsSync(rulePath) ? readFileSync(rulePath, "utf8") : undefined;
-  if (current !== rule) {
+  // @decision(DL-047) @decision(DL-048) @decision(DL-050) @decision(DL-052)
+  const single = new Map([
+    [CLAUDE_RULE_FILE, renderRuleFile("claude-file", RULE_TEXT, version)],
+    ...renderPluginFiles(pkg),
+  ]);
+  for (const [path, content] of single) {
+    const full = join(root, path);
+    const current = existsSync(full) ? readFileSync(full, "utf8") : undefined;
+    if (current === content) continue;
     drift += 1;
-    if (check)
-      console.error(`${current === undefined ? "missing" : "changed"}: ${CLAUDE_RULE_FILE}`);
+    if (check) console.error(`${current === undefined ? "missing" : "changed"}: ${path}`);
     else {
-      ctx.fs.mkdir(dirname(rulePath));
-      writeFileAtomic(ctx, rulePath, rule);
-      console.log(`${CLAUDE_RULE_FILE}: written`);
+      ctx.fs.mkdir(dirname(full));
+      writeFileAtomic(ctx, full, content);
+      console.log(`${path}: written`);
     }
   }
 } catch (error) {

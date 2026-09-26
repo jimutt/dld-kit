@@ -1,9 +1,10 @@
 import { dirname, join } from "node:path";
 import ruleText from "../../templates/rules/dld-workflow.md" with { type: "text" };
+import { CONFIG_FILE } from "../core/config.ts";
 import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
 import { writeFileAtomic } from "../core/files.ts";
-import type { RuleChannel } from "./harnesses.ts";
+import type { Harness, RuleChannel } from "./harnesses.ts";
 
 // @decision(DL-042)
 /** The always-on rule, embedded in the bundle so every copy of the CLI can install it. */
@@ -202,6 +203,38 @@ function legacyBlockWarnings(claudeMd: string, ruleInstalled: boolean): string[]
       ? `${section} dld-kit now installs the rule separately, so that section can be removed.`
       : `${section} Install the rule with dld install-rule --agent <name> before removing it.`,
   ];
+}
+
+// @decision(DL-049)
+/**
+ * Whether `harness` already loads the rule under `root`: its owned rule file exists, or the
+ * instruction file it reads holds the managed block or the pre-1.0 DLD section.
+ */
+export function loadsRule(ctx: Context, root: string, harness: Harness): boolean {
+  if (harness.rule !== "block" && ctx.fs.exists(join(root, RULE_FILES[harness.rule]))) {
+    return true;
+  }
+  const file = harness.instructions.find((name) => ctx.fs.exists(join(root, name)));
+  if (file === undefined) return false;
+  return ctx.fs
+    .readFile(join(root, file))
+    .split(/\r?\n/)
+    .some((line) => line === BLOCK_START || LEGACY_HEADING.test(line));
+}
+
+// @decision(DL-049)
+/**
+ * The rule text to add to a session of `harness` in the project at `root`, or undefined when
+ * the project does not use DLD or the harness loads the rule already.
+ */
+export function sessionContext(
+  ctx: Context,
+  root: string,
+  harness: Harness,
+  text: string = RULE_TEXT,
+): string | undefined {
+  if (!ctx.fs.exists(join(root, CONFIG_FILE))) return undefined;
+  return loadsRule(ctx, root, harness) ? undefined : text;
 }
 
 // @decision(DL-043)

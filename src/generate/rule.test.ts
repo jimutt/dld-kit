@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { fakeContext, memoryFs, tempProject } from "../test-helpers.ts";
-import type { RuleChannel } from "./harnesses.ts";
+import { findHarness, type Harness, type RuleChannel } from "./harnesses.ts";
 import {
   AGENTS_RULE_FILE,
   applyRulePlan,
@@ -12,11 +12,13 @@ import {
   findBlock,
   installedRuleChannels,
   installedRuleStamps,
+  loadsRule,
   planRule,
   RULE_TEXT,
   renderBlock,
   renderRuleFile,
   ruleVersion,
+  sessionContext,
   upsertBlock,
 } from "./rule.ts";
 
@@ -299,5 +301,48 @@ describe("installed rules", () => {
     } finally {
       p.cleanup();
     }
+  });
+});
+
+describe("loadsRule and sessionContext", () => {
+  const harness = (name: string): Harness => {
+    const found = findHarness(name);
+    if (found === undefined) throw new Error(name);
+    return found;
+  };
+  const loads = (name: string, files: Record<string, string>) =>
+    loadsRule(fakeContext({ fs: memoryFs(files) }), "/p", harness(name));
+  const block = `# Notes\n\n${BLOCK.join("\n")}\n`;
+
+  test("an owned rule file counts for its harness", () => {
+    expect(loads("claude", { [`/p/${CLAUDE_RULE_FILE}`]: "x" })).toBe(true);
+    expect(loads("antigravity", { [`/p/${AGENTS_RULE_FILE}`]: "x" })).toBe(true);
+    expect(loads("claude", { [`/p/${AGENTS_RULE_FILE}`]: "x" })).toBe(false);
+    expect(loads("codex", {})).toBe(false);
+  });
+
+  test("the block counts only in the instruction file the harness reads", () => {
+    expect(loads("claude", { "/p/CLAUDE.md": block })).toBe(true);
+    expect(loads("claude", { "/p/AGENTS.md": block })).toBe(true);
+    expect(loads("claude", { "/p/AGENTS.md": block, "/p/CLAUDE.md": "# C\n" })).toBe(false);
+    expect(loads("codex", { "/p/CLAUDE.md": block })).toBe(false);
+    expect(loads("pi", { "/p/CLAUDE.md": block })).toBe(true);
+    expect(loads("pi", { "/p/CLAUDE.md": block, "/p/AGENTS.md": "# A\n" })).toBe(false);
+  });
+
+  test("the pre-1.0 DLD section counts, CRLF included", () => {
+    const legacy = "# C\r\n\r\n## DLD (Decision-Linked Development)\r\n\r\nRules.\r\n";
+    expect(loads("claude", { "/p/CLAUDE.md": legacy })).toBe(true);
+    expect(loads("claude", { "/p/CLAUDE.md": "# DLD (Decision-Linked Development)\n" })).toBe(
+      false,
+    );
+  });
+
+  test("sessionContext returns the text only in a DLD project that lacks the rule", () => {
+    const context = (files: Record<string, string>) =>
+      sessionContext(fakeContext({ fs: memoryFs(files) }), "/p", harness("claude"), TEXT);
+    expect(context({ "/p/dld.config.yaml": "" })).toBe(TEXT);
+    expect(context({ "/p/dld.config.yaml": "", "/p/CLAUDE.md": block })).toBeUndefined();
+    expect(context({ "/p/CLAUDE.md": "# C\n" })).toBeUndefined();
   });
 });

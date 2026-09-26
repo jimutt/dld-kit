@@ -1,0 +1,15 @@
+{
+  "description": "Adds the DLD rule to the session context in projects that use DLD and do not load it already.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/dld-common/scripts/dld.mjs\" session-context --agent claude"
+          }
+        ]
+      }
+    ]
+  }
+}

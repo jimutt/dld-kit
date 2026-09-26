@@ -32,7 +32,11 @@ export interface Harness {
   rule: RuleChannel;
   /** Paths at the project root whose presence suggests the harness is in use. */
   markers: readonly string[];
+  /** Instruction files at the project root it reads; it loads the first that exists. */
+  instructions: readonly string[];
 }
+
+const AGENTS_FIRST = ["AGENTS.md", "CLAUDE.md"];
 
 // @decision(DL-041)
 export const HARNESSES: readonly Harness[] = [
@@ -42,6 +46,7 @@ export const HARNESSES: readonly Harness[] = [
     layout: CLAUDE_LAYOUT,
     rule: "claude-file",
     markers: [".claude", "CLAUDE.md"],
+    instructions: ["CLAUDE.md", "AGENTS.md"],
   },
   {
     name: "antigravity",
@@ -49,17 +54,40 @@ export const HARNESSES: readonly Harness[] = [
     layout: AGENTS_LAYOUT,
     rule: "agents-file",
     markers: [".agents/rules", ".agent", "GEMINI.md"],
+    instructions: ["AGENTS.md"],
   },
-  { name: "codex", title: "Codex", layout: AGENTS_LAYOUT, rule: "block", markers: [".codex"] },
-  { name: "cursor", title: "Cursor", layout: AGENTS_LAYOUT, rule: "block", markers: [".cursor"] },
+  {
+    name: "codex",
+    title: "Codex",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".codex"],
+    instructions: ["AGENTS.md"],
+  },
+  {
+    name: "cursor",
+    title: "Cursor",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".cursor"],
+    instructions: ["AGENTS.md"],
+  },
   {
     name: "opencode",
     title: "OpenCode",
     layout: AGENTS_LAYOUT,
     rule: "block",
     markers: [".opencode", "opencode.json", "opencode.jsonc"],
+    instructions: AGENTS_FIRST,
   },
-  { name: "pi", title: "Pi", layout: AGENTS_LAYOUT, rule: "block", markers: [".pi"] },
+  {
+    name: "pi",
+    title: "Pi",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".pi"],
+    instructions: AGENTS_FIRST,
+  },
 ];
 
 /** Markers of the AGENTS.md family that name no harness; they select `codex`. */

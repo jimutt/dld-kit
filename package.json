@@ -3,6 +3,10 @@
   "version": "0.9.0",
   "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
   "license": "MIT",
+  "author": {
+    "name": "Jimmy Utterström",
+    "url": "https://github.com/jimutt"
+  },
   "type": "module",
   "repository": {
     "type": "git",
@@ -13,7 +17,8 @@
     "dld",
     "decision-records",
     "agent-skills",
-    "cli"
+    "cli",
+    "pi-package"
   ],
   "engines": {
     "node": ">=20"
@@ -27,12 +32,17 @@
     "templates/skills/",
     "templates/rules/"
   ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "generate": "bun scripts/generate.ts",
     "check:generated": "bun scripts/generate.ts --check",
     "prepack": "npm run build",
-    "version": "npm run generate && git add skills .claude/skills .claude/rules",
+    "version": "npm run generate && git add skills .claude/skills .claude/rules claude-plugin .claude-plugin plugin.json .agents/plugins .github/plugin",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.src.json",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
