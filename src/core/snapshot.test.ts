@@ -145,7 +145,8 @@ describe("detectSnapshotChanges", () => {
     commitAt("2026-01-11T10:00:00Z", "change");
     const changes = detect(p);
     expect(changes).toMatchObject({ mode: "incremental", modifiedDecisions: ["DL-001"] });
-    expect(changes.mode === "incremental" && changes.commitRange).toMatch(/^[0-9a-f]+\.\.HEAD$/);
+    const stateCommit = p.git("rev-parse", "--short", "HEAD~1").trim();
+    expect(changes.mode === "incremental" && changes.commitRange).toBe(`${stateCommit}..HEAD`);
   });
 
   test("reports new accepted and modified earlier decisions in ascending order", () => {

@@ -17,7 +17,7 @@ If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional cust
 
 {{dld-setup}}
 
-This skill uses: `collect-active-decisions`, `detect-snapshot-changes`, `update-snapshot-state`.
+This skill uses: `detect-snapshot-changes`, `collect-active-decisions`, `update-snapshot-state`.
 
 ## Prerequisites
 

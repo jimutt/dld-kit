@@ -20,6 +20,10 @@ const build = spawnSync("node", [join(root, "scripts/build.mjs")], {
   cwd: root,
   stdio: ["ignore", "ignore", "inherit"],
 });
+if (build.error !== undefined) {
+  console.error(`Error: could not run the build: ${build.error.message}`);
+  process.exit(1);
+}
 if (build.status !== 0) process.exit(build.status ?? 1);
 const extraFiles = new Map([
   [

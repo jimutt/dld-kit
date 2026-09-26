@@ -14,7 +14,7 @@ You are running an autonomous audit of the decision-code relationship. Unlike th
 
 {{dld-setup}}
 
-This skill uses: `regenerate-index`, `update-status`, `find-annotations`, `find-missing-amends`, `update-audit-state`.
+This skill uses: `find-annotations`, `find-missing-amends`, `regenerate-index`, `update-audit-state`.
 
 ## Prerequisites
 

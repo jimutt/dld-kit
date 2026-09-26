@@ -29,8 +29,13 @@ function dldIn(cwd: string, ...args: string[]) {
   return dldWithInput(cwd, "", ...args);
 }
 
+/** The environment without GIT_* variables, so a surrounding git hook cannot redirect a fixture. */
+const ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
+);
+
 function dldWithInput(cwd: string, input: string, ...args: string[]) {
-  const result = spawnSync("node", [BIN, ...args], { cwd, input, encoding: "utf8" });
+  const result = spawnSync("node", [BIN, ...args], { cwd, input, encoding: "utf8", env: ENV });
   if (result.error) throw result.error;
   return result;
 }
@@ -145,10 +150,7 @@ describe("reindex end to end (built, under node)", () => {
     mkdirSync(join(root, firstRecordDir), { recursive: true });
     writeFileSync(join(root, "dld.config.yaml"), config);
     const git = (...args: string[]) =>
-      execFileSync("git", ["-c", "user.name=T", "-c", "user.email=t@t", ...args], {
-        cwd: root,
-        encoding: "utf8",
-      });
+      execFileSync("git", args, { cwd: root, encoding: "utf8", env: ENV });
     const record = (dir: string, id: string, status: string) => {
       mkdirSync(join(root, dir), { recursive: true });
       writeFileSync(
@@ -169,6 +171,9 @@ describe("reindex end to end (built, under node)", () => {
       git("commit", "--quiet", "-m", message);
     };
     git("init", "--quiet", "-b", "main");
+    // A local identity: commit-reindex commits too, and CI has no global git config.
+    git("config", "user.name", "T");
+    git("config", "user.email", "t@t");
     record(firstRecordDir, "DL-001", "accepted");
     run("", "regenerate-index");
     commit("seed main");

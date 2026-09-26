@@ -16,7 +16,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 {{dld-setup}}
 
-This skill uses: `update-status`, `regenerate-index`.
+This skill uses: `regenerate-index`.
 
 ## Prerequisites
 

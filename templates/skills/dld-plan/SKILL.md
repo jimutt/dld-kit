@@ -16,7 +16,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 {{dld-setup}}
 
-This skill uses: `next-id`, `regenerate-index`, `update-status`, `create-decision`.
+This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
 
 ## Prerequisites
 

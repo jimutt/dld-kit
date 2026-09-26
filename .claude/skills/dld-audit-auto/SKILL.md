@@ -17,7 +17,7 @@ You are running an autonomous audit of the decision-code relationship. Unlike th
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
-This skill uses: `regenerate-index`, `update-status`, `find-annotations`, `find-missing-amends`, `update-audit-state`.
+This skill uses: `find-annotations`, `find-missing-amends`, `regenerate-index`, `update-audit-state`.
 
 ## Prerequisites
 

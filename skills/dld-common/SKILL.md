@@ -11,4 +11,4 @@ metadata:
 
 This skill ships `scripts/dld.mjs`, the bundled `dld` command-line tool the other DLD skills run for mechanical operations: assigning IDs, creating records, updating status, regenerating the index, scanning annotations, and reindexing. Do not invoke this skill directly.
 
-Run `node scripts/dld.mjs --help` from this skill's directory to list the commands.
+`node "<skill-dir>/scripts/dld.mjs" --help` lists the commands, where `<skill-dir>` is the absolute path of this skill's directory.

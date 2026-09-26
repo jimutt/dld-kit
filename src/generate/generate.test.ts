@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { symlinkSync } from "node:fs";
+import { readdirSync, readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
+import { COMMANDS } from "../cli/index.ts";
 import { createNodeContext } from "../node-context.ts";
 import { fakeContext, memoryFs, tempProject } from "../test-helpers.ts";
 import { agentSkillsAdapter, claudeCodeAdapter } from "./adapters.ts";
@@ -119,6 +120,20 @@ describe("the bundled CLI", () => {
 });
 
 describe("the real templates", () => {
+  test("each skill lists exactly the dld commands it runs, and they exist", () => {
+    const dir = join(import.meta.dirname, "../../templates/skills");
+    const known = new Set(COMMANDS.map((command) => command.name));
+    for (const skill of readdirSync(dir)) {
+      const text = readFileSync(join(dir, skill, "SKILL.md"), "utf8");
+      const used = new Set([...text.matchAll(/\{\{dld\}\} ([a-z][a-z-]*)/g)].map((m) => m[1]));
+      for (const name of used)
+        expect({ skill, name, known: known.has(name ?? "") }).toMatchObject({ known: true });
+      const listed = /This skill uses: (.*)\.\n/.exec(text)?.[1] ?? "";
+      const names = new Set([...listed.matchAll(/`([a-z-]+)`/g)].map((m) => m[1]));
+      expect({ skill, listed: [...names].sort() }).toEqual({ skill, listed: [...used].sort() });
+    }
+  });
+
   test("every skill declares name, description and compatibility", () => {
     const root = join(import.meta.dirname, "../..");
     const ctx = createNodeContext(root, {});

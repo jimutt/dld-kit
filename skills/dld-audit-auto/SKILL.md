@@ -17,7 +17,7 @@ You are running an autonomous audit of the decision-code relationship. Unlike th
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `regenerate-index`, `update-status`, `find-annotations`, `find-missing-amends`, `update-audit-state`.
+This skill uses: `find-annotations`, `find-missing-amends`, `regenerate-index`, `update-audit-state`.
 
 ## Prerequisites
 

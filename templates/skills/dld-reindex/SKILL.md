@@ -22,7 +22,7 @@ Use the `AskUserQuestion` tool when prompting for consent and at the finish step
 
 {{dld-setup}}
 
-This skill uses: `regenerate-index`, `resolve-base`, `plan-renames`, `find-collisions`, `list-taken-ids`, `rename-decision`, `find-stale-mentions`, `commit-reindex`.
+This skill uses: `resolve-base`, `plan-renames`, `rename-decision`, `find-stale-mentions`, `commit-reindex`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -46,7 +46,8 @@ The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex o
 ## Step 2: Plan the renames
 
 ```bash
-{{dld}} plan-renames --base "$BASE"
+PLAN=$({{dld}} plan-renames --base "$BASE")
+echo "$PLAN"
 ```
 
 Output is tab-separated, one rename per line:

@@ -20,7 +20,7 @@ If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional cust
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `collect-active-decisions`, `detect-snapshot-changes`, `update-snapshot-state`.
+This skill uses: `detect-snapshot-changes`, `collect-active-decisions`, `update-snapshot-state`.
 
 ## Prerequisites
 

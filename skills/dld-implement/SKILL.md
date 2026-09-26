@@ -15,7 +15,7 @@ You are implementing one or more `proposed` decisions by making code changes, ad
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `regenerate-index`, `update-status`, `verify-annotations`.
+This skill uses: `update-status`, `verify-annotations`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -123,7 +123,7 @@ For each implemented decision:
 
 ### 5. Verify annotations
 
-After updating all decision records, run `verification` to confirm every implemented decision has at least one `@decision` annotation in the codebase:
+After updating all decision records, run `verify-annotations` to confirm every implemented decision has at least one `@decision` annotation in the codebase:
 
 ```bash
 node "<skill-dir>/../dld-common/scripts/dld.mjs" verify-annotations DL-005 DL-006
@@ -195,7 +195,7 @@ Group findings by severity:
 
 **Note:** The review subagent operates with limited context and may flag false positives or misunderstand project-specific patterns. Use your own judgment — you have fuller context from having just written the code. If you're uncertain whether a finding warrants a fix, ask the user before making changes.
 
-If you made fixes, re-run `verification` from step 5 to ensure annotations are still intact.
+If you made fixes, re-run `verify-annotations` from step 5 to ensure annotations are still intact.
 
 ### 7. Regenerate INDEX.md
 

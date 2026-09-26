@@ -19,7 +19,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
-This skill uses: `next-id`, `regenerate-index`, `update-status`, `create-decision`.
+This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
 
 ## Prerequisites
 

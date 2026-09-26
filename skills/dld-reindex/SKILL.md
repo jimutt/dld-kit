@@ -25,7 +25,7 @@ Use the `AskUserQuestion` tool when prompting for consent and at the finish step
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `regenerate-index`, `resolve-base`, `plan-renames`, `find-collisions`, `list-taken-ids`, `rename-decision`, `find-stale-mentions`, `commit-reindex`.
+This skill uses: `resolve-base`, `plan-renames`, `rename-decision`, `find-stale-mentions`, `commit-reindex`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -49,7 +49,8 @@ The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex o
 ## Step 2: Plan the renames
 
 ```bash
-node "<skill-dir>/../dld-common/scripts/dld.mjs" plan-renames --base "$BASE"
+PLAN=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" plan-renames --base "$BASE")
+echo "$PLAN"
 ```
 
 Output is tab-separated, one rename per line:
