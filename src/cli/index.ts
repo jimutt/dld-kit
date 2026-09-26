@@ -63,11 +63,21 @@ export const COMMANDS: readonly Command[] = [
   commitReindexCommand,
 ];
 
+// @decision(DL-056)
+const INTERNAL_HEADING = "Commands the skills run (internal; may change in minor releases)";
+export const INTERNAL_NOTE =
+  "Internal: the dld-kit skills run this command. Its name, arguments and output may change in a minor release.\n";
+
 function usage(commands: readonly Command[]): string {
+  const list = (group: readonly Command[]) =>
+    group.map((c) => `  ${c.name.padEnd(25)} ${c.summary}`).join("\n");
+  const setup = commands.filter((c) => !c.internal);
+  const internal = commands.filter((c) => c.internal);
+  const sections = [`Setup commands:\n${list(setup)}`];
+  if (internal.length > 0) sections.push(`${INTERNAL_HEADING}:\n${list(internal)}`);
   return `Usage: dld <command> [options]
 
-Commands:
-${commands.map((c) => `  ${c.name.padEnd(20)} ${c.summary}`).join("\n")}
+${sections.join("\n\n")}
 
 Options:
   -h, --help     Show this help, or a command's help after its name
@@ -114,7 +124,7 @@ export function run(
 /** Prints a command's failure and returns its exit code (DL-012). */
 function report(error: unknown, command: Command, io: Io): number {
   if (error instanceof HelpRequested) {
-    io.stdout(command.usage);
+    io.stdout(command.internal ? `${command.usage}\n${INTERNAL_NOTE}` : command.usage);
     return EXIT_OK;
   }
   if (error instanceof UsageError) {

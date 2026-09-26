@@ -7,6 +7,7 @@ import { baseOption } from "./base-option.ts";
 export const findStaleMentionsCommand: Command = {
   name: "find-stale-mentions",
   summary: "List remaining mentions of renamed decision IDs",
+  internal: true,
   usage: `Usage: dld find-stale-mentions --base <ref> < plan
 
 Read a rename plan (<path>\\t<DL-OLD>\\t<DL-NEW> per line) on standard input and print

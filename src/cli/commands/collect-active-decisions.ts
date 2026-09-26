@@ -5,6 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const collectActiveDecisionsCommand: Command = {
   name: "collect-active-decisions",
   summary: "Print every accepted decision record",
+  internal: true,
   usage:
     "Usage: dld collect-active-decisions\n\nPrint each accepted record in ID order, separated by ===DLD_DECISION_BOUNDARY=== lines.\n",
   run(args, io, ctx) {

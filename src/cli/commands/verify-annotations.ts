@@ -7,6 +7,7 @@ export const EXIT_MISSING = 1;
 export const verifyAnnotationsCommand: Command = {
   name: "verify-annotations",
   summary: "Check that decisions have annotations in the code",
+  internal: true,
   usage:
     "Usage: dld verify-annotations <DL-NNN> [DL-NNN ...]\n\nExit 0 if every decision has at least one annotation, 1 if any are missing.\n",
   run(args, io, ctx) {

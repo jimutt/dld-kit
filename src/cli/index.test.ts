@@ -3,7 +3,7 @@ import { version } from "../../package.json";
 import { DldError } from "../core/errors.ts";
 import { captureIo, fakeContext, type TempProject, tempProject } from "../test-helpers.ts";
 import { type Command, EXIT_OK, EXIT_USAGE, parseCommandArgs, UsageError } from "./command.ts";
-import { COMMANDS, run } from "./index.ts";
+import { COMMANDS, INTERNAL_NOTE, run } from "./index.ts";
 
 const ctx = fakeContext();
 
@@ -26,6 +26,20 @@ describe("run", () => {
     expect(run(["--help"], io, ctx)).toBe(EXIT_OK);
     expect(io.out).toContain("Usage: dld");
     for (const command of COMMANDS) expect(io.out).toContain(command.name);
+  });
+
+  test("--help lists the setup commands apart from the internal ones", () => {
+    const io = captureIo();
+    run(["--help"], io, ctx);
+    const [setup, internal] = io.out.split(
+      "Commands the skills run (internal; may change in minor releases):\n",
+    );
+    const names = (text = "") => [...text.matchAll(/^ {2}([a-z-]+) /gm)].map((m) => m[1]);
+    expect(names(setup)).toEqual(["init", "update", "install-rule", "session-context"]);
+    expect(names(internal)).toEqual(
+      COMMANDS.filter((command) => command.internal).map((command) => command.name),
+    );
+    expect(names(internal)).toContain("next-id");
   });
 
   test("no arguments prints usage on stderr and exits with a usage error", () => {
@@ -84,7 +98,7 @@ describe("command dispatch", () => {
     for (const command of COMMANDS) {
       const io = captureIo();
       expect(await run([command.name, "--help"], io, ctx)).toBe(EXIT_OK);
-      expect(io.out).toBe(command.usage);
+      expect(io.out).toBe(command.internal ? `${command.usage}\n${INTERNAL_NOTE}` : command.usage);
     }
   });
 

@@ -7,6 +7,7 @@ import { baseOption } from "./base-option.ts";
 export const renameDecisionCommand: Command = {
   name: "rename-decision",
   summary: "Rename a local decision and rewrite its references",
+  internal: true,
   usage: `Usage: dld rename-decision --old <DL-OLD> --new <DL-NEW> --path <path> [--base <ref>]
 
 Rename a locally added decision with git mv, rewrite its id and references in changed

@@ -6,6 +6,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const regenerateIndexCommand: Command = {
   name: "regenerate-index",
   summary: "Rebuild INDEX.md from the decision records",
+  internal: true,
   usage: `Usage: dld regenerate-index [--include-base <ref>]
 
 Rebuild INDEX.md from every decision record.

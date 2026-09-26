@@ -5,6 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.
 export const createConfigCommand: Command = {
   name: "create-config",
   summary: "Create dld.config.yaml at the project root",
+  internal: true,
   usage:
     "Usage: dld create-config <flat|namespaced> [namespace ...]\n\nCreate dld.config.yaml. Namespaced mode needs at least one namespace.\n",
   run(args, io, ctx) {

@@ -5,6 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const findAnnotationsCommand: Command = {
   name: "find-annotations",
   summary: "List every annotation in the codebase",
+  internal: true,
   usage:
     "Usage: dld find-annotations\n\nPrint <file>:<line>:<DL-NNN> for every annotation, one per line.\n",
   run(args, io, ctx) {

@@ -7,6 +7,7 @@ import { baseOption } from "./base-option.ts";
 export const commitReindexCommand: Command = {
   name: "commit-reindex",
   summary: "Squash the branch into one reindex commit",
+  internal: true,
   usage: `Usage: dld commit-reindex --base <ref> < plan
 
 Read a rename plan on standard input and squash the branch's commits since the merge-base

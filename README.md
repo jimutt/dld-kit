@@ -369,9 +369,11 @@ The `dld` command comes with the npm package (`npx dld-kit <command>`, or `npm i
 | `dld update` | Rewrites the installed skills and rule with this version; `--agent` adds agents |
 | `dld install-rule --agent <names>` | Installs or refreshes only the always-on rule |
 | `dld session-context --agent <name>` | Prints the rule for a session hook, unless the agent loads it already (used by the Claude Code plugin) |
-| `dld --help` | Lists every command; the rest are the operations the skills run |
+| `dld --help` | Lists the setup commands above, then the commands the skills run |
 
 `init` and `update` refuse to overwrite files from a newer dld-kit unless given `--force`.
+
+Semantic versioning covers the four commands above, their flags, exit codes and documented output, and `--help` and `--version`. The other commands (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their own bundled copy of the CLI, and their names, arguments and output can change in a minor release. Don't script against them.
 
 ## Development
 
