@@ -8,14 +8,18 @@ import {
   applyRulePlan,
   BLOCK_END,
   BLOCK_START,
+  CLAUDE_IMPORT_FILE,
   CLAUDE_RULE_FILE,
   findBlock,
+  importFileVersion,
+  importsAgentsMd,
   installedRuleChannels,
   installedRuleStamps,
   loadsRule,
   planRule,
   RULE_TEXT,
   renderBlock,
+  renderImportFile,
   renderRuleFile,
   ruleVersion,
   sessionContext,
@@ -154,9 +158,12 @@ describe("planRule", () => {
     ).toEqual([]);
   });
 
-  test("with neither file, a new AGENTS.md holds the block, which Claude Code then reads", () => {
+  test("with neither file, a new AGENTS.md holds the block, which Claude Code reads through an import", () => {
     const { result } = plan({}, ["claude-file", "block"]);
-    expect(result.writes).toEqual([{ path: "AGENTS.md", content: block }]);
+    expect(result.writes).toEqual([
+      { path: "AGENTS.md", content: block },
+      { path: CLAUDE_IMPORT_FILE, content: renderImportFile("1.0.0") },
+    ]);
     expect(result.removals).toEqual([]);
   });
 
@@ -294,6 +301,20 @@ describe("installed rules", () => {
     expect(installedRuleChannels(fakeContext({ fs: memoryFs({}) }), "/p").size).toBe(0);
   });
 
+  test("dld-kit's .claude/CLAUDE.md counts as Claude Code's rule, with its stamp", () => {
+    const ctx = (content: string) =>
+      fakeContext({ fs: memoryFs({ [`/p/${CLAUDE_IMPORT_FILE}`]: content }) });
+    const owned = ctx(renderImportFile("1.1.0-rc.2"));
+    expect(importFileVersion(renderImportFile("1.1.0-rc.2"))).toBe("1.1.0-rc.2");
+    expect(installedRuleChannels(owned, "/p")).toEqual(new Set(["claude-file"]));
+    expect(installedRuleStamps(owned, "/p")).toEqual([
+      { path: CLAUDE_IMPORT_FILE, version: "1.1.0-rc.2" },
+    ]);
+    const mine = ctx("@../AGENTS.md\n");
+    expect(installedRuleChannels(mine, "/p").size).toBe(0);
+    expect(installedRuleStamps(mine, "/p")).toEqual([]);
+  });
+
   test("applyRulePlan writes files and removes stale ones", () => {
     const p = tempProject(null);
     try {
@@ -313,25 +334,75 @@ describe("installed rules", () => {
   });
 });
 
-describe("instruction files each harness reads (DL-054)", () => {
+describe("instruction files each harness reads (DL-054, DL-055)", () => {
   const planWith = (files: Record<string, string>, channels: RuleChannel[], names: string[]) =>
     plan(files, channels, names).result;
+  const importFile = renderImportFile("1.0.0");
 
-  test("neither file exists: the new AGENTS.md block covers Claude Code and OpenCode", () => {
+  test("neither file exists: the new AGENTS.md block covers OpenCode, and Claude Code through the import", () => {
     const result = planWith({}, ["claude-file", "block"], ["claude", "opencode"]);
-    expect(result.writes.map((w) => w.path)).toEqual(["AGENTS.md"]);
-    expect(result.warnings).toEqual([
-      expect.stringContaining("Claude Code reads the DLD rule from the AGENTS.md block"),
-    ]);
+    expect(result.writes.map((w) => w.path)).toEqual(["AGENTS.md", CLAUDE_IMPORT_FILE]);
+    expect(result.warnings).toEqual([]);
+    expect(importFile).toEndWith("\n\n@../AGENTS.md\n");
   });
 
-  test("the note appears only when the AGENTS.md block is written", () => {
-    const written = planWith({}, ["claude-file", "block"], ["claude", "opencode"]);
-    const agents = written.writes[0]?.content ?? "";
+  test("the import is created only for Claude Code, and only while no CLAUDE file exists", () => {
+    expect(planWith({}, ["block"], ["opencode"]).writes.map((w) => w.path)).toEqual(["AGENTS.md"]);
+    const agents = upsertBlock("# A\n", BLOCK, "");
     expect(
-      planWith({ "/p/AGENTS.md": agents }, ["claude-file", "block"], ["claude"]).warnings,
-    ).toEqual([]);
-    expect(planWith({}, ["claude-file", "block"], ["opencode"]).warnings).toEqual([]);
+      planWith({ "/p/AGENTS.md": agents }, ["claude-file", "block"], ["claude"]).writes,
+    ).toEqual([{ path: CLAUDE_IMPORT_FILE, content: importFile }]);
+    const withClaudeMd = planWith(
+      { "/p/AGENTS.md": agents, "/p/CLAUDE.md": "# C\n" },
+      ["claude-file", "block"],
+      ["claude"],
+    );
+    expect(withClaudeMd.writes.map((w) => w.path)).toEqual([CLAUDE_RULE_FILE]);
+  });
+
+  test("an existing import file is refreshed, and keeps the rule loading once a CLAUDE.md appears", () => {
+    const agents = upsertBlock("# A\n", BLOCK, "");
+    const files = {
+      "/p/AGENTS.md": agents,
+      "/p/CLAUDE.md": "# Added later\n",
+      "/p/CLAUDE.local.md": "# Mine\n",
+      [`/p/${CLAUDE_IMPORT_FILE}`]: renderImportFile("0.9.0"),
+      [`/p/${CLAUDE_RULE_FILE}`]: "stale",
+    };
+    const result = planWith(files, ["claude-file"], ["claude"]);
+    expect(result.writes).toEqual([{ path: CLAUDE_IMPORT_FILE, content: importFile }]);
+    expect(result.removals).toEqual([CLAUDE_RULE_FILE]);
+    const current = { ...files, [`/p/${CLAUDE_IMPORT_FILE}`]: importFile };
+    expect(loadsRule(fakeContext({ fs: memoryFs(current) }), "/p", harness("claude"))).toBe(true);
+  });
+
+  test("a .claude/CLAUDE.md dld-kit does not own is only read", () => {
+    const agents = upsertBlock("# A\n", BLOCK, "");
+    const mine = { "/p/AGENTS.md": agents, [`/p/${CLAUDE_IMPORT_FILE}`]: "# Mine\n" };
+    expect(planWith(mine, ["claude-file"], ["claude"]).writes.map((w) => w.path)).toEqual([
+      CLAUDE_RULE_FILE,
+    ]);
+    const imports = { ...mine, [`/p/${CLAUDE_IMPORT_FILE}`]: "# Mine\n@../AGENTS.md\n" };
+    const result = planWith(imports, ["claude-file"], ["claude"]);
+    expect(result.writes).toEqual([]);
+    expect(result.removals).toEqual([]);
+  });
+
+  test("a CLAUDE.md that imports AGENTS.md gets no second copy of the rule", () => {
+    const agents = upsertBlock("# A\n", BLOCK, "");
+    const files = {
+      "/p/AGENTS.md": agents,
+      "/p/CLAUDE.md": "# C\n\n@AGENTS.md\n",
+      [`/p/${CLAUDE_RULE_FILE}`]: "duplicate",
+    };
+    const result = planWith(files, ["claude-file", "block"], ["claude", "codex"]);
+    expect(result.writes).toEqual([]);
+    expect(result.removals).toEqual([CLAUDE_RULE_FILE]);
+    expect(result.warnings).toEqual([]);
+    const { [`/p/${CLAUDE_RULE_FILE}`]: _, ...withoutRule } = files;
+    expect(loadsRule(fakeContext({ fs: memoryFs(withoutRule) }), "/p", harness("claude"))).toBe(
+      true,
+    );
   });
 
   test("CLAUDE.local.md or .claude/CLAUDE.md stops Claude Code reading AGENTS.md", () => {
@@ -355,6 +426,23 @@ describe("instruction files each harness reads (DL-054)", () => {
     expect(planWith(files, ["block"], ["opencode"]).warnings).toEqual([
       "The dld-kit rule block is in CLAUDE.md, but OpenCode reads AGENTS.md. To cover it, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule.",
     ]);
+  });
+});
+
+describe("importsAgentsMd", () => {
+  test("finds an @ import that resolves to the root AGENTS.md", () => {
+    expect(importsAgentsMd("@AGENTS.md", "CLAUDE.md")).toBe(true);
+    expect(importsAgentsMd("See @./AGENTS.md for more.", "CLAUDE.local.md")).toBe(true);
+    expect(importsAgentsMd("# X\r\n@../AGENTS.md\r\n", ".claude/CLAUDE.md")).toBe(true);
+    expect(importsAgentsMd("@AGENTS.md", ".claude/CLAUDE.md")).toBe(false);
+    expect(importsAgentsMd("@docs/AGENTS.md", "CLAUDE.md")).toBe(false);
+    expect(importsAgentsMd("mail me@AGENTS.md", "CLAUDE.md")).toBe(false);
+  });
+
+  test("ignores imports in code spans and fenced blocks", () => {
+    expect(importsAgentsMd("Write `@AGENTS.md` to import it.", "CLAUDE.md")).toBe(false);
+    expect(importsAgentsMd("```\n@AGENTS.md\n```\n", "CLAUDE.md")).toBe(false);
+    expect(importsAgentsMd("~~~md\n@AGENTS.md\n~~~\n@AGENTS.md\n", "CLAUDE.md")).toBe(true);
   });
 });
 

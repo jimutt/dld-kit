@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { version } from "../../package.json";
+import type { Context } from "../core/context.ts";
 import { GitCommandError } from "../core/errors.ts";
 import {
   branchedProject,
@@ -535,8 +536,8 @@ describe("install-rule", () => {
   });
 });
 
-describe("init with Claude Code and a block reader (DL-054)", () => {
-  test("puts the block in a new AGENTS.md, notes the dependency, and warns about nothing else", async () => {
+describe("init and update with Claude Code and a block reader (DL-054, DL-055)", () => {
+  test("puts the block in a new AGENTS.md, imports it for Claude Code, and warns about nothing", async () => {
     project = tempProject(null);
     const { code, err, out } = await dldInstall(
       project,
@@ -547,15 +548,34 @@ describe("init with Claude Code and a block reader (DL-054)", () => {
       "claude,opencode",
     );
     expect(code).toBe(EXIT_OK);
-    expect(out).toContain("Wrote the DLD rule to AGENTS.md\n");
-    // Only the note: before DL-054 this also warned that OpenCode could not see the block.
-    expect(err).toBe(
-      "Warning: Claude Code reads the DLD rule from the AGENTS.md block, because the project has no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md. Adding one of those later stops Claude Code from reading AGENTS.md; run dld update then, which installs .claude/rules/dld-workflow.md.\n",
+    expect(out).toContain(
+      "Wrote the DLD rule to AGENTS.md\nWrote .claude/CLAUDE.md (imports AGENTS.md for Claude Code)\n",
     );
+    expect(err).toBe("");
     expect(existsSync(join(project.root, ".claude/rules/dld-workflow.md"))).toBe(false);
     expect(readFileSync(join(project.root, "AGENTS.md"), "utf8")).toContain(
       "<!-- dld-kit:start -->",
     );
+    expect(readFileSync(join(project.root, ".claude/CLAUDE.md"), "utf8")).toEndWith(
+      "\n\n@../AGENTS.md\n",
+    );
+    expect(dld(project, "session-context", "--agent", "claude").out).toBe("");
+  });
+
+  test("update adds the import to a project that relied on Claude Code reading AGENTS.md", async () => {
+    project = tempProject(null);
+    await dldInstall(project, fakePackage(project), "init", "--yes", "--agent", "claude,opencode");
+    rmSync(join(project.root, ".claude/CLAUDE.md"));
+    const { code, err, out } = await dldInstall(project, fakePackage(project), "update");
+    expect(code).toBe(EXIT_OK);
+    expect(err).toBe("");
+    expect(out).toContain("Wrote .claude/CLAUDE.md (imports AGENTS.md for Claude Code)\n");
+    // A CLAUDE.md added later keeps the rule loading through the import, without a second copy.
+    project.write("CLAUDE.md", "# Project\n");
+    const again = await dldInstall(project, fakePackage(project), "update");
+    expect(again.out).not.toContain("Wrote");
+    expect(existsSync(join(project.root, ".claude/rules/dld-workflow.md"))).toBe(false);
+    expect(dld(project, "session-context", "--agent", "claude").out).toBe("");
   });
 });
 
@@ -599,8 +619,18 @@ describe("session-context", () => {
 
   test("reports other errors on stderr and still exits 0", () => {
     project = tempProject();
-    mkdirSync(join(project.root, "CLAUDE.md"));
-    const result = dld(project, "session-context", "--agent", "claude");
+    project.write("CLAUDE.md", "# C\n");
+    const failing: Context = {
+      ...project.ctx,
+      fs: {
+        ...project.ctx.fs,
+        readFile: () => {
+          throw new Error("EIO: i/o error, read");
+        },
+      },
+    };
+    const io = captureIo();
+    const result = { code: run(["session-context", "--agent", "claude"], io, failing), ...io };
     expect(result.code).toBe(EXIT_OK);
     expect(result.out).toBe("");
     expect(result.err).toStartWith("dld session-context: ");
