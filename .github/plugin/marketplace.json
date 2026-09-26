@@ -5,13 +5,13 @@
   },
   "metadata": {
     "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
-    "version": "0.9.0"
+    "version": "1.0.0-rc.1"
   },
   "plugins": [
     {
       "name": "dld",
       "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
-      "version": "0.9.0",
+      "version": "1.0.0-rc.1",
       "category": "development",
       "tags": [
         "dld",
