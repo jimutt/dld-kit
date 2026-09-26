@@ -2,11 +2,11 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-025 | Port the snapshot scripts with their current semantics and deterministic ordering | proposed | v1-port-audit, snapshot |
-| DL-024 | Port find-missing-amends with parsed records and the same changed-since-audit filter | proposed | v1-port-audit, audit, records |
-| DL-023 | Let projects exclude paths from annotation scanning with an annotation_exclude config key | proposed | v1-port-audit, annotations, config |
-| DL-022 | Port find-annotations onto the shared scanner, reporting only IDs inside annotations | proposed | v1-port-audit, annotations, audit |
-| DL-021 | Read and update .dld-state.yaml section by section with the yaml Document API and the failsafe schema | proposed | v1-port-audit, state, yaml |
+| DL-025 | Port the snapshot scripts with their current semantics and deterministic ordering | accepted | v1-port-audit, snapshot |
+| DL-024 | Port find-missing-amends with parsed records and the same changed-since-audit filter | accepted | v1-port-audit, audit, records |
+| DL-023 | Let projects exclude paths from annotation scanning with an annotation_exclude config key | accepted | v1-port-audit, annotations, config |
+| DL-022 | Port find-annotations onto the shared scanner, reporting only IDs inside annotations | accepted | v1-port-audit, annotations, audit |
+| DL-021 | Read and update .dld-state.yaml section by section with the yaml Document API and the failsafe schema | accepted | v1-port-audit, state, yaml |
 | DL-020 | Report unit-test coverage on PRs with a self-hosted comment and a 90% floor | accepted | v1-port-common, ci, coverage, testing |
 | DL-019 | Scan for annotations with one core scanner over git's file list and a single exclusion list | accepted | v1-port-common, annotations, audit |
 | DL-018 | Render INDEX.md with a single renderer that matches regenerate-index.sh byte for byte | accepted | v1-port-common, index |

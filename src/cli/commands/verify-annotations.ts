@@ -1,4 +1,4 @@
-import { missingAnnotations } from "../../core/annotations.ts";
+import { missingAnnotations, scanOptionsFor } from "../../core/annotations.ts";
 import { loadProject } from "../../core/project.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 
@@ -16,13 +16,9 @@ export const verifyAnnotationsCommand: Command = {
       allowPositionals: true,
     });
     if (ids.length === 0) throw new UsageError("expected at least one decision ID");
-    const { config, paths } = loadProject(ctx);
-    const prefix = config.annotationPrefix;
-    const missing = missingAnnotations(
-      ctx,
-      { root: paths.root, decisionsDir: paths.decisionsDir, prefix },
-      ids,
-    );
+    const options = scanOptionsFor(loadProject(ctx));
+    const prefix = options.prefix;
+    const missing = missingAnnotations(ctx, options, ids);
     if (missing.length > 0) {
       io.stdout(`MISSING annotations in source code for: ${missing.join(" ")}\n`);
       io.stdout(

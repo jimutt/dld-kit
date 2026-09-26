@@ -17,6 +17,8 @@ export interface Config {
   mode: Mode;
   namespaces: string[];
   annotationPrefix: string;
+  /** git glob patterns excluded from annotation scanning. */
+  annotationExclude: string[];
   implementReview: boolean;
   snapshotArtifacts: SnapshotArtifact[];
 }
@@ -52,6 +54,8 @@ export function parseConfig(text: string): Config {
     mode,
     namespaces,
     annotationPrefix: optionalString(raw.annotation_prefix, "annotation_prefix") ?? "@decision",
+    // @decision(DL-023)
+    annotationExclude: optionalStringList(raw.annotation_exclude, "annotation_exclude"),
     implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
   };

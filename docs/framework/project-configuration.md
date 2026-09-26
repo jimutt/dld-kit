@@ -28,6 +28,12 @@ namespaces:
 # Default: @decision(DL-XXX)
 annotation_prefix: "@decision"
 
+# Paths whose annotations are ignored (optional)
+# git glob patterns relative to the repo root; see "Annotation exclusions" below
+annotation_exclude:
+  - docs/**
+  - tests/fixtures/**
+
 # Whether /dld-implement runs a review subagent before finalizing
 # Default: true
 implement_review: true
@@ -64,6 +70,12 @@ namespaces:
   - api-gateway
   - shared
 ```
+
+### Annotation exclusions
+
+`annotation_exclude` lists paths whose annotations are not treated as references to the project's decisions. Use it for documentation, examples and test fixtures that contain `` `@decision` `` annotations only to illustrate the syntax. `find-annotations` (used by `/dld-audit`) and `verify-annotations` (used by `/dld-implement`) both skip matching files.
+
+Each entry is a git glob pattern relative to the repository root, applied as a `:(exclude,glob)` pathspec. `*` matches within a single directory level, so `*.md` matches only top-level markdown files; `**` matches across directories, so `docs/**` covers everything under `docs/`. Files ignored by `.gitignore`, the decisions directory, and common build and dependency directories are always skipped.
 
 ### Implement Review
 

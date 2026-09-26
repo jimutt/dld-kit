@@ -1,5 +1,6 @@
 import { join, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
+import type { Project } from "./project.ts";
 
 // @decision(DL-019)
 /** Directories never scanned, wherever they appear in a path. */
@@ -34,6 +35,17 @@ export interface ScanOptions {
   root: string;
   decisionsDir: string;
   prefix: string;
+  /** git glob patterns to leave out (DL-023). */
+  exclude?: readonly string[];
+}
+
+export function scanOptionsFor({ config, paths }: Project): ScanOptions {
+  return {
+    root: paths.root,
+    decisionsDir: paths.decisionsDir,
+    prefix: config.annotationPrefix,
+    exclude: config.annotationExclude,
+  };
 }
 
 // @decision(DL-019)
@@ -47,6 +59,9 @@ export function listScannableFiles(ctx: Context, options: ScanOptions): string[]
     "--cached",
     "--others",
     "--exclude-standard",
+    // @decision(DL-023)
+    "--",
+    ...(options.exclude ?? []).map((pattern) => `:(exclude,glob)${pattern}`),
   ]);
   const decisionsRel = relative(options.root, options.decisionsDir).split(sep).join("/");
   const files = new Set<string>();
@@ -64,8 +79,8 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// @decision(DL-019)
-/** Every `<prefix>(DL-NNN)` annotation in the project's scannable files. */
+// @decision(DL-019) @decision(DL-022)
+/** Every `<prefix>(DL-NNN)` annotation in the project's scannable files, in file and line order. */
 export function scanAnnotations(ctx: Context, options: ScanOptions): Annotation[] {
   const pattern = new RegExp(`${escapeRegExp(options.prefix)}\\((DL-\\d+)\\)`, "g");
   const found: Annotation[] = [];
@@ -93,4 +108,9 @@ export function missingAnnotations(
 ): string[] {
   const annotated = new Set(scanAnnotations(ctx, options).map((annotation) => annotation.id));
   return ids.filter((id) => !annotated.has(id));
+}
+
+/** `<file>:<line>:<DL-NNN>`, as find-annotations.sh printed it. */
+export function formatAnnotation({ file, line, id }: Annotation): string {
+  return `${file}:${line}:${id}`;
 }

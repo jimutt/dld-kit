@@ -73,6 +73,12 @@ function frontmatterBlock(text: string): FrontmatterBlock | undefined {
   return { lines, start, end };
 }
 
+/** Everything after the frontmatter's closing `---` line, or the whole text if there is none. */
+export function recordBody(text: string): string {
+  const block = frontmatterBlock(text);
+  return block === undefined ? text : block.lines.slice(block.end + 1).join("\n");
+}
+
 // @decision(DL-014)
 /** Parses a record's frontmatter. `source` names the record in error messages. */
 export function parseRecord(text: string, source: string): DecisionRecord {
