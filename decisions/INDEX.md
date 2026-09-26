@@ -2,11 +2,11 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-030 | Port commit-reindex with literal staging and full rollback | proposed | v1-port-reindex, reindex, git |
-| DL-029 | Port rename-decision and find-stale-mentions with the scanner file filter and byte-preserving rewrites | proposed | v1-port-reindex, reindex, annotations |
-| DL-028 | Validate the rename plan before acting on it | proposed | v1-port-reindex, reindex, security |
-| DL-027 | Port the reindex planning commands on one core computation | proposed | v1-port-reindex, reindex |
-| DL-026 | Scan open PRs through Context.gh and report every skipped scan | proposed | v1-port-reindex, reindex, context |
+| DL-030 | Port commit-reindex with literal staging and full rollback | accepted | v1-port-reindex, reindex, git |
+| DL-029 | Port rename-decision and find-stale-mentions with the scanner file filter and byte-preserving rewrites | accepted | v1-port-reindex, reindex, annotations |
+| DL-028 | Validate the rename plan before acting on it | accepted | v1-port-reindex, reindex, security |
+| DL-027 | Port the reindex planning commands on one core computation | accepted | v1-port-reindex, reindex |
+| DL-026 | Scan open PRs through Context.gh and report every skipped scan | accepted | v1-port-reindex, reindex, context |
 | DL-025 | Port the snapshot scripts with their current semantics and deterministic ordering | accepted | v1-port-audit, snapshot |
 | DL-024 | Port find-missing-amends with parsed records and the same changed-since-audit filter | accepted | v1-port-audit, audit, records |
 | DL-023 | Let projects exclude paths from annotation scanning with an annotation_exclude config key | accepted | v1-port-audit, annotations, config |

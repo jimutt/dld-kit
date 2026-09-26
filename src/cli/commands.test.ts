@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
+  branchedProject,
   captureIo,
   NAMESPACED_CONFIG,
   recordText,
@@ -198,5 +199,74 @@ describe("snapshot commands", () => {
     expect(dld(project, "detect-snapshot-changes").out).toBe(
       "mode: incremental\nnew_decisions: \nmodified_decisions: \ncommit_range: \n",
     );
+  });
+});
+
+describe("reindex commands", () => {
+  const collide = () => {
+    const p = branchedProject();
+    project = p;
+    p.onMain("land", () => p.write("decisions/records/DL-002.md", recordText("DL-002")));
+    p.write("decisions/records/DL-002.md", recordText("DL-002", "proposed"));
+    p.write("src/a.py", "# @decision(DL-002)\n# see DL-002\n");
+    p.commitAll("local");
+    return p;
+  };
+  const withStdin = (p: TempProject, input: string) => ({ ...p.ctx, readStdin: () => input });
+  const plan = "decisions/records/DL-002.md\tDL-002\tDL-003\n";
+  const notice = "[dld-reindex] open PRs not scanned: gh CLI not installed\n";
+
+  test("resolve-base prints the base", () => {
+    project = tempProject(null);
+    expect(dld(project, "resolve-base")).toEqual({ code: EXIT_OK, out: "origin/main\n", err: "" });
+  });
+
+  test("planning commands print their results and the scan notice", () => {
+    const p = collide();
+    expect(dld(p, "list-taken-ids", "--base", "main")).toEqual({
+      code: EXIT_OK,
+      out: "DL-001\nDL-002\n",
+      err: notice,
+    });
+    expect(dld(p, "find-collisions", "--base", "main")).toEqual({
+      code: EXIT_OK,
+      out: "decisions/records/DL-002.md\tDL-002\n",
+      err: notice,
+    });
+    expect(dld(p, "plan-renames", "--base", "main")).toEqual({
+      code: EXIT_OK,
+      out: plan,
+      err: notice,
+    });
+    expect(dld(p, "plan-renames").err).toBe("Error: base ref 'origin/main' not found.\n");
+    expect(dld(p, "plan-renames", "--base", "-x").code).toBe(EXIT_USAGE);
+    expect(dld(p, "find-collisions", "--base=--output=x").err).toContain(
+      "--base must be a git ref, got '--output=x'",
+    );
+  });
+
+  test("rename, stale mentions and commit run the whole flow", () => {
+    const p = collide();
+    expect(dld(p, "rename-decision", "--old", "DL-002", "--new", "DL-003")).toEqual({
+      code: 1,
+      out: "",
+      err: "Error: --old, --new, and --path are required.\n",
+    });
+    const args = ["--old", "DL-002", "--new", "DL-003", "--path", "decisions/records/DL-002.md"];
+    expect(dld(p, "rename-decision", ...args, "--base", "main").out).toBe(
+      "decisions/records/DL-002.md -> decisions/records/DL-003.md\n",
+    );
+
+    expect(dld(p, "find-stale-mentions").err).toBe("Error: --base is required.\n");
+    const stale = run(["find-stale-mentions", "--base", "main"], captureIo(), withStdin(p, plan));
+    expect(stale).toBe(EXIT_OK);
+    const io = captureIo();
+    run(["find-stale-mentions", "--base", "main"], io, withStdin(p, plan));
+    expect(io.out).toBe("src/a.py\t2\tDL-002\tDL-003\t# see DL-002\n");
+
+    expect(dld(p, "commit-reindex").err).toBe("Error: --base is required.\n");
+    const commitIo = captureIo();
+    expect(run(["commit-reindex", "--base", "main"], commitIo, withStdin(p, plan))).toBe(EXIT_OK);
+    expect(commitIo.out).toMatch(/^Created reindex commit [0-9a-f]+ on top of [0-9a-f]+\n$/);
   });
 });

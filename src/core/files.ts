@@ -10,11 +10,20 @@ function tempPathFor(path: string): string {
 }
 
 // @decision(DL-015)
-/** Replaces `path` with `content` so readers see either the old or the new file, never a partial one. */
-export function writeFileAtomic(ctx: Context, path: string, content: string): void {
+/**
+ * Replaces `path` with `content` so readers see either the old or the new file, never a partial
+ * one. `mode`, if given, is applied to the new file.
+ */
+export function writeFileAtomic(
+  ctx: Context,
+  path: string,
+  content: string | Uint8Array,
+  mode?: number,
+): void {
   const temp = tempPathFor(path);
   try {
     ctx.fs.writeFile(temp, content);
+    if (mode !== undefined) ctx.fs.chmod(temp, mode);
     ctx.fs.rename(temp, path);
   } catch (error) {
     removeQuietly(ctx, temp);

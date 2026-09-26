@@ -2,7 +2,15 @@
 // Runs the built bundle under node; build first with `npm run build`.
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { version } from "../../package.json";
@@ -92,6 +100,36 @@ describe("next-id (built, under node)", () => {
     const result = dld("next-id");
     expect(result.status).toBe(1);
     expect(result.stderr).toBe("Error: not a git repository\n");
+  });
+});
+
+describe("list-taken-ids with gh (built, under node)", () => {
+  test("adds IDs from open PRs reported by gh on PATH", () => {
+    const project = join(WORKDIR, "gh-project");
+    mkdirSync(join(project, "decisions/records"), { recursive: true });
+    writeFileSync(join(project, "dld.config.yaml"), "decisions_dir: decisions\nmode: flat\n");
+    writeFileSync(join(project, "decisions/records/DL-001.md"), "");
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: project });
+    git("init", "--quiet", "-b", "main");
+    git("remote", "add", "origin", "git@github.com:o/r.git");
+    git("add", ".");
+    git("-c", "user.name=T", "-c", "user.email=t@t", "commit", "--quiet", "-m", "seed");
+
+    const bin = join(WORKDIR, "gh-bin");
+    mkdirSync(bin);
+    const prs = JSON.stringify([
+      { headRefName: "x", files: [{ path: "decisions/records/DL-004.md" }] },
+    ]);
+    writeFileSync(join(bin, "gh"), `#!/bin/sh\n[ "$1" = pr ] && echo '${prs}'\nexit 0\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+
+    const result = spawnSync("node", [BIN, "list-taken-ids", "--base", "main"], {
+      cwd: project,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    });
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toBe("DL-001\nDL-004\n");
   });
 });
 

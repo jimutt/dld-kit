@@ -32,3 +32,25 @@ export class GitCommandError extends DldError {
     this.stderr = stderr;
   }
 }
+
+/** A required external program (e.g. gh) is not installed or not on PATH. */
+export class ToolNotFoundError extends DldError {
+  readonly tool: string;
+
+  constructor(tool: string) {
+    super(`${tool} is not installed or not on PATH`);
+    this.name = "ToolNotFoundError";
+    this.tool = tool;
+  }
+}
+
+/** A gh command ran and exited non-zero, or timed out. */
+export class GhCommandError extends DldError {
+  readonly stderr: string;
+
+  constructor(args: readonly string[], stderr: string) {
+    super(`gh ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
+    this.name = "GhCommandError";
+    this.stderr = stderr;
+  }
+}

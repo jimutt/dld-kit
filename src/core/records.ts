@@ -192,6 +192,20 @@ export function setStatus(text: string, status: Status, source: string): string 
   return lines.join("\n");
 }
 
+// @decision(DL-014) @decision(DL-029)
+/** Rewrites a frontmatter `id: <oldId>` line to `id: <newId>`, leaving every other byte unchanged. */
+export function setId(text: string, oldId: string, newId: string): string {
+  const block = frontmatterBlock(text);
+  if (block === undefined) return text;
+  const { lines, start, end } = block;
+  const idLine = new RegExp(`^id:[ \\t]*${oldId}(\\r?)$`);
+  for (let i = start + 1; i < end; i++) {
+    const line = lines[i];
+    if (line !== undefined && idLine.test(line)) lines[i] = line.replace(idLine, `id: ${newId}$1`);
+  }
+  return lines.join("\n");
+}
+
 export interface NewRecord {
   id: string;
   title: string;

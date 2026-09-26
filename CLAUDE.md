@@ -9,7 +9,7 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 ```
 package.json               # npm package dld-kit (bin: dld) — DL-002
 src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.ts colocated
-  core/                    # library: config, records, index, annotations, audit, snapshot, state; no stdout, no process access (DL-007)
+  core/                    # library: config, records, index, annotations, audit, snapshot, state, reindex; no stdout, no process access (DL-007)
   cli/                     # `dld` dispatch and one module per command (DL-011)
   node-context.ts          # real fs/git Context passed into core (DL-008)
   bin.ts                   # entry point

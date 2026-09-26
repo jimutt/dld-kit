@@ -1,6 +1,7 @@
 // @decision(DL-008) @decision(DL-007)
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   linkSync,
   lstatSync,
@@ -13,7 +14,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import type { Context, FileSystem } from "./core/context.ts";
-import { DldError, FsError, GitCommandError } from "./core/errors.ts";
+import {
+  DldError,
+  FsError,
+  GhCommandError,
+  GitCommandError,
+  ToolNotFoundError,
+} from "./core/errors.ts";
 
 export const nodeFileSystem: FileSystem = {
   exists: (path) => existsSync(path),
@@ -22,6 +29,7 @@ export const nodeFileSystem: FileSystem = {
   isRegularFile: (path) =>
     fsCall("read", path, () => lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false),
   readFile: (path) => fsCall("read", path, () => readFileSync(path, "utf8")),
+  readBytes: (path) => fsCall("read", path, () => readFileSync(path)),
   readDir: (path) =>
     fsCall("read", path, () =>
       readdirSync(path, { withFileTypes: true }).map((entry) => ({
@@ -31,6 +39,8 @@ export const nodeFileSystem: FileSystem = {
       })),
     ),
   writeFile: (path, content) => fsCall("write", path, () => writeFileSync(path, content)),
+  fileMode: (path) => fsCall("read", path, () => lstatSync(path).mode & 0o7777),
+  chmod: (path, mode) => fsCall("change mode of", path, () => chmodSync(path, mode)),
   mkdir: (path) =>
     fsCall("create directory", path, () => void mkdirSync(path, { recursive: true })),
   rename: (from, to) => fsCall("rename", from, () => renameSync(from, to)),
@@ -74,6 +84,35 @@ export function nodeGit(cwd: string, env: Context["env"]): Context["git"] {
   };
 }
 
+const GH_TIMEOUT_MS = 60_000;
+
+// @decision(DL-026)
+export function nodeGh(
+  cwd: string,
+  env: Context["env"],
+  timeoutMs: number = GH_TIMEOUT_MS,
+): Context["gh"] {
+  return (args) => {
+    try {
+      return execFileSync("gh", args, {
+        cwd,
+        env: { ...env, GH_PROMPT_DISABLED: "1" },
+        encoding: "utf8",
+        maxBuffer: GIT_MAX_BUFFER,
+        timeout: timeoutMs,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      if (hasCode(error, "ENOENT")) throw new ToolNotFoundError("gh");
+      if (hasCode(error, "ETIMEDOUT")) {
+        throw new GhCommandError(args, `timed out after ${timeoutMs / 1000} seconds`);
+      }
+      if (hasStatus(error)) throw new GhCommandError(args, String(error.stderr ?? "").trim());
+      throw error;
+    }
+  };
+}
+
 export function createNodeContext(
   cwd: string,
   env: Readonly<Record<string, string | undefined>>,
@@ -82,6 +121,7 @@ export function createNodeContext(
     cwd,
     fs: nodeFileSystem,
     git: nodeGit(cwd, env),
+    gh: nodeGh(cwd, env),
     env,
     readStdin: () => fsCall("read", "standard input", () => readFileSync(0, "utf8")),
     now: () => new Date(),
