@@ -6,11 +6,11 @@ import { findProjectRoot } from "../../core/project.ts";
 import { HARNESS_NAMES, targetsFor } from "../../generate/harnesses.ts";
 import {
   applyInstall,
-  installedLayouts,
+  installedTargets,
+  missingAgentsRuleWarning,
   packageSource,
   planInstall,
 } from "../../generate/install.ts";
-import { installedRuleChannels } from "../../generate/rule.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 import { AGENT_HELP, cliPath, parseAgents, printReport } from "../install.ts";
 
@@ -40,9 +40,10 @@ ${AGENT_HELP}
     if (!ctx.fs.lexists(join(root, CONFIG_FILE))) {
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
+    const installed = installedTargets(ctx, root);
     const added = targetsFor(requested);
-    const layouts = new Set([...installedLayouts(ctx, root), ...added.layouts]);
-    const rules = new Set([...installedRuleChannels(ctx, root), ...added.rules]);
+    const layouts = new Set([...installed.layouts, ...added.layouts]);
+    const rules = new Set([...installed.rules, ...added.rules]);
     if (layouts.size === 0 && rules.size === 0) {
       throw new UsageError(
         `no DLD skills or rule are installed yet; name the agents with --agent (${HARNESS_NAMES.join(", ")})`,
@@ -56,7 +57,9 @@ ${AGENT_HELP}
       force: values.force === true,
       codex: requested.some((harness) => harness.name === "codex"),
     });
-    printReport(io, applyInstall(ctx, root, plan));
+    const report = applyInstall(ctx, root, plan);
+    report.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));
+    printReport(io, report);
     return EXIT_OK;
   },
 };

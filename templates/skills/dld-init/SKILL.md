@@ -21,7 +21,7 @@ This skill uses: `create-config`, `create-directories`, `create-empty-index`, `i
 ## Prerequisites
 
 - This must be a git repository
-- `dld.config.yaml` must NOT already exist at the repo root (if it does, tell the user DLD is already initialized and suggest `/dld-status` instead)
+- `dld.config.yaml` must NOT already exist at the repo root (if it does, tell the user DLD is already initialized and suggest the dld-status skill instead)
 
 Users who install dld-kit from npm can run `npx dld-kit init` in a terminal instead: it does steps 2–4 and 6 non-interactively and also installs the skills. This skill covers projects whose skills were installed another way.
 
@@ -121,10 +121,10 @@ Tell the user:
 > DLD is initialized. Here's what you can do next:
 
 If the repository already has application code:
-> - `/dld-retrofit` — generate initial decisions from your existing codebase
+> - the dld-retrofit skill — generate initial decisions from your existing codebase
 > - Edit `decisions/PRACTICES.md` to refine your development practices (if created)
 
 If this is a new/empty project:
-> - `/dld-decide` — record your first decision
-> - `/dld-plan` — break down a feature into multiple decisions
+> - the dld-decide skill — record your first decision
+> - the dld-plan skill — break down a feature into multiple decisions
 > - Edit `decisions/PRACTICES.md` to refine your development practices (if created)

@@ -14,7 +14,7 @@ import { AGENT_HELP, cliPath, parseAgents, printReport, selectHarnesses } from "
 export const initCommand: Command = {
   name: "init",
   summary: "Set up DLD, its skills and the always-on rule in this repository",
-  usage: `Usage: dld init [--namespaces <a,b,...>] [--agent <names>] [--yes]
+  usage: `Usage: dld init [--namespaces <a,b,...>] [--agent <names>] [--yes] [--force]
 
 Create dld.config.yaml, the decisions directory and INDEX.md, then install the DLD skills and
 the always-on rule for the agents used in this project.
@@ -26,6 +26,7 @@ Options:
   --namespaces <a,b>  Organise decisions by these namespaces (default: one flat log)
   --agent <names>     Agents to install for, besides the detected ones
   --yes               Do not ask; use the detected agents and --agent
+  --force             Replace DLD skills installed by a newer dld-kit
 
 ${AGENT_HELP}
 `,
@@ -36,6 +37,7 @@ ${AGENT_HELP}
         namespaces: { type: "string" },
         agent: { type: "string", multiple: true },
         yes: { type: "boolean" },
+        force: { type: "boolean" },
       },
     });
     const requested = parseAgents(values.agent);
@@ -65,6 +67,7 @@ ${AGENT_HELP}
       layouts: targets.layouts,
       rules: targets.rules,
       version,
+      force: values.force === true,
       codex: harnesses.some((harness) => harness.name === "codex"),
     });
 

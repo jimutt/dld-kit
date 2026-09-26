@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { fakeContext, memoryFs } from "../test-helpers.ts";
+import { mkdirSync, symlinkSync } from "node:fs";
+import { join } from "node:path";
+import { fakeContext, memoryFs, tempProject } from "../test-helpers.ts";
 import { AGENTS_LAYOUT, CLAUDE_LAYOUT, type RuleChannel, type SkillLayout } from "./harnesses.ts";
 import {
   applyInstall,
@@ -8,6 +10,8 @@ import {
   type InstallSource,
   installedLayouts,
   installedStamps,
+  installedTargets,
+  missingAgentsRuleWarning,
   packageSource,
   planInstall,
 } from "./install.ts";
@@ -124,6 +128,40 @@ describe("planInstall and applyInstall", () => {
   });
 });
 
+describe("installed targets", () => {
+  test("Claude Code skills imply Claude Code's rule; .agents skills without a rule warn", () => {
+    const { ctx } = project();
+    install(ctx, [CLAUDE_LAYOUT, AGENTS_LAYOUT]);
+    const targets = installedTargets(ctx, "/p");
+    expect([...targets.layouts]).toEqual([CLAUDE_LAYOUT, AGENTS_LAYOUT]);
+    expect([...targets.rules]).toEqual(["claude-file"]);
+    expect(missingAgentsRuleWarning(targets)).toEqual([
+      expect.stringContaining(".agents/skills has the DLD skills, but no agent reading it"),
+    ]);
+    expect(missingAgentsRuleWarning({ ...targets, rules: new Set(["block"]) })).toEqual([]);
+  });
+
+  test("refuses to install skills through a symlinked skills directory", () => {
+    const p = tempProject(null);
+    try {
+      p.write(".agents/skills/.keep", "");
+      mkdirSync(join(p.root, ".claude"), { recursive: true });
+      symlinkSync(join(p.root, ".agents/skills"), join(p.root, ".claude/skills"));
+      const request = {
+        layouts: new Set([CLAUDE_LAYOUT]),
+        rules: new Set<RuleChannel>(),
+        version: "1.0.0",
+        source: SOURCE,
+      };
+      expect(() => planInstall(p.ctx, p.root, request)).toThrow(
+        ".claude/skills is a symlink; dld-kit does not install through symlinks",
+      );
+    } finally {
+      p.cleanup();
+    }
+  });
+});
+
 describe("version stamps", () => {
   test("installedStamps reads skill and rule stamps; unstamped files have no version", () => {
     const { ctx } = project({
@@ -149,6 +187,12 @@ describe("version stamps", () => {
     ["2.0.0-rc.1", "2.0.0-rc.2", -1],
     ["2.0.0-rc.2", "2.0.0-rc.1", 1],
     ["1.0.0+build", "1.0.0", 0],
+    ["1.0.0-rc.9", "1.0.0-rc.10", -1],
+    ["1.0.0-rc.10", "1.0.0-rc.9", 1],
+    ["1.0.0-1", "1.0.0-alpha", -1],
+    ["1.0.0-alpha", "1.0.0-1", 1],
+    ["1.0.0-alpha", "1.0.0-alpha.1", -1],
+    ["1.0.0-alpha", "1.0.0-beta", -1],
   ])("compareVersions(%s, %s) is %d", (a, b, expected) => {
     expect(compareVersions(a, b)).toBe(expected);
   });

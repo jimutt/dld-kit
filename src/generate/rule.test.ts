@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync, symlinkSync } from "node:fs";
+import { existsSync, readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { fakeContext, memoryFs, tempProject } from "../test-helpers.ts";
 import type { RuleChannel } from "./harnesses.ts";
@@ -194,6 +194,77 @@ describe("planRule", () => {
   });
 });
 
+describe("planRule with symlinks and stale placements", () => {
+  function linked(setup: (p: ReturnType<typeof tempProject>) => void) {
+    const p = tempProject(null);
+    setup(p);
+    return p;
+  }
+
+  test("a CLAUDE.md linked to AGENTS.md reads the block, so Claude Code gets no rule file", () => {
+    const p = linked((q) => {
+      q.write("AGENTS.md", "# Shared\n");
+      symlinkSync("AGENTS.md", join(q.root, "CLAUDE.md"));
+    });
+    try {
+      const result = planRule(p.ctx, p.root, new Set(["claude-file", "block"]), "1.0.0");
+      expect(result.writes.map((w) => w.path)).toEqual(["AGENTS.md"]);
+    } finally {
+      p.cleanup();
+    }
+  });
+
+  test("an AGENTS.md linked to CLAUDE.md gets the block through CLAUDE.md, for Antigravity and Codex", () => {
+    const p = linked((q) => {
+      q.write("CLAUDE.md", "# Shared\n");
+      symlinkSync("CLAUDE.md", join(q.root, "AGENTS.md"));
+    });
+    try {
+      const result = planRule(p.ctx, p.root, new Set(["agents-file", "block"]), "1.0.0", {
+        codex: true,
+      });
+      expect(result.writes.map((w) => w.path)).toEqual(["CLAUDE.md"]);
+      expect(result.warnings).toEqual([]);
+    } finally {
+      p.cleanup();
+    }
+  });
+
+  test("never writes an owned rule file through a symlinked directory", () => {
+    const p = linked((q) => {
+      q.write("elsewhere/x", "");
+      symlinkSync("elsewhere", join(q.root, ".claude"));
+    });
+    try {
+      expect(() => planRule(p.ctx, p.root, new Set(["claude-file"]), "1.0.0")).toThrow(
+        ".claude is a symlink; dld-kit does not install through symlinks",
+      );
+    } finally {
+      p.cleanup();
+    }
+  });
+
+  test("warns Codex users about a block already in CLAUDE.md, with steps that work", () => {
+    const inClaude = upsertBlock("# C\n", renderBlock(TEXT, "1.0.0"), "");
+    const { result } = plan({ "/p/AGENTS.md": "# A\n", "/p/CLAUDE.md": inClaude }, ["block"], true);
+    expect(result.writes).toEqual([]);
+    expect(result.warnings).toEqual([
+      expect.stringContaining(
+        "move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md",
+      ),
+    ]);
+  });
+
+  test("the old CLAUDE.md section is only called removable once a rule is installed", () => {
+    const legacy = "## DLD (Decision-Linked Development)\n";
+    expect(plan({ "/p/CLAUDE.md": legacy }, []).result.warnings).toEqual([
+      expect.stringContaining(
+        "Install the rule with dld install-rule --agent <name> before removing it.",
+      ),
+    ]);
+  });
+});
+
 describe("installed rules", () => {
   test("reports the channels and stamps present", () => {
     const fs = memoryFs({
@@ -223,6 +294,8 @@ describe("installed rules", () => {
       });
       expect(readFileSync(join(p.root, CLAUDE_RULE_FILE), "utf8")).toBe("rule\n");
       expect(installedRuleChannels(p.ctx, p.root)).toEqual(new Set(["claude-file"]));
+      expect(existsSync(join(p.root, ".agents/rules"))).toBe(false);
+      expect(existsSync(join(p.root, ".agents"))).toBe(true);
     } finally {
       p.cleanup();
     }

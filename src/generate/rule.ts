@@ -129,42 +129,47 @@ export function planRule(
   const plan: RulePlan = { writes: [], removals: [], warnings: [] };
   const regular = (file: string) => ctx.fs.isRegularFile(join(root, file));
   const read = (file: string) => (regular(file) ? ctx.fs.readFile(join(root, file)) : "");
+  /** The file a harness ends up reading, following symlinks; a file yet to be created is itself. */
+  const resolved = (file: string) => {
+    const full = join(root, file);
+    return ctx.fs.exists(full) ? ctx.fs.realPath(full) : full;
+  };
 
   let blockFiles = [AGENTS_MD, CLAUDE_MD].filter(
     (file) => regular(file) && findBlock(read(file), file) !== undefined,
   );
-  if (blockFiles.length === 0 && channels.has("block")) {
-    const file = blockPlacement(ctx, root);
-    if (file === CLAUDE_MD && codex) {
-      plan.warnings.push(
-        "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. Create AGENTS.md and run dld update to cover Codex.",
-      );
-    }
-    blockFiles = [file];
-  }
+  if (blockFiles.length === 0 && channels.has("block")) blockFiles = [blockPlacement(ctx, root)];
   for (const file of blockFiles) {
     const content = read(file);
     const updated = upsertBlock(content, renderBlock(text, version), file);
     if (updated !== content) plan.writes.push({ path: file, content: updated });
   }
 
-  const claudeLoadsBlock =
-    blockFiles.includes(CLAUDE_MD) ||
-    (blockFiles.includes(AGENTS_MD) && !ctx.fs.lexists(join(root, CLAUDE_MD)));
+  const withBlock = new Set(blockFiles.map(resolved));
+  const loads = (file: string) => withBlock.has(resolved(file));
+  // Claude Code reads CLAUDE.md, or AGENTS.md when there is none; Antigravity and Codex read AGENTS.md.
+  const claudeReads = ctx.fs.exists(join(root, CLAUDE_MD)) ? CLAUDE_MD : AGENTS_MD;
   const loadsBlock: Record<RuleFileChannel, boolean> = {
-    "claude-file": claudeLoadsBlock,
-    "agents-file": blockFiles.includes(AGENTS_MD),
+    "claude-file": loads(claudeReads),
+    "agents-file": loads(AGENTS_MD),
   };
+  if (codex && blockFiles.length > 0 && !loads(AGENTS_MD)) {
+    plan.warnings.push(
+      "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. To cover Codex, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule. Pi and OpenCode read AGENTS.md instead of CLAUDE.md once it exists.",
+    );
+  }
   for (const channel of ["claude-file", "agents-file"] as const) {
     const path = RULE_FILES[channel];
     if (loadsBlock[channel]) {
       if (ctx.fs.lexists(join(root, path))) plan.removals.push(path);
     } else if (channels.has(channel)) {
+      refuseSymlinkedDir(ctx, root, dirname(path));
       const content = renderRuleFile(channel, text, version);
       if (read(path) !== content) plan.writes.push({ path, content });
     }
   }
-  plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD)));
+  const ruleInstalled = blockFiles.length > 0 || channels.size > 0;
+  plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
   return plan;
 }
 
@@ -185,14 +190,34 @@ const LEGACY_HEADING = /^## DLD \(Decision-Linked Development\)\s*$/;
 
 // @decision(DL-043)
 /** A warning for the hand-written DLD block the pre-1.0 dld-init skill appended to CLAUDE.md. */
-function legacyBlockWarnings(claudeMd: string): string[] {
+function legacyBlockWarnings(claudeMd: string, ruleInstalled: boolean): string[] {
   const span = findBlock(claudeMd, CLAUDE_MD);
   const outside =
     span === undefined ? claudeMd : claudeMd.slice(0, span.from) + claudeMd.slice(span.to);
   if (!outside.split(/\r?\n/).some((line) => LEGACY_HEADING.test(line))) return [];
+  const section =
+    "CLAUDE.md has a '## DLD (Decision-Linked Development)' section from an older dld-init.";
   return [
-    "CLAUDE.md has a '## DLD (Decision-Linked Development)' section from an older dld-init. dld-kit now installs the rule separately, so that section can be removed.",
+    ruleInstalled
+      ? `${section} dld-kit now installs the rule separately, so that section can be removed.`
+      : `${section} Install the rule with dld install-rule --agent <name> before removing it.`,
   ];
+}
+
+// @decision(DL-043)
+/** Fails if `dir` (relative to `root`) or a parent under `root` is a symlink: installs never write through one. */
+export function refuseSymlinkedDir(ctx: Context, root: string, dir: string): void {
+  let current = "";
+  for (const part of dir.split("/")) {
+    current = current === "" ? part : `${current}/${part}`;
+    const full = join(root, current);
+    if (!ctx.fs.lexists(full)) return;
+    if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join(ctx.fs.realPath(root), current)) {
+      throw new DldError(
+        `${current} is a symlink; dld-kit does not install through symlinks. Replace it with a directory (dld-kit keeps each agent's copy separate).`,
+      );
+    }
+  }
 }
 
 /** The rule channels already installed under `root`. */
@@ -238,5 +263,11 @@ export function applyRulePlan(ctx: Context, root: string, plan: RulePlan): void 
     if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
     writeFileAtomic(ctx, full, content);
   }
-  for (const path of plan.removals) ctx.fs.remove(join(root, path));
+  for (const path of plan.removals) {
+    const full = join(root, path);
+    ctx.fs.remove(full);
+    if (ctx.fs.isDirectory(dirname(full)) && ctx.fs.readDir(dirname(full)).length === 0) {
+      ctx.fs.removeDir(dirname(full));
+    }
+  }
 }

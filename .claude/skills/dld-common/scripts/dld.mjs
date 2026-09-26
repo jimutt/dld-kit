@@ -9302,38 +9302,43 @@ function planRule(ctx, root, channels, version2, { codex = false } = {}, text = 
   const plan = { writes: [], removals: [], warnings: [] };
   const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
   const read = (file) => regular(file) ? ctx.fs.readFile(join15(root, file)) : "";
+  const resolved = (file) => {
+    const full = join15(root, file);
+    return ctx.fs.exists(full) ? ctx.fs.realPath(full) : full;
+  };
   let blockFiles = [AGENTS_MD, CLAUDE_MD].filter(
     (file) => regular(file) && findBlock(read(file), file) !== void 0
   );
-  if (blockFiles.length === 0 && channels.has("block")) {
-    const file = blockPlacement(ctx, root);
-    if (file === CLAUDE_MD && codex) {
-      plan.warnings.push(
-        "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. Create AGENTS.md and run dld update to cover Codex."
-      );
-    }
-    blockFiles = [file];
-  }
+  if (blockFiles.length === 0 && channels.has("block")) blockFiles = [blockPlacement(ctx, root)];
   for (const file of blockFiles) {
     const content = read(file);
     const updated = upsertBlock(content, renderBlock(text, version2), file);
     if (updated !== content) plan.writes.push({ path: file, content: updated });
   }
-  const claudeLoadsBlock = blockFiles.includes(CLAUDE_MD) || blockFiles.includes(AGENTS_MD) && !ctx.fs.lexists(join15(root, CLAUDE_MD));
+  const withBlock = new Set(blockFiles.map(resolved));
+  const loads = (file) => withBlock.has(resolved(file));
+  const claudeReads = ctx.fs.exists(join15(root, CLAUDE_MD)) ? CLAUDE_MD : AGENTS_MD;
   const loadsBlock = {
-    "claude-file": claudeLoadsBlock,
-    "agents-file": blockFiles.includes(AGENTS_MD)
+    "claude-file": loads(claudeReads),
+    "agents-file": loads(AGENTS_MD)
   };
+  if (codex && blockFiles.length > 0 && !loads(AGENTS_MD)) {
+    plan.warnings.push(
+      "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. To cover Codex, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule. Pi and OpenCode read AGENTS.md instead of CLAUDE.md once it exists."
+    );
+  }
   for (const channel of ["claude-file", "agents-file"]) {
     const path = RULE_FILES[channel];
     if (loadsBlock[channel]) {
       if (ctx.fs.lexists(join15(root, path))) plan.removals.push(path);
     } else if (channels.has(channel)) {
+      refuseSymlinkedDir(ctx, root, dirname3(path));
       const content = renderRuleFile(channel, text, version2);
       if (read(path) !== content) plan.writes.push({ path, content });
     }
   }
-  plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD)));
+  const ruleInstalled = blockFiles.length > 0 || channels.size > 0;
+  plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
   return plan;
 }
 function blockPlacement(ctx, root) {
@@ -9348,13 +9353,27 @@ function blockPlacement(ctx, root) {
   return AGENTS_MD;
 }
 var LEGACY_HEADING = /^## DLD \(Decision-Linked Development\)\s*$/;
-function legacyBlockWarnings(claudeMd) {
+function legacyBlockWarnings(claudeMd, ruleInstalled) {
   const span = findBlock(claudeMd, CLAUDE_MD);
   const outside = span === void 0 ? claudeMd : claudeMd.slice(0, span.from) + claudeMd.slice(span.to);
   if (!outside.split(/\r?\n/).some((line) => LEGACY_HEADING.test(line))) return [];
+  const section = "CLAUDE.md has a '## DLD (Decision-Linked Development)' section from an older dld-init.";
   return [
-    "CLAUDE.md has a '## DLD (Decision-Linked Development)' section from an older dld-init. dld-kit now installs the rule separately, so that section can be removed."
+    ruleInstalled ? `${section} dld-kit now installs the rule separately, so that section can be removed.` : `${section} Install the rule with dld install-rule --agent <name> before removing it.`
   ];
+}
+function refuseSymlinkedDir(ctx, root, dir) {
+  let current = "";
+  for (const part of dir.split("/")) {
+    current = current === "" ? part : `${current}/${part}`;
+    const full = join15(root, current);
+    if (!ctx.fs.lexists(full)) return;
+    if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join15(ctx.fs.realPath(root), current)) {
+      throw new DldError(
+        `${current} is a symlink; dld-kit does not install through symlinks. Replace it with a directory (dld-kit keeps each agent's copy separate).`
+      );
+    }
+  }
 }
 function installedRuleChannels(ctx, root) {
   const channels = /* @__PURE__ */ new Set();
@@ -9391,7 +9410,13 @@ function applyRulePlan(ctx, root, plan) {
     if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
     writeFileAtomic(ctx, full, content);
   }
-  for (const path of plan.removals) ctx.fs.remove(join15(root, path));
+  for (const path of plan.removals) {
+    const full = join15(root, path);
+    ctx.fs.remove(full);
+    if (ctx.fs.isDirectory(dirname3(full)) && ctx.fs.readDir(dirname3(full)).length === 0) {
+      ctx.fs.removeDir(dirname3(full));
+    }
+  }
 }
 
 // src/generate/install.ts
@@ -9412,6 +9437,18 @@ function ownedSkills(ctx, root, layout) {
 }
 function installedLayouts(ctx, root) {
   return LAYOUTS.filter((layout) => ownedSkills(ctx, root, layout).length > 0);
+}
+function installedTargets(ctx, root) {
+  const layouts = new Set(installedLayouts(ctx, root));
+  const rules = installedRuleChannels(ctx, root);
+  if (layouts.has(CLAUDE_LAYOUT)) rules.add("claude-file");
+  return { layouts, rules };
+}
+function missingAgentsRuleWarning({ layouts, rules }) {
+  if (!layouts.has(AGENTS_LAYOUT) || rules.has("block") || rules.has("agents-file")) return [];
+  return [
+    `${AGENTS_LAYOUT.dir} has the DLD skills, but no agent reading it has the always-on rule. Run dld install-rule --agent <name> (antigravity, codex, cursor, opencode or pi).`
+  ];
 }
 var SKILL_STAMP = /^ {2}dld-kit-version: "?([^"\n]+)"?$/m;
 function installedStamps(ctx, root) {
@@ -9438,7 +9475,18 @@ function compareVersions(a, b) {
   if (preA === preB) return 0;
   if (preA === void 0) return 1;
   if (preB === void 0) return -1;
-  return preA < preB ? -1 : 1;
+  return comparePrerelease(preA.split("."), preB.split("."));
+}
+function comparePrerelease(a, b) {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const [x, y] = [a[i] ?? "", b[i] ?? ""];
+    if (x === y) continue;
+    const [nx, ny] = [/^\d+$/.test(x), /^\d+$/.test(y)];
+    if (nx && ny) return Math.sign(Number(x) - Number(y));
+    if (nx !== ny) return nx ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return Math.sign(a.length - b.length);
 }
 function checkDowngrade(stamps, version2) {
   const newer = stamps.filter(
@@ -9457,6 +9505,7 @@ function planInstall(ctx, root, request) {
   const skills = LAYOUTS.filter((layout) => request.layouts.has(layout)).map((layout) => {
     const { source } = request;
     if (source === void 0) throw new DldError("installing skills needs the skill templates");
+    refuseSymlinkedDir(ctx, root, layout.dir);
     const cli = /* @__PURE__ */ new Map([
       [`${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`, { content: source.cli, mode: 493 }]
     ]);
@@ -9566,7 +9615,7 @@ function printReport(io, report2) {
 var initCommand = {
   name: "init",
   summary: "Set up DLD, its skills and the always-on rule in this repository",
-  usage: `Usage: dld init [--namespaces <a,b,...>] [--agent <names>] [--yes]
+  usage: `Usage: dld init [--namespaces <a,b,...>] [--agent <names>] [--yes] [--force]
 
 Create dld.config.yaml, the decisions directory and INDEX.md, then install the DLD skills and
 the always-on rule for the agents used in this project.
@@ -9578,6 +9627,7 @@ Options:
   --namespaces <a,b>  Organise decisions by these namespaces (default: one flat log)
   --agent <names>     Agents to install for, besides the detected ones
   --yes               Do not ask; use the detected agents and --agent
+  --force             Replace DLD skills installed by a newer dld-kit
 
 ${AGENT_HELP}
 `,
@@ -9587,7 +9637,8 @@ ${AGENT_HELP}
       options: {
         namespaces: { type: "string" },
         agent: { type: "string", multiple: true },
-        yes: { type: "boolean" }
+        yes: { type: "boolean" },
+        force: { type: "boolean" }
       }
     });
     const requested = parseAgents(values.agent);
@@ -9614,6 +9665,7 @@ ${AGENT_HELP}
       layouts: targets.layouts,
       rules: targets.rules,
       version,
+      force: values.force === true,
       codex: harnesses.some((harness) => harness.name === "codex")
     });
     createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
@@ -9657,7 +9709,7 @@ ${AGENT_HELP}
     });
     const requested = parseAgents(values.agent);
     const root = findProjectRoot(ctx);
-    const rules = /* @__PURE__ */ new Set([...installedRuleChannels(ctx, root), ...targetsFor(requested).rules]);
+    const rules = /* @__PURE__ */ new Set([...installedTargets(ctx, root).rules, ...targetsFor(requested).rules]);
     if (rules.size === 0) {
       throw new UsageError(`name the agents with --agent (${HARNESS_NAMES.join(", ")})`);
     }
@@ -9843,9 +9895,10 @@ ${AGENT_HELP}
     if (!ctx.fs.lexists(join18(root, CONFIG_FILE))) {
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
+    const installed = installedTargets(ctx, root);
     const added = targetsFor(requested);
-    const layouts = /* @__PURE__ */ new Set([...installedLayouts(ctx, root), ...added.layouts]);
-    const rules = /* @__PURE__ */ new Set([...installedRuleChannels(ctx, root), ...added.rules]);
+    const layouts = /* @__PURE__ */ new Set([...installed.layouts, ...added.layouts]);
+    const rules = /* @__PURE__ */ new Set([...installed.rules, ...added.rules]);
     if (layouts.size === 0 && rules.size === 0) {
       throw new UsageError(
         `no DLD skills or rule are installed yet; name the agents with --agent (${HARNESS_NAMES.join(", ")})`
@@ -9859,7 +9912,9 @@ ${AGENT_HELP}
       force: values.force === true,
       codex: requested.some((harness) => harness.name === "codex")
     });
-    printReport(io, applyInstall(ctx, root, plan));
+    const report2 = applyInstall(ctx, root, plan);
+    report2.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));
+    printReport(io, report2);
     return EXIT_OK;
   }
 };
@@ -10063,6 +10118,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmdirSync,
   rmSync,
@@ -10092,7 +10148,8 @@ var nodeFileSystem = {
   rename: (from, to) => fsCall("rename", from, () => renameSync(from, to)),
   link: (existing, newPath) => fsCall("create", newPath, () => linkSync(existing, newPath)),
   remove: (path) => fsCall("remove", path, () => rmSync(path, { force: true })),
-  removeDir: (path) => fsCall("remove directory", path, () => rmdirSync(path))
+  removeDir: (path) => fsCall("remove directory", path, () => rmdirSync(path)),
+  realPath: (path) => fsCall("resolve", path, () => realpathSync(path))
 };
 function fsCall(operation, path, run2) {
   try {
@@ -10177,7 +10234,12 @@ for (const stream of [process.stdout, process.stderr]) {
 async function ask(question) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return await rl.question(question);
+    return await new Promise((resolve, reject) => {
+      const cancel = () => reject(new DldError("cancelled", 130));
+      rl.once("SIGINT", cancel);
+      rl.once("close", cancel);
+      rl.question(question).then(resolve, reject);
+    });
   } finally {
     rl.close();
   }

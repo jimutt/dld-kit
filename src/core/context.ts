@@ -35,6 +35,9 @@ export interface FileSystem {
   // @decision(DL-043)
   /** Removes an empty directory; fails with ENOTEMPTY if it has entries. */
   removeDir(path: string): void;
+  // @decision(DL-045)
+  /** The path with every symlink resolved; fails if it does not exist. */
+  realPath(path: string): string;
 }
 
 // @decision(DL-008)

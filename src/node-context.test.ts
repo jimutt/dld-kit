@@ -71,14 +71,16 @@ describe("node context writes", () => {
 
 describe("removeDir", () => {
   test("removes an empty directory and refuses a non-empty one", () => {
-    project = tempProject(null);
-    const { fs } = project.ctx;
-    project.write("full/file.txt", "x");
-    fs.mkdir(join(project.root, "empty"));
-    fs.removeDir(join(project.root, "empty"));
-    expect(fs.exists(join(project.root, "empty"))).toBe(false);
-    expect(() => fs.removeDir(join(project.root, "full"))).toThrow(DldError);
-    expect(fs.exists(join(project.root, "full/file.txt"))).toBe(true);
+    const p = tempProject(null);
+    project = p;
+    const { fs } = p.ctx;
+    p.write("full/file.txt", "x");
+    fs.mkdir(join(p.root, "empty"));
+    fs.removeDir(join(p.root, "empty"));
+    expect(fs.exists(join(p.root, "empty"))).toBe(false);
+    expect(() => fs.removeDir(join(p.root, "full"))).toThrow(DldError);
+    expect(fs.exists(join(p.root, "full/file.txt"))).toBe(true);
+    expect(fs.realPath(join(p.root, "full"))).toBe(join(p.root, "full"));
   });
 });
 

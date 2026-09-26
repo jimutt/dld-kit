@@ -2,8 +2,22 @@ import { dirname, join } from "node:path";
 import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
 import { type GeneratedFiles, generateSkills, writeOutput } from "./generate.ts";
-import { LAYOUTS, type RuleChannel, type SkillLayout } from "./harnesses.ts";
-import { applyRulePlan, installedRuleStamps, planRule, type RulePlan } from "./rule.ts";
+import {
+  AGENTS_LAYOUT,
+  CLAUDE_LAYOUT,
+  LAYOUTS,
+  type RuleChannel,
+  type SkillLayout,
+  type Targets,
+} from "./harnesses.ts";
+import {
+  applyRulePlan,
+  installedRuleChannels,
+  installedRuleStamps,
+  planRule,
+  type RulePlan,
+  refuseSymlinkedDir,
+} from "./rule.ts";
 import { BUNDLED_CLI } from "./template.ts";
 
 /** What `dld init` and `dld update` render skills from: the npm package the CLI runs from. */
@@ -46,6 +60,28 @@ export function installedLayouts(ctx: Context, root: string): SkillLayout[] {
   return LAYOUTS.filter((layout) => ownedSkills(ctx, root, layout).length > 0);
 }
 
+// @decision(DL-043) @decision(DL-045)
+/**
+ * The layouts and rule channels installed under `root`. Claude Code skills imply Claude Code's
+ * rule, so a project whose rule was never installed or was dropped (pre-1.0 copies, a CLAUDE.md
+ * created after the block went into AGENTS.md) gets it back; `planRule` still skips it when
+ * Claude Code already loads the block.
+ */
+export function installedTargets(ctx: Context, root: string): Targets {
+  const layouts = new Set(installedLayouts(ctx, root));
+  const rules = installedRuleChannels(ctx, root);
+  if (layouts.has(CLAUDE_LAYOUT)) rules.add("claude-file");
+  return { layouts, rules };
+}
+
+/** A warning when `.agents/skills` holds DLD skills but no harness reading it has the rule. */
+export function missingAgentsRuleWarning({ layouts, rules }: Targets): string[] {
+  if (!layouts.has(AGENTS_LAYOUT) || rules.has("block") || rules.has("agents-file")) return [];
+  return [
+    `${AGENTS_LAYOUT.dir} has the DLD skills, but no agent reading it has the always-on rule. Run dld install-rule --agent <name> (antigravity, codex, cursor, opencode or pi).`,
+  ];
+}
+
 const SKILL_STAMP = /^ {2}dld-kit-version: "?([^"\n]+)"?$/m;
 
 export interface Stamp {
@@ -83,7 +119,20 @@ export function compareVersions(a: string, b: string): number | undefined {
   if (preA === preB) return 0;
   if (preA === undefined) return 1;
   if (preB === undefined) return -1;
-  return preA < preB ? -1 : 1;
+  return comparePrerelease(preA.split("."), preB.split("."));
+}
+
+/** Semver precedence of dot-separated prerelease identifiers: numbers numerically, below words. */
+function comparePrerelease(a: readonly string[], b: readonly string[]): number {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const [x, y] = [a[i] ?? "", b[i] ?? ""];
+    if (x === y) continue;
+    const [nx, ny] = [/^\d+$/.test(x), /^\d+$/.test(y)];
+    if (nx && ny) return Math.sign(Number(x) - Number(y));
+    if (nx !== ny) return nx ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return Math.sign(a.length - b.length);
 }
 
 // @decision(DL-043)
@@ -125,6 +174,7 @@ export function planInstall(ctx: Context, root: string, request: InstallRequest)
   const skills = LAYOUTS.filter((layout) => request.layouts.has(layout)).map((layout) => {
     const { source } = request;
     if (source === undefined) throw new DldError("installing skills needs the skill templates");
+    refuseSymlinkedDir(ctx, root, layout.dir);
     const cli = new Map([
       [`${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`, { content: source.cli, mode: 0o755 }],
     ]);

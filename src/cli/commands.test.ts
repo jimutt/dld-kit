@@ -461,6 +461,32 @@ describe("update", () => {
     expect(readFileSync(skill, "utf8")).toContain(`"${version}"`);
   });
 
+  test("migrates a pre-1.0 Claude Code copy: installs the rule it never had", async () => {
+    project = tempProject();
+    const cli = fakePackage(project);
+    project.write("CLAUDE.md", "# Project\n\n## DLD (Decision-Linked Development)\n\nOld rules\n");
+    project.write(".claude/skills/dld-audit/SKILL.md", "---\nname: dld-audit\n---\nold\n");
+    project.write(".claude/skills/dld-common/scripts/find-annotations.sh", "#!/bin/bash\n");
+    project.write(".agents/skills/dld-audit/SKILL.md", "---\nname: dld-audit\n---\nold\n");
+    const result = await dldInstall(project, cli, "update");
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.out).toContain("Wrote the DLD rule to .claude/rules/dld-workflow.md\n");
+    expect(result.err).toContain("so that section can be removed");
+    expect(result.err).toContain(".agents/skills has the DLD skills, but no agent reading it");
+    expect(
+      existsSync(join(project.root, ".claude/skills/dld-common/scripts/find-annotations.sh")),
+    ).toBe(false);
+  });
+
+  test("init replaces newer skills only with --force", async () => {
+    project = tempProject(null);
+    const cli = fakePackage(project);
+    project.write(".claude/skills/dld-audit/SKILL.md", 'metadata:\n  dld-kit-version: "99.0.0"\n');
+    expect((await dldInstall(project, cli, "init", "--yes")).err).toContain("(99.0.0)");
+    expect(existsSync(join(project.root, "dld.config.yaml"))).toBe(false);
+    expect((await dldInstall(project, cli, "init", "--yes", "--force")).code).toBe(EXIT_OK);
+  });
+
   test("needs an initialised project with something installed", async () => {
     project = tempProject(null);
     const cli = fakePackage(project);

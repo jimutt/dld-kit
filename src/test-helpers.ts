@@ -139,6 +139,11 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
       }
       dirs.delete(path);
     },
+    // The memory filesystem has no symlinks.
+    realPath: (path) => {
+      if (!(path in files || isDirectory(path))) throw missing("resolve", path);
+      return path;
+    },
   };
 }
 

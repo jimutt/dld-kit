@@ -1,8 +1,7 @@
 import { version } from "../../../package.json";
 import { findProjectRoot } from "../../core/project.ts";
 import { HARNESS_NAMES, targetsFor } from "../../generate/harnesses.ts";
-import { applyInstall, planInstall } from "../../generate/install.ts";
-import { installedRuleChannels } from "../../generate/rule.ts";
+import { applyInstall, installedTargets, planInstall } from "../../generate/install.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 import { AGENT_HELP, parseAgents, printReport } from "../install.ts";
 
@@ -28,7 +27,7 @@ ${AGENT_HELP}
     });
     const requested = parseAgents(values.agent);
     const root = findProjectRoot(ctx);
-    const rules = new Set([...installedRuleChannels(ctx, root), ...targetsFor(requested).rules]);
+    const rules = new Set([...installedTargets(ctx, root).rules, ...targetsFor(requested).rules]);
     if (rules.size === 0) {
       throw new UsageError(`name the agents with --agent (${HARNESS_NAMES.join(", ")})`);
     }
