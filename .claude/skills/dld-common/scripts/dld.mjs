@@ -9290,6 +9290,7 @@ var BLOCK_END = "<!-- dld-kit:end -->";
 var AGENTS_MD = "AGENTS.md";
 var CLAUDE_MD = "CLAUDE.md";
 var CLAUDE_FILES = [CLAUDE_MD, CLAUDE_IMPORT_FILE, "CLAUDE.local.md"];
+var SHARED_CLAUDE_FILES = [CLAUDE_MD, CLAUDE_IMPORT_FILE];
 var RULE_FILES = {
   "claude-file": CLAUDE_RULE_FILE,
   "agents-file": AGENTS_RULE_FILE
@@ -9373,20 +9374,25 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
     pending.set(file, updated);
     if (updated !== content) plan.writes.push({ path: file, content: updated });
   }
-  const ownsImport = importFileVersion(read(CLAUDE_IMPORT_FILE)) !== void 0;
-  const readsAgentsDirectly = !CLAUDE_FILES.some((file) => ctx.fs.lexists(join15(root, file)));
-  if (ownsImport || channels.has("claude-file") && blockFiles.includes(AGENTS_MD) && readsAgentsDirectly) {
-    refuseSymlinkedDir(ctx, root, dirname3(CLAUDE_IMPORT_FILE));
+  const linkedDir = symlinkedPart(ctx, root, dirname3(CLAUDE_IMPORT_FILE));
+  const ownsImport = linkedDir === void 0 && importFileVersion(read(CLAUDE_IMPORT_FILE)) !== void 0;
+  const wantsImport = channels.has("claude-file") && blockFiles.includes(AGENTS_MD) && !SHARED_CLAUDE_FILES.some((file) => ctx.fs.lexists(join15(root, file)));
+  if (ownsImport || wantsImport && linkedDir === void 0) {
     const content = renderImportFile(version2);
     pending.set(CLAUDE_IMPORT_FILE, content);
     if (read(CLAUDE_IMPORT_FILE) !== content) {
       plan.writes.push({ path: CLAUDE_IMPORT_FILE, content });
     }
+  } else if (wantsImport) {
+    plan.warnings.push(
+      `${linkedDir} is a symlink, so dld-kit does not write ${CLAUDE_IMPORT_FILE}, which would import AGENTS.md for Claude Code. Claude Code reads the rule block in AGENTS.md by itself only while the project has no CLAUDE.md, ${CLAUDE_IMPORT_FILE} or CLAUDE.local.md.`
+    );
   }
   const withBlock = new Set(blockFiles.map(resolved));
+  const current = projectView(ctx, root);
   const view = {
-    exists: (file) => pending.has(file) || ctx.fs.exists(join15(root, file)),
-    read: (file) => pending.get(file) ?? read(file)
+    exists: (file) => pending.has(file) || current.exists(file),
+    read: (file) => pending.get(file) ?? current.read(file)
   };
   const reads = (harness) => instructionFiles(harness, view)[0];
   const readsBlock = (harness) => instructionFiles(harness, view).some((file) => withBlock.has(resolved(file)));
@@ -9419,9 +9425,10 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   return plan;
 }
 function projectView(ctx, root) {
+  const exists = (file) => ctx.fs.exists(join15(root, file));
   return {
-    exists: (file) => ctx.fs.exists(join15(root, file)),
-    read: (file) => ctx.fs.isRegularFile(join15(root, file)) ? ctx.fs.readFile(join15(root, file)) : ""
+    exists,
+    read: (file) => exists(file) && !ctx.fs.isDirectory(join15(root, file)) ? ctx.fs.readFile(join15(root, file)) : ""
   };
 }
 function instructionFiles(harness, view) {
@@ -9434,16 +9441,18 @@ function instructionFiles(harness, view) {
   const imported = files.some((file) => importsAgentsMd(view.read(file), file));
   return imported && view.exists(AGENTS_MD) ? [...files, AGENTS_MD] : files;
 }
-var FENCE = /^ {0,3}(```|~~~)/;
+var FENCE = /^ {0,3}(`{3,}|~{3,})/;
 function importsAgentsMd(content, file) {
   const dir = posix4.dirname(file);
-  let fenced = false;
+  let fence;
   for (const line of content.split(/\r?\n/)) {
-    if (FENCE.test(line)) {
-      fenced = !fenced;
+    const marker = FENCE.exec(line)?.[1];
+    if (marker !== void 0) {
+      if (fence === void 0) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = void 0;
       continue;
     }
-    if (fenced) continue;
+    if (fence !== void 0) continue;
     const prose = line.replace(/`[^`]*`/g, "");
     for (const match of prose.matchAll(/(?:^|\s)@(\S+)/g)) {
       const target = match[1];
@@ -9500,17 +9509,24 @@ function sessionContext(ctx, root, harness, text = RULE_TEXT) {
   if (!ctx.fs.exists(join15(root, CONFIG_FILE))) return void 0;
   return loadsRule(ctx, root, harness) ? void 0 : text;
 }
-function refuseSymlinkedDir(ctx, root, dir) {
+function symlinkedPart(ctx, root, dir) {
   let current = "";
   for (const part of dir.split("/")) {
     current = current === "" ? part : `${current}/${part}`;
     const full = join15(root, current);
-    if (!ctx.fs.lexists(full)) return;
+    if (!ctx.fs.lexists(full)) return void 0;
     if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join15(ctx.fs.realPath(root), current)) {
-      throw new DldError(
-        `${current} is a symlink; dld-kit does not install through symlinks. Replace it with a directory (dld-kit keeps each agent's copy separate).`
-      );
+      return current;
     }
+  }
+  return void 0;
+}
+function refuseSymlinkedDir(ctx, root, dir) {
+  const linked = symlinkedPart(ctx, root, dir);
+  if (linked !== void 0) {
+    throw new DldError(
+      `${linked} is a symlink; dld-kit does not install through symlinks. Replace it with a directory (dld-kit keeps each agent's copy separate).`
+    );
   }
 }
 function installedRuleChannels(ctx, root) {

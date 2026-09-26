@@ -333,7 +333,10 @@ describe("upgrading a pre-1.0 project (built, under node)", () => {
   write(".claude/skills/dld-decide/scripts/create-decision.sh", "#!/usr/bin/env bash\n");
   write(".claude/skills/dld-common/scripts/common.sh", "#!/usr/bin/env bash\n");
   write(".claude/skills/dld-common/scripts/next-id.sh", "#!/usr/bin/env bash\n");
-  write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\n");
+  write(
+    "dld.config.yaml",
+    "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\n",
+  );
   write("decisions/records/DL-001.md", record("DL-001", "Use retries", ""));
   write("decisions/records/DL-002.md", record("DL-002", "Retry limit", "DL-001"));
   write("decisions/INDEX.md", index);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, symlinkSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { fakeContext, memoryFs, tempProject } from "../test-helpers.ts";
 import { findHarness, type Harness, type RuleChannel } from "./harnesses.ts";
@@ -407,9 +407,6 @@ describe("instruction files each harness reads (DL-054, DL-055)", () => {
 
   test("CLAUDE.local.md or .claude/CLAUDE.md stops Claude Code reading AGENTS.md", () => {
     for (const file of ["/p/CLAUDE.local.md", "/p/.claude/CLAUDE.md"]) {
-      const result = planWith({ [file]: "# Local\n" }, ["claude-file", "block"], ["claude", "pi"]);
-      expect(result.writes.map((w) => w.path)).toEqual(["AGENTS.md", CLAUDE_RULE_FILE]);
-      expect(result.warnings).toEqual([]);
       expect(
         loadsRule(
           fakeContext({ fs: memoryFs({ [file]: "", "/p/AGENTS.md": BLOCK.join("\n") }) }),
@@ -417,6 +414,67 @@ describe("instruction files each harness reads (DL-054, DL-055)", () => {
           harness("claude"),
         ),
       ).toBe(false);
+    }
+    const mine = planWith(
+      { "/p/.claude/CLAUDE.md": "# Mine\n" },
+      ["claude-file", "block"],
+      ["claude", "pi"],
+    );
+    expect(mine.writes.map((w) => w.path)).toEqual(["AGENTS.md", CLAUDE_RULE_FILE]);
+    expect(mine.warnings).toEqual([]);
+  });
+
+  test("a personal CLAUDE.local.md does not stop the import, which the project commits", () => {
+    const result = planWith(
+      { "/p/CLAUDE.local.md": "# Local\n" },
+      ["claude-file", "block"],
+      ["claude", "pi"],
+    );
+    expect(result.writes.map((w) => w.path)).toEqual(["AGENTS.md", CLAUDE_IMPORT_FILE]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("a symlinked .claude gets no import, only a warning", () => {
+    const p = tempProject(null);
+    try {
+      const shared = join(p.root, "shared");
+      p.write("shared/CLAUDE.md", renderImportFile("0.9.0"));
+      symlinkSync(shared, join(p.root, ".claude"));
+      p.write("AGENTS.md", upsertBlock("# A\n", BLOCK, ""));
+      // An import file behind the link is neither refreshed nor a reason to fail.
+      expect(planRule(p.ctx, p.root, new Set(["block"]), "1.0.0", {}, TEXT)).toEqual({
+        writes: [],
+        removals: [],
+        warnings: [],
+      });
+      rmSync(join(shared, "CLAUDE.md"));
+      const result = planRule(p.ctx, p.root, new Set(["claude-file", "block"]), "1.0.0", {}, TEXT);
+      expect(result.writes).toEqual([]);
+      expect(result.warnings).toEqual([
+        expect.stringContaining(
+          ".claude is a symlink, so dld-kit does not write .claude/CLAUDE.md",
+        ),
+      ]);
+    } finally {
+      p.cleanup();
+    }
+  });
+
+  test("an instruction file symlinked to the block's file counts as holding the block", () => {
+    const p = tempProject(null);
+    try {
+      p.write("AGENTS.md", upsertBlock("# A\n", BLOCK, ""));
+      symlinkSync(join(p.root, "AGENTS.md"), join(p.root, "CLAUDE.md"));
+      expect(loadsRule(p.ctx, p.root, harness("claude"))).toBe(true);
+      const plan = planRule(p.ctx, p.root, new Set(["claude-file", "block"]), "1.0.0", {}, TEXT);
+      expect(plan.writes).toEqual([]);
+      rmSync(join(p.root, "CLAUDE.md"));
+      rmSync(join(p.root, "AGENTS.md"));
+      p.write("CLAUDE.md", upsertBlock("# C\n", BLOCK, ""));
+      symlinkSync(join(p.root, "CLAUDE.md"), join(p.root, "AGENTS.md"));
+      expect(loadsRule(p.ctx, p.root, harness("codex"))).toBe(true);
+    } finally {
+      p.cleanup();
     }
   });
 
@@ -443,6 +501,8 @@ describe("importsAgentsMd", () => {
     expect(importsAgentsMd("Write `@AGENTS.md` to import it.", "CLAUDE.md")).toBe(false);
     expect(importsAgentsMd("```\n@AGENTS.md\n```\n", "CLAUDE.md")).toBe(false);
     expect(importsAgentsMd("~~~md\n@AGENTS.md\n~~~\n@AGENTS.md\n", "CLAUDE.md")).toBe(true);
+    expect(importsAgentsMd("~~~\n```\n@AGENTS.md\n~~~\n", "CLAUDE.md")).toBe(false);
+    expect(importsAgentsMd("````\n```\n````\n@AGENTS.md\n", "CLAUDE.md")).toBe(true);
   });
 });
 

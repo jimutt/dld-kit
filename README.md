@@ -36,7 +36,7 @@ This writes:
 
 - `dld.config.yaml`, `decisions/records/` and `decisions/INDEX.md`
 - the `dld-*` skills for each selected agent: `.claude/skills/` for Claude Code, `.agents/skills/` for the others
-- the always-on rule, once per agent: a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi, `.agents/rules/dld-workflow.md` for Antigravity, and `.claude/rules/dld-workflow.md` for Claude Code unless Claude Code already reads the block (see [Agents](#agents)). When the block goes into `AGENTS.md` and the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, it writes `.claude/CLAUDE.md` instead, which imports `AGENTS.md` for Claude Code
+- the always-on rule, once per agent: a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi, `.agents/rules/dld-workflow.md` for Antigravity, and `.claude/rules/dld-workflow.md` for Claude Code unless Claude Code already reads the block (see [Agents](#agents)). When the block goes into `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, it writes `.claude/CLAUDE.md` instead, which imports `AGENTS.md` for Claude Code
 
 `init` detects the agents from files in the project (`.claude/`, `.codex/`, `.cursor/`, `opencode.json`, `.pi/`, `AGENTS.md` and so on) and asks you to confirm the list. Options:
 
@@ -124,7 +124,7 @@ Channels can be combined. These combinations need care:
 
 A new block goes into `AGENTS.md` if it exists, else into `CLAUDE.md` if that exists, else into a new `AGENTS.md`. Codex and Cursor read only `AGENTS.md`: when the block ends up in `CLAUDE.md`, `dld install-rule` warns and says how to move it.
 
-Each agent gets the rule once. Claude Code reads `AGENTS.md` by itself only when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, so adding one of those (even an uncommitted `CLAUDE.local.md`) would stop it. When the block is in `AGENTS.md` and none of those files exists, `init` writes `.claude/CLAUDE.md` with the line `@../AGENTS.md`. Claude Code then loads `AGENTS.md` through that import, once, whichever CLAUDE files are added later. If a `CLAUDE.md` of yours already imports `@AGENTS.md`, the block there is Claude Code's rule and no other file is written.
+Each agent gets the rule once. Claude Code reads `AGENTS.md` by itself only when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, so adding one of those (even an uncommitted `CLAUDE.local.md`) would stop it. When the block is in `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, `init` writes `.claude/CLAUDE.md` with the line `@../AGENTS.md`. Claude Code then loads `AGENTS.md` through that import, once, whichever CLAUDE files are added later. If a `CLAUDE.md` of yours already imports `@AGENTS.md`, the block there is Claude Code's rule and no other file is written.
 
 The examples below use Claude Code's `/dld-plan` form. In other agents, name the skill instead, e.g. "use the dld-plan skill to plan the retry feature".
 
