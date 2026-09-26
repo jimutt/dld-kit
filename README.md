@@ -114,7 +114,7 @@ Channels can be combined. These combinations need care:
 
 | Agent | Skills (`dld init`) | Always-on rule (`dld init`, `/dld-init`) | Run a skill |
 |---|---|---|---|
-| Claude Code | `.claude/skills/` | `.claude/rules/dld-workflow.md`, or the block in `AGENTS.md` when a CLAUDE file imports it (`@AGENTS.md`) | `/dld-plan` |
+| Claude Code | `.claude/skills/` | `.claude/rules/dld-workflow.md`, or the block in `CLAUDE.md`, or in `AGENTS.md` imported from a CLAUDE file (`@AGENTS.md`) | `/dld-plan` |
 | Antigravity | `.agents/skills/` | `.agents/rules/dld-workflow.md` | Ask for the dld-plan skill |
 | Codex | `.agents/skills/` | Block in `AGENTS.md` | Ask for the dld-plan skill |
 | Cursor | `.agents/skills/` | Block in `AGENTS.md` | Ask for the dld-plan skill |
@@ -127,6 +127,18 @@ A new block goes into `AGENTS.md` if it exists, else into `CLAUDE.md` if that ex
 Each agent gets the rule once. Claude Code reads `AGENTS.md` by itself only when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, so adding one of those (even an uncommitted `CLAUDE.local.md`) would stop it. When the block is in `AGENTS.md` and none of those files exists, `init` writes `.claude/CLAUDE.md` with the line `@../AGENTS.md`. Claude Code then loads `AGENTS.md` through that import, once, whichever CLAUDE files are added later. If a `CLAUDE.md` of yours already imports `@AGENTS.md`, the block there is Claude Code's rule and no other file is written.
 
 The examples below use Claude Code's `/dld-plan` form. In other agents, name the skill instead, e.g. "use the dld-plan skill to plan the retry feature".
+
+### Upgrading from 0.x
+
+Before 1.0, the skills were copied by hand or installed with Tessl, each skill carried `scripts/*.sh`, and `/dld-init` appended a `## DLD (Decision-Linked Development)` section to `CLAUDE.md`.
+
+- **Your data carries over unchanged:** `dld.config.yaml`, `decisions/records/`, `decisions/INDEX.md` and `decisions/.dld-state.yaml`. 1.0 reads them as 0.x wrote them.
+- **Skills copied into `.claude/skills/` or `.agents/skills/`:** in the project, run `npx dld-kit@latest update --agent <names>` (e.g. `--agent claude,codex`). It rewrites the `dld-*` skills, deletes their old `scripts/*.sh`, and installs the always-on rule. Commit the result.
+  - For Codex or Cursor, first create an empty `AGENTS.md` if the project has none (`touch AGENTS.md`). Otherwise the rule block goes into your existing `CLAUDE.md`, which those agents do not read, and `update` warns about it.
+- **Skills copied anywhere else** (e.g. `.cursor/skills/`, `.codex/skills/`): delete those `dld-*` directories, then run the same `update`.
+- **Tessl installs:** remove the `dld-kit/dld` tile with Tessl, and delete any DLD rule text Tessl added. Then run `update`. The Tessl tile gets no new versions.
+- **The old `CLAUDE.md` section:** once the rule is installed, delete the `## DLD (Decision-Linked Development)` section yourself. Until then Claude Code reads the rule twice. `update` warns while the section is there, and never edits it.
+- **To use the plugin or `npx skills` instead:** delete the copied `dld-*` directories and the old `CLAUDE.md` section first, then install through that channel.
 
 ## Get started
 

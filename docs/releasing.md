@@ -8,9 +8,25 @@ Semantic versioning covers the setup commands, `dld init`, `update`, `install-ru
 
 All other commands are internal: the skills run them from the CLI copy bundled with the same version of the skills. A minor release may rename them or change their arguments or output, as long as the skill templates change with them. `dld --help` lists them under "Commands the skills run". The library API is internal too (DL-002).
 
+## Release branch
+
+Until 1.0.0, release candidates (`1.0.0-rc.N`) are tagged on `v1` and published under the `next` dist-tag (DL-058). A new candidate follows each round of fixes until the candidates run clean in real repositories; there is no fixed number and no date.
+
+`main` still holds the pre-1.0 skills, and the Claude Code, Codex and Copilot CLI marketplaces read the default branch. To test a candidate's plugin, add the marketplace at the `v1` ref: `claude plugin marketplace add jimutt/dld-kit#v1`.
+
+### Releasing 1.0.0
+
+Not done yet. When the candidates are clean:
+
+1. Merge `v1` into `main` (PR #76), so the marketplaces serve the 1.0 plugin.
+2. On `main`, run `npm version 1.0.0` and push the tag, as below.
+3. In the same release, remove the README's "Early development" note.
+4. Retire `v1`: remove it from the `push` branches in `.github/workflows/test.yml`, and change this document to name `main` as the release branch.
+5. Mark `docs/plan/v1.md` as done.
+
 ## Release a version
 
-1. On the release branch, with a clean working tree:
+1. On the release branch (`v1` until 1.0.0, then `main`), with a clean working tree:
 
    ```bash
    npm version 1.2.0          # or 1.2.0-rc.1 for a prerelease

@@ -307,6 +307,78 @@ describe("init and update (built, under node)", () => {
   });
 });
 
+// @decision(DL-057)
+describe("upgrading a pre-1.0 project (built, under node)", () => {
+  const project = join(WORKDIR, "legacy");
+  const write = (path: string, content: string) => {
+    mkdirSync(join(project, path, ".."), { recursive: true });
+    writeFileSync(join(project, path), content);
+  };
+  const record = (id: string, title: string, amends: string) =>
+    `---\nid: ${id}\ntitle: "${title}"\ntimestamp: 2026-01-10T09:00:00Z\nstatus: accepted\nsupersedes: []\namends: [${amends}]\ntags: [net]\nreferences: []\n---\n\n## Context\n\nC.\n`;
+  const legacyClaudeMd =
+    "# App\n\n## DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development.\n\n### Rules\n\n- Use `/dld-lookup` to query decisions.\n";
+  const index =
+    "# Decision Log\n\n| ID | Title | Status | Tags |\n|----|-------|--------|------|\n| DL-002 | Retry limit | accepted | net |\n| DL-001 | Use retries | accepted | net |\n";
+  const state =
+    "audit:\n  last_run: 2026-01-10T09:00:00Z\n  commit_hash: abc1234\n\nsnapshot:\n  last_run: 2026-01-10T09:00:00Z\n  commit_hash: abc1234\n  decisions_included: 2\n  artifacts:\n    SNAPSHOT.md: 2026-01-10T09:00:00Z\n    OVERVIEW.md: 2026-01-10T09:00:00Z\n";
+
+  // What the 0.x dld-init and bash scripts left behind: unstamped skills with scripts/*.sh.
+  mkdirSync(project);
+  execFileSync("git", ["init", "--quiet"], { cwd: project, env: ENV });
+  write(
+    ".claude/skills/dld-decide/SKILL.md",
+    "---\nname: dld-decide\ndescription: Record a decision.\nuser_invocable: true\n---\n\n# /dld-decide\n",
+  );
+  write(".claude/skills/dld-decide/scripts/create-decision.sh", "#!/usr/bin/env bash\n");
+  write(".claude/skills/dld-common/scripts/common.sh", "#!/usr/bin/env bash\n");
+  write(".claude/skills/dld-common/scripts/next-id.sh", "#!/usr/bin/env bash\n");
+  write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\n");
+  write("decisions/records/DL-001.md", record("DL-001", "Use retries", ""));
+  write("decisions/records/DL-002.md", record("DL-002", "Retry limit", "DL-001"));
+  write("decisions/INDEX.md", index);
+  write("decisions/.dld-state.yaml", state);
+  write("CLAUDE.md", legacyClaudeMd);
+  write("src/net.ts", "// @decision(DL-001)\nexport const retries = 3;\n");
+
+  test("update replaces the copied skills and installs the rule, leaving the data as it is", () => {
+    // The README's step for adding Codex: an AGENTS.md for the block.
+    write("AGENTS.md", "");
+    const result = dldIn(project, "update", "--agent", "claude,codex");
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Wrote the DLD rule to AGENTS.md\n");
+    expect(result.stdout).toContain("Wrote the DLD rule to .claude/rules/dld-workflow.md\n");
+    expect(result.stderr).toBe(
+      "Warning: CLAUDE.md has a '## DLD (Decision-Linked Development)' section from an older dld-init. dld-kit now installs the rule separately, so that section can be removed.\n",
+    );
+    expect(readFileSync(join(project, "CLAUDE.md"), "utf8")).toBe(legacyClaudeMd);
+    expect(existsSync(join(project, ".claude/skills/dld-decide/scripts"))).toBe(false);
+    expect(existsSync(join(project, ".claude/skills/dld-common/scripts/next-id.sh"))).toBe(false);
+    expect(readFileSync(join(project, ".claude/skills/dld-decide/SKILL.md"), "utf8")).toContain(
+      `dld-kit-version: "${version}"`,
+    );
+    expect(existsSync(join(project, ".agents/skills/dld-decide/SKILL.md"))).toBe(true);
+  });
+
+  test("the installed skills read the existing records, index and state", () => {
+    const run = (...args: string[]) =>
+      spawnSync("node", [join(project, ".claude/skills/dld-common/scripts/dld.mjs"), ...args], {
+        cwd: project,
+        encoding: "utf8",
+        env: ENV,
+      });
+    expect(run("next-id").stdout).toBe("DL-003\n");
+    expect(run("verify-annotations", "DL-001").status).toBe(0);
+    expect(run("find-missing-amends").stdout).toBe("");
+    expect(run("regenerate-index").status).toBe(0);
+    expect(readFileSync(join(project, "decisions/INDEX.md"), "utf8")).toBe(index);
+    write("decisions/SNAPSHOT.md", "");
+    write("decisions/OVERVIEW.md", "");
+    expect(run("detect-snapshot-changes").stdout).toStartWith("mode: incremental\n");
+    expect(readFileSync(join(project, "decisions/.dld-state.yaml"), "utf8")).toBe(state);
+  });
+});
+
 describe("output to a closed pipe", () => {
   test("exits quietly instead of crashing on EPIPE", async () => {
     const child = spawn("node", [BIN, "--help"], {
