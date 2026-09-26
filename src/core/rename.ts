@@ -1,30 +1,23 @@
 import { Buffer } from "node:buffer";
-import { join, posix, relative, sep } from "node:path";
-import { listScannableFiles, scanOptionsFor } from "./annotations.ts";
+import { join, posix } from "node:path";
+import { BINARY_SNIFF_BYTES, listScannableFiles, scanOptionsFor } from "./annotations.ts";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
-import { gitAt, nulSeparated } from "./git.ts";
+import { decisionsPathspec, gitAt, nulSeparated } from "./git.ts";
 import type { Project, ProjectPaths } from "./project.ts";
 import { parseRecord, setId } from "./records.ts";
 import { mergeBase, type Rename, verifyBase } from "./reindex.ts";
 import { parseRenamePlan, renameProblem } from "./rename-plan.ts";
 
-const BINARY_SNIFF_BYTES = 8192;
-
 /** `DL-NNN` not followed by another digit, so DL-100 does not match inside DL-1000. */
 const idPattern = (id: string, flags = "") => new RegExp(`${id}(?![0-9])`, flags);
 
-function decisionsPrefix(paths: ProjectPaths): string {
-  return `${relative(paths.root, paths.decisionsDir).split(sep).join("/")}/`;
-}
-
 /**
- * Files changed since the merge-base with `base`, committed or not (new paths of renames),
+ * Files changed since `commit` (the merge-base), committed or not (new paths of renames),
  * root-relative.
  */
-function changedFiles(ctx: Context, paths: ProjectPaths, base: string): string[] {
-  const commit = mergeBase(ctx, paths, base);
+function changedFiles(ctx: Context, paths: ProjectPaths, commit: string): string[] {
   return nulSeparated(
     gitAt(ctx, paths.root)(
       "diff",
@@ -75,21 +68,20 @@ export function renameDecision(
   if (record.id !== oldId) throw new DldError(`${path} has id ${record.id}, not ${oldId}.`);
   const newPath = posix.join(posix.dirname(path), `${newId}.md`);
   const newFull = join(paths.root, newPath);
-  if (ctx.fs.exists(newFull) || ctx.fs.isRegularFile(newFull)) {
-    throw new DldError(`${newPath} already exists.`);
-  }
+  if (ctx.fs.lexists(newFull)) throw new DldError(`${newPath} already exists.`);
   verifyBase(ctx, paths, base);
+  const since = mergeBase(ctx, paths, base);
+  const scannable = new Set(listScannableFiles(ctx, scanOptionsFor(project)));
 
   gitAt(ctx, paths.root)("mv", "--", path, newPath);
   const substitute = (text: string) => text.replace(idPattern(oldId, "g"), newId);
   rewriteFile(ctx, newFull, (text) => substitute(setId(text, oldId, newId)));
 
-  const decisions = decisionsPrefix(paths);
-  const scannable = new Set(listScannableFiles(ctx, scanOptionsFor(project)));
+  const decisions = `${decisionsPathspec(paths)}/`;
   const prefix = Buffer.from(config.annotationPrefix, "utf8").toString("latin1");
   const oldAnnotation = `${prefix}(${oldId})`;
   const newAnnotation = `${prefix}(${newId})`;
-  for (const file of changedFiles(ctx, paths, base)) {
+  for (const file of changedFiles(ctx, paths, since)) {
     if (file === newPath) continue;
     if (file.startsWith(decisions)) {
       rewriteFile(ctx, join(paths.root, file), substitute);
@@ -124,8 +116,8 @@ export function findStaleMentions(
   const renames = parseRenamePlan(paths, planText);
   if (renames.length === 0) return [];
   verifyBase(ctx, paths, base);
-  const decisions = decisionsPrefix(paths);
-  const files = changedFiles(ctx, paths, base).flatMap((file) => {
+  const decisions = `${decisionsPathspec(paths)}/`;
+  const files = changedFiles(ctx, paths, mergeBase(ctx, paths, base)).flatMap((file) => {
     if (file.startsWith(decisions)) return [];
     const full = join(paths.root, file);
     if (!ctx.fs.isRegularFile(full)) return [];

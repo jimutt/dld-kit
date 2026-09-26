@@ -2,6 +2,7 @@ import type { Context } from "./context.ts";
 import { GhCommandError, ToolNotFoundError } from "./errors.ts";
 import { gitAt, gitOrEmpty, recordsPathspec } from "./git.ts";
 import type { ProjectPaths } from "./project.ts";
+import { DECISION_MENTION } from "./records.ts";
 
 export interface OpenPrScan {
   /** IDs in record paths touched by open PRs, unsorted and possibly repeated. */
@@ -11,13 +12,12 @@ export interface OpenPrScan {
 }
 
 const GITHUB_REMOTE = /github\.com[:/]/;
-const MENTION = /DL-\d+/g;
 const PR_LIMIT = "100";
 
 // @decision(DL-026)
 /**
  * Decision IDs claimed by open PRs that target `base`, read from the paths they touch under the
- * records directory. PRs from the current branch are not counted. Best-effort: anything that
+ * records directory. The PR from this repository's current branch is not counted. Best-effort: anything that
  * stops the scan is returned as `skipped` rather than thrown.
  */
 export function openPrIds(ctx: Context, paths: ProjectPaths, base: string): OpenPrScan {
@@ -47,10 +47,9 @@ export function openPrIds(ctx: Context, paths: ProjectPaths, base: string): Open
       "list",
       "--state",
       "open",
-      "--base",
-      prBase,
+      `--base=${prBase}`,
       "--json",
-      "files,headRefName",
+      "files,headRefName,isCrossRepository",
       "--limit",
       PR_LIMIT,
     ]);
@@ -67,9 +66,9 @@ export function openPrIds(ctx: Context, paths: ProjectPaths, base: string): Open
   const prefix = `${recordsPathspec(paths)}/`;
   const ids: string[] = [];
   for (const pr of prs) {
-    if (pr.headRefName === current) continue;
+    if (!pr.isCrossRepository && pr.headRefName === current) continue;
     for (const path of pr.files) {
-      if (path.startsWith(prefix)) ids.push(...(path.match(MENTION) ?? []));
+      if (path.startsWith(prefix)) ids.push(...(path.match(DECISION_MENTION) ?? []));
     }
   }
   return { ids };
@@ -77,6 +76,7 @@ export function openPrIds(ctx: Context, paths: ProjectPaths, base: string): Open
 
 interface PullRequest {
   headRefName: string | undefined;
+  isCrossRepository: boolean;
   files: string[];
 }
 
@@ -94,6 +94,7 @@ function parsePrList(output: string): PullRequest[] | undefined {
     const files = Array.isArray(item.files) ? item.files : [];
     prs.push({
       headRefName: typeof item.headRefName === "string" ? item.headRefName : undefined,
+      isCrossRepository: item.isCrossRepository === true,
       files: files.flatMap((file) =>
         isObject(file) && typeof file.path === "string" ? [file.path] : [],
       ),

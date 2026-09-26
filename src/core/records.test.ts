@@ -137,6 +137,14 @@ describe("setId", () => {
   });
 });
 
+test("CRLF records parse and keep their line endings on status changes", () => {
+  const text = recordText("DL-001", "proposed").replaceAll("\n", "\r\n");
+  expect(parseRecord(text, "f").id).toBe("DL-001");
+  expect(setStatus(text, "accepted", "f")).toBe(
+    text.replace("status: proposed\r\n", "status: accepted\r\n"),
+  );
+});
+
 describe("setStatus", () => {
   test("changes only the status line inside the frontmatter", () => {
     const text = `${recordText("DL-001", "proposed")}\nstatus: proposed in the body\n---\nstatus: x\n`;

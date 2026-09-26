@@ -5,11 +5,9 @@ import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
 import { formatId } from "./ids.ts";
 import { openPrIds } from "./open-prs.ts";
 import type { Project, ProjectPaths } from "./project.ts";
-import { RECORD_FILE } from "./records.ts";
+import { DECISION_MENTION, RECORD_FILE } from "./records.ts";
 
 export const DEFAULT_BASE = "origin/main";
-
-const MENTION = /DL-\d+/g;
 
 type Git = (...args: string[]) => string;
 
@@ -58,8 +56,12 @@ export function resolveBase(ctx: Context): string {
   return DEFAULT_BASE;
 }
 
-/** Fails unless `base` names a commit. `hint` is appended to the error message. */
+/**
+ * Fails unless `base` names a commit. `hint` is appended to the error message. A base that
+ * looks like an option is rejected before it reaches git or gh.
+ */
 export function verifyBase(ctx: Context, paths: ProjectPaths, base: string, hint = ""): void {
+  if (base.startsWith("-")) throw new DldError(`--base must be a git ref, got '${base}'`);
   const git = gitAt(ctx, paths.root);
   if (gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${base}^{commit}`) === "") {
     throw new DldError(`base ref '${base}' not found.${hint}`);
@@ -90,7 +92,7 @@ function takenIds(ctx: Context, paths: ProjectPaths, base: string): WithScan<{ i
   const git = gitAt(ctx, paths.root);
   const onBase = nulSeparated(
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths)),
-  ).flatMap((path) => path.match(MENTION) ?? []);
+  ).flatMap((path) => path.match(DECISION_MENTION) ?? []);
   const scan = openPrIds(ctx, paths, base);
   const ids = [...new Set([...onBase, ...scan.ids])].sort(compareIds);
   return scan.skipped === undefined ? { ids } : { ids, skipped: scan.skipped };

@@ -13,6 +13,8 @@ export interface DirEntry {
 export interface FileSystem {
   exists(path: string): boolean;
   isDirectory(path: string): boolean;
+  /** True if anything exists at `path`, including a dangling symlink (not followed). */
+  lexists(path: string): boolean;
   /** True only for a regular file; symlinks, devices and FIFOs are not followed or counted. */
   isRegularFile(path: string): boolean;
   readFile(path: string): string;

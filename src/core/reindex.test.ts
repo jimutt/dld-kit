@@ -74,6 +74,9 @@ describe("listTakenIds", () => {
       ids: ["DL-001", "DL-999", "DL-1000"],
       skipped: "gh CLI not installed",
     });
+    expect(() => listTakenIds(p.ctx, loadProject(p.ctx), "--output=x")).toThrow(
+      "--base must be a git ref, got '--output=x'",
+    );
     expect(() => listTakenIds(p.ctx, loadProject(p.ctx), "nope")).toThrow(
       "base ref 'nope' not found. Fetch first or pass --base.",
     );

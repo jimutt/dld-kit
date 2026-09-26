@@ -22,7 +22,8 @@ export const EXCLUDED_DIRS: ReadonlySet<string> = new Set([
 ]);
 
 const EXCLUDED_FILE = /(\.lock|\.min\.js|\.min\.css|\.map)$/;
-const BINARY_SNIFF_BYTES = 8192;
+/** A file with a NUL byte this early is treated as binary. */
+export const BINARY_SNIFF_BYTES = 8192;
 
 export interface Annotation {
   /** Path relative to the project root, with `/` separators. */

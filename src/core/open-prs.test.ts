@@ -86,19 +86,23 @@ describe("openPrIds", () => {
         ],
       },
       { headRefName: "feature", files: [{ path: "decisions/records/DL-050.md" }] },
+      {
+        headRefName: "feature",
+        isCrossRepository: true,
+        files: [{ path: "decisions/records/DL-060.md" }],
+      },
       { headRefName: "third" },
     ];
     const result = scan(fakeGh({ "pr list": () => JSON.stringify(prs) }, calls));
-    expect(result).toEqual({ ids: ["DL-007", "DL-012"] });
+    expect(result).toEqual({ ids: ["DL-007", "DL-012", "DL-060"] });
     expect(calls.find((c) => c[0] === "pr")).toEqual([
       "pr",
       "list",
       "--state",
       "open",
-      "--base",
-      "main",
+      "--base=main",
       "--json",
-      "files,headRefName",
+      "files,headRefName,isCrossRepository",
       "--limit",
       "100",
     ]);
@@ -107,7 +111,7 @@ describe("openPrIds", () => {
   test("passes a base without an origin/ prefix through unchanged", () => {
     const calls: string[][] = [];
     scan(fakeGh({ "pr list": () => "[]" }, calls), undefined, "develop");
-    expect(calls.find((c) => c[0] === "pr")?.[5]).toBe("develop");
+    expect(calls.find((c) => c[0] === "pr")?.[4]).toBe("--base=develop");
   });
 
   test("still scans when gh --version fails, and rethrows unexpected errors", () => {

@@ -1,8 +1,8 @@
-import { join, posix, relative, sep } from "node:path";
+import { join, posix } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
-import { gitAt, nulSeparated } from "./git.ts";
+import { decisionsPathspec, gitAt, nulSeparated } from "./git.ts";
 import type { Project } from "./project.ts";
 import { mergeBase, type Rename, verifyBase } from "./reindex.ts";
 import { parseRenamePlan } from "./rename-plan.ts";
@@ -57,10 +57,7 @@ export function commitReindex(
   const head = git("rev-parse", "HEAD").trim();
   if (onto === head) throw new DldError("HEAD is already at the merge-base — nothing to squash.");
 
-  const indexRel = posix.join(
-    relative(paths.root, paths.decisionsDir).split(sep).join("/"),
-    "INDEX.md",
-  );
+  const indexRel = posix.join(decisionsPathspec(paths), "INDEX.md");
   const branchFiles = nulSeparated(
     git("diff", "-z", "--no-renames", "--name-only", "--diff-filter=AMRD", `${onto}..HEAD`),
   );
@@ -75,6 +72,9 @@ export function commitReindex(
   const message = reindexMessage(renames, subjects);
 
   const indexFull = join(paths.root, indexRel);
+  if (ctx.fs.lexists(indexFull) && !ctx.fs.isRegularFile(indexFull)) {
+    throw new DldError(`${indexRel} is not a regular file.`);
+  }
   const saved: SavedState = {
     head,
     tree: git("write-tree").trim(),
@@ -98,7 +98,7 @@ export function commitReindex(
       }
     });
     for (const path of [...stage].sort()) {
-      step(`staging ${path}`, () => stagePath(git, path));
+      step(`staging ${path}`, () => stagePath(ctx, git, join(paths.root, path), path));
     }
     step("checking the staged changes", () => {
       if (!hasStagedChanges(git)) {
@@ -127,25 +127,22 @@ export function commitReindex(
 }
 
 function existsAtHead(git: (...args: string[]) => string, path: string): boolean {
-  try {
-    git("cat-file", "-e", `HEAD:${path}`);
-    return true;
-  } catch (error) {
-    if (error instanceof GitCommandError) return false;
-    throw error;
-  }
+  return git("--literal-pathspecs", "ls-tree", "-z", "HEAD", "--", path) !== "";
 }
 
-/** Stages additions, changes and deletions of one path; a path git does not know is skipped. */
-function stagePath(git: (...args: string[]) => string, path: string): void {
-  try {
-    git("--literal-pathspecs", "add", "-A", "--", path);
-  } catch (error) {
-    if (error instanceof GitCommandError && error.stderr.includes("did not match any files")) {
-      return;
-    }
-    throw error;
-  }
+/**
+ * Stages additions, changes and deletions of one path. A path that is neither in the working
+ * tree nor in the index (a renamed record's old path) is skipped.
+ */
+function stagePath(
+  ctx: Context,
+  git: (...args: string[]) => string,
+  full: string,
+  path: string,
+): void {
+  const known =
+    ctx.fs.lexists(full) || git("--literal-pathspecs", "ls-files", "-z", "--", path) !== "";
+  if (known) git("--literal-pathspecs", "add", "-A", "--", path);
 }
 
 function hasStagedChanges(git: (...args: string[]) => string): boolean {
@@ -153,7 +150,7 @@ function hasStagedChanges(git: (...args: string[]) => string): boolean {
     git("diff", "--cached", "--quiet");
     return false;
   } catch (error) {
-    if (error instanceof GitCommandError) return true;
+    if (error instanceof GitCommandError && error.status === 1) return true;
     throw error;
   }
 }

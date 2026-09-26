@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
   type BranchedProject,
@@ -169,13 +177,37 @@ describe("commitReindex", () => {
   test.each([
     ["reset", "resetting to the merge-base"],
     ["checkout", "restoring decisions/INDEX.md"],
-    ["add", "staging decisions/records/DL-002.md"],
+    ["add", "staging decisions/records/DL-003.md"],
   ])("restores everything when git %s fails", (match, stepName) => {
     const { p, plan } = collided();
     const before = state(p);
     expect(() => squash(p, plan, failingGit(p, match))).toThrow(
       `commit-reindex failed while ${stepName}: git`,
     );
+    expect(state(p)).toEqual(before);
+  });
+
+  test("refuses a symlinked INDEX.md before changing anything", () => {
+    const { p, plan } = collided();
+    rmSync(join(p.root, "decisions/INDEX.md"));
+    symlinkSync("../README.md", join(p.root, "decisions/INDEX.md"));
+    const head = p.git("rev-parse", "HEAD");
+    expect(() => squash(p, plan)).toThrow("decisions/INDEX.md is not a regular file.");
+    expect(lstatSync(join(p.root, "decisions/INDEX.md")).isSymbolicLink()).toBe(true);
+    expect(p.git("rev-parse", "HEAD")).toBe(head);
+  });
+
+  test("treats an unexpected diff failure as an error", () => {
+    const { p, plan } = collided();
+    const before = state(p);
+    const ctx: Context = {
+      ...p.ctx,
+      git: (args) => {
+        if (args.includes("--cached")) throw new GitCommandError(args, "fatal", 128);
+        return p.ctx.git(args);
+      },
+    };
+    expect(() => squash(p, plan, ctx)).toThrow("checking the staged changes: git");
     expect(state(p)).toEqual(before);
   });
 

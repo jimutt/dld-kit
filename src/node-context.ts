@@ -26,6 +26,8 @@ export const nodeFileSystem: FileSystem = {
   exists: (path) => existsSync(path),
   isDirectory: (path) =>
     fsCall("read", path, () => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false),
+  lexists: (path) =>
+    fsCall("read", path, () => lstatSync(path, { throwIfNoEntry: false }) !== undefined),
   isRegularFile: (path) =>
     fsCall("read", path, () => lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false),
   readFile: (path) => fsCall("read", path, () => readFileSync(path, "utf8")),
@@ -78,7 +80,9 @@ export function nodeGit(cwd: string, env: Context["env"]): Context["git"] {
       if (hasCode(error, "ENOBUFS")) {
         throw new DldError(`git ${args.join(" ")} produced more output than dld can buffer`);
       }
-      if (hasStatus(error)) throw new GitCommandError(args, String(error.stderr ?? "").trim());
+      if (hasStatus(error)) {
+        throw new GitCommandError(args, String(error.stderr ?? "").trim(), error.status);
+      }
       throw error;
     }
   };

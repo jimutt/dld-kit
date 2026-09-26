@@ -93,6 +93,43 @@ describe("renameDecision", () => {
     expect(lstatSync(join(p.root, "run.sh")).mode & 0o777).toBe(0o755);
   });
 
+  test("renames a CRLF record, keeping its line endings", () => {
+    const p = branched();
+    const crlf = recordText("DL-002", "proposed").replaceAll("\n", "\r\n");
+    p.write("decisions/records/DL-002.md", crlf);
+    p.commitAll("local");
+    rename(p, "DL-002", "DL-003");
+    expect(read(p, "decisions/records/DL-003.md")).toBe(crlf.replaceAll("DL-002", "DL-003"));
+  });
+
+  test("changes nothing when the base has no merge-base with HEAD", () => {
+    const p = branched();
+    p.write("decisions/records/DL-002.md", recordText("DL-002", "proposed"));
+    p.commitAll("local");
+    p.git("checkout", "--quiet", "--orphan", "other");
+    p.git("commit", "--quiet", "--allow-empty", "-m", "unrelated");
+    p.git("checkout", "--quiet", "feature");
+    expect(() =>
+      renameDecision(
+        p.ctx,
+        loadProject(p.ctx),
+        { path: "decisions/records/DL-002.md", oldId: "DL-002", newId: "DL-003" },
+        "other",
+      ),
+    ).toThrow("merge-base");
+    expect(p.git("status", "--porcelain")).toBe("");
+  });
+
+  test("treats a dangling symlink at the target as existing", () => {
+    const p = branched();
+    p.write("decisions/records/DL-002.md", recordText("DL-002", "proposed"));
+    p.commitAll("local");
+    symlinkSync("nowhere", join(p.root, "decisions/records/DL-003.md"));
+    expect(() => rename(p, "DL-002", "DL-003")).toThrow(
+      "decisions/records/DL-003.md already exists.",
+    );
+  });
+
   test("keeps the namespace directory", () => {
     const p = branched();
     p.write("decisions/records/auth/DL-002.md", recordText("DL-002", "proposed"));

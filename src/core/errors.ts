@@ -25,11 +25,14 @@ export class FsError extends DldError {
 /** A git command ran and exited non-zero. */
 export class GitCommandError extends DldError {
   readonly stderr: string;
+  /** git's exit status, when known. */
+  readonly status: number | undefined;
 
-  constructor(args: readonly string[], stderr: string) {
+  constructor(args: readonly string[], stderr: string, status?: number) {
     super(`git ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
     this.name = "GitCommandError";
     this.stderr = stderr;
+    this.status = status;
   }
 }
 

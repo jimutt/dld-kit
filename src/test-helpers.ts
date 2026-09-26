@@ -76,6 +76,7 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
     files,
     exists: (path) => path in files || isDirectory(path),
     isDirectory,
+    lexists: (path) => path in files || isDirectory(path),
     isRegularFile: (path) => path in files,
     readFile: (path) => {
       const content = files[path];
