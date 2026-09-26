@@ -1,7 +1,6 @@
 ---
 name: dld-decide
 description: Record a single development decision as a markdown file with YAML frontmatter. Collects context, rationale, and code references interactively.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

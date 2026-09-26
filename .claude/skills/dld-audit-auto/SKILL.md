@@ -1,7 +1,6 @@
 ---
 name: dld-audit-auto
 description: Autonomous audit — detects drift, fixes issues, and opens a PR. Designed for scheduled/CI execution without human interaction.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

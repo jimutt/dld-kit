@@ -1,7 +1,6 @@
 ---
 name: dld-retrofit
 description: Bootstrap DLD decisions from an existing codebase. Analyzes code to infer rationale, generates decision records, and adds `@decision` annotations.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

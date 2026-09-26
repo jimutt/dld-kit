@@ -1,7 +1,6 @@
 ---
 name: dld-adjust
 description: Adjust or update existing decision records. Handles permission gating for accepted decisions and correctly interprets adjustment requests.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

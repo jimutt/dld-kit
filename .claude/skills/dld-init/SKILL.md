@@ -1,7 +1,6 @@
 ---
 name: dld-init
 description: Bootstrap DLD (Decision-Linked Development) in a repository. Creates dld.config.yaml, the decisions/ directory, and INDEX.md. Run once per project.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

@@ -1,7 +1,6 @@
 ---
 name: dld-reindex
 description: Resolve decision ID collisions between a local branch and the base branch (and open PRs) before rebasing. Renames colliding local decisions with git mv, rewrites cross-references and annotations, then squashes branch commits into a single rebase-clean reindex commit.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

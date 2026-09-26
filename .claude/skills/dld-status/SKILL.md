@@ -1,7 +1,6 @@
 ---
 name: dld-status
 description: Quick overview of the decision log state — counts by status, recent decisions, and run tracking info.
-user_invocable: true
 metadata:
   dld-kit-version: "0.9.0"
 ---

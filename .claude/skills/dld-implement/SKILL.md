@@ -1,7 +1,6 @@
 ---
 name: dld-implement
 description: Implement one or more proposed decisions. Makes code changes, adds `@decision` annotations, and updates decision status.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

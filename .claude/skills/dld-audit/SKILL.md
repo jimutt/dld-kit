@@ -1,7 +1,6 @@
 ---
 name: dld-audit
 description: Scan for drift between decisions and code. Finds orphaned annotations, stale references, and undocumented changes.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

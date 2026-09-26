@@ -44,13 +44,13 @@ export const agentSkillsAdapter: Adapter = {
 
 const CLAUDE_CLI = `\${CLAUDE_SKILL_DIR}/../${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`;
 
-// @decision(DL-032) @decision(DL-036)
+// @decision(DL-032) @decision(DL-036) @decision(DL-039)
 /** Claude Code skills, written to `.claude/skills/` in a project. */
 export const claudeCodeAdapter: Adapter = {
   id: "claude-code",
   outputDir: ".claude/skills",
   fields: ["name", "description"],
-  extraFrontmatter: ["user_invocable: true"],
+  extraFrontmatter: [],
   dldFrontmatter: [`allowed-tools: Bash(node "${CLAUDE_CLI}" *)`],
   scriptRef: (_fromSkill, { skill, path }) => `\${CLAUDE_SKILL_DIR}/../${skill}/${path}`,
   dld: () => `node "${CLAUDE_CLI}"`,

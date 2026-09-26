@@ -1,7 +1,6 @@
 ---
 name: dld-snapshot
 description: Generate SNAPSHOT.md (detailed decision reference) and OVERVIEW.md (narrative synthesis with diagrams) from the decision log.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"

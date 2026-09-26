@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-039 | Drop the no-op user_invocable line from Claude Code skills | accepted | v1-skills-cli, skills |
 | DL-038 | Development docs describe the CLI-only toolkit | accepted | v1-skills-cli, docs |
 | DL-037 | Remove the bash scripts and the bats suite after a coverage audit | accepted | v1-skills-cli, testing |
 | DL-036 | A dld placeholder renders the CLI invocation per harness | accepted | v1-skills-cli, skills |

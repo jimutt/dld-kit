@@ -50,12 +50,12 @@ describe("generateSkills", () => {
     expect(files.get("dld-plan/scripts/p.sh")?.mode).toBe(0o644);
   });
 
-  test("claude-code: prefixed paths, user_invocable, no internal manifests", () => {
+  test("claude-code: skill-dir paths, no extra fields, no internal manifests", () => {
     const files = generateSkills(templates(), T, claudeCodeAdapter, "1.0");
     expect(files.has("dld-common/SKILL.md")).toBe(false);
     expect(files.has("dld-common/scripts/next-id.sh")).toBe(true);
     expect(files.get("dld-plan/SKILL.md")?.content).toBe(
-      `---\nname: dld-plan\ndescription: Plan.\nuser_invocable: true\nmetadata:\n  dld-kit-version: "1.0"\n---\n${NOTICE("dld-plan")}\n\nRun ${SKILL_DIR}/../dld-common/scripts/next-id.sh and ${SKILL_DIR}/../dld-plan/scripts/p.sh.\n`,
+      `---\nname: dld-plan\ndescription: Plan.\nmetadata:\n  dld-kit-version: "1.0"\n---\n${NOTICE("dld-plan")}\n\nRun ${SKILL_DIR}/../dld-common/scripts/next-id.sh and ${SKILL_DIR}/../dld-plan/scripts/p.sh.\n`,
     );
   });
 
@@ -100,7 +100,7 @@ describe("the bundled CLI", () => {
     const files = generateSkills(withDld(), T, claudeCodeAdapter, "1.0", { extraFiles: CLI });
     const skill = files.get("dld-plan/SKILL.md")?.content ?? "";
     expect(skill).toStartWith(
-      `---\nname: dld-plan\ndescription: Plan.\nuser_invocable: true\nallowed-tools: Bash(node "${SKILL_DIR}/../dld-common/scripts/dld.mjs" *)\nmetadata:`,
+      `---\nname: dld-plan\ndescription: Plan.\nallowed-tools: Bash(node "${SKILL_DIR}/../dld-common/scripts/dld.mjs" *)\nmetadata:`,
     );
     expect(skill).toContain(`\nnode "${SKILL_DIR}/../dld-common/scripts/dld.mjs" next-id\n`);
     expect(files.has("dld-common/scripts/dld.mjs")).toBe(true);

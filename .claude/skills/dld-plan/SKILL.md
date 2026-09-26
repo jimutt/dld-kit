@@ -1,7 +1,6 @@
 ---
 name: dld-plan
 description: Break down a feature into multiple decisions interactively. Creates a set of decision records grouped by a shared tag.
-user_invocable: true
 allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"
