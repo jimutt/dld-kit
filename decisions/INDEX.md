@@ -2,6 +2,12 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-053 | Rewrite the README around the 1.0 install channels | proposed | v1-distribution, docs |
+| DL-052 | Release from a version tag with npm trusted publishing; package.json holds the one version | proposed | v1-distribution, release, npm, ci |
+| DL-051 | Coexist with npx skills and gh skill installs, and check the installers in CI | proposed | v1-distribution, skills, npx-skills, ci |
+| DL-050 | Publish portable plugin manifests for Codex and Copilot CLI, and a Pi package entry | proposed | v1-distribution, plugin, codex, copilot, pi |
+| DL-049 | Print the rule from a plugin SessionStart hook through dld session-context | proposed | v1-distribution, rule, claude-code, plugin |
+| DL-048 | Ship a Claude Code plugin generated into claude-plugin/, with a marketplace in the same repository | proposed | v1-distribution, claude-code, plugin |
 | DL-047 | Install the rule through the CLI from the dld-init skill and in this repository | accepted | v1-init-update, rule, skills |
 | DL-046 | Keep generated skills usable in harnesses that read another harness's directory | accepted | v1-init-update, skills, harnesses |
 | DL-045 | Deliver the always-on rule through owned rule files and a managed AGENTS.md block | accepted | v1-init-update, rule, harnesses |
