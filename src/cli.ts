@@ -18,9 +18,14 @@ Options:
 export function run(argv: readonly string[], io: Io): number {
   const [first] = argv;
 
-  if (first === undefined || first === "-h" || first === "--help") {
+  if (first === undefined) {
+    io.stderr(USAGE);
+    return EXIT_USAGE;
+  }
+
+  if (first === "-h" || first === "--help") {
     io.stdout(USAGE);
-    return first === undefined ? EXIT_USAGE : EXIT_OK;
+    return EXIT_OK;
   }
 
   if (first === "-v" || first === "--version") {

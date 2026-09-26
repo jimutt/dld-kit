@@ -1,14 +1,19 @@
 // @decision(DL-004)
 // Runs the built bundle under node; build first with `npm run build`.
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { version } from "../../package.json";
 
 const BIN = resolve(import.meta.dirname, "../../dist/dld.mjs");
 
+const WORKDIR = mkdtempSync(join(tmpdir(), "dld-cli-"));
+afterAll(() => rmSync(WORKDIR, { recursive: true, force: true }));
+
 function dld(...args: string[]) {
-  const result = spawnSync("node", [BIN, ...args], { encoding: "utf8" });
+  const result = spawnSync("node", [BIN, ...args], { cwd: WORKDIR, encoding: "utf8" });
   if (result.error) throw result.error;
   return result;
 }

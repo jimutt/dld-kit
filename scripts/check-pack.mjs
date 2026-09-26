@@ -8,6 +8,7 @@ const ALLOWED_DIRS = ["skills/", "rules/"];
 
 const output = execFileSync("npm", ["pack", "--dry-run", "--json"], { encoding: "utf8" });
 const [pack] = JSON.parse(output);
+if (!Array.isArray(pack?.files)) throw new Error("unexpected `npm pack --json` output");
 const paths = pack.files.map((f) => f.path);
 
 const missing = REQUIRED.filter((p) => !paths.includes(p));

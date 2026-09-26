@@ -28,6 +28,7 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.src.json",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",

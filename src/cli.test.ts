@@ -36,10 +36,11 @@ describe("run", () => {
     expect(io.out).toContain("Usage: dld");
   });
 
-  test("no arguments prints usage and exits with a usage error", () => {
+  test("no arguments prints usage on stderr and exits with a usage error", () => {
     const io = capture();
     expect(run([], io)).toBe(EXIT_USAGE);
-    expect(io.out).toContain("Usage: dld");
+    expect(io.out).toBe("");
+    expect(io.err).toContain("Usage: dld");
   });
 
   test("an unknown command is reported on stderr", () => {
