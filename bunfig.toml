@@ -1,0 +1,7 @@
+# @decision(DL-020)
+[test]
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage"
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["src/test-helpers.ts"]
+coverageThreshold = { lines = 0.9, functions = 0.9 }

@@ -19,6 +19,7 @@ dld-kit is moving from bash scripts to a TypeScript CLI and library for 1.0 (see
 - Unit tests run with `bun test` (`npm run test:unit`) and live beside the code they cover as `*.test.ts`.
 - CLI integration tests live in `tests/cli/` and run the built `dist/dld.mjs` under `node` (`npm run test:cli`).
 - Typecheck (`npm run typecheck`) and Biome (`npm run lint`) are part of the definition of done.
+- Unit coverage is measured with `npm run test:coverage`. Every file under `src/` must stay at or above 90% of lines and functions (DL-020); CI reports coverage and its change on each PR.
 - Prefer dependency injection (filesystem, git, clock, process execution) over module-level side effects, so failure branches are reachable from unit tests. A function that can only touch the real filesystem can only ever be tested in the happy case.
 - The library is tested through unit tests against its functions; the CLI is covered by a thinner set of integration tests against the command surface.
 

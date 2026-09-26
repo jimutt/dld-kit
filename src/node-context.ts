@@ -1,31 +1,47 @@
 // @decision(DL-008) @decision(DL-007)
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+  existsSync,
+  linkSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import type { Context, FileSystem } from "./core/context.ts";
-import { DldError, GitCommandError } from "./core/errors.ts";
+import { DldError, FsError, GitCommandError } from "./core/errors.ts";
 
 export const nodeFileSystem: FileSystem = {
   exists: (path) => existsSync(path),
   isDirectory: (path) =>
-    fsCall(path, () => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false),
-  readFile: (path) => fsCall(path, () => readFileSync(path, "utf8")),
+    fsCall("read", path, () => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false),
+  readFile: (path) => fsCall("read", path, () => readFileSync(path, "utf8")),
   readDir: (path) =>
-    fsCall(path, () =>
+    fsCall("read", path, () =>
       readdirSync(path, { withFileTypes: true }).map((entry) => ({
         name: entry.name,
         isFile: entry.isFile(),
         isDirectory: entry.isDirectory(),
       })),
     ),
+  writeFile: (path, content) => fsCall("write", path, () => writeFileSync(path, content)),
+  mkdir: (path) =>
+    fsCall("create directory", path, () => void mkdirSync(path, { recursive: true })),
+  rename: (from, to) => fsCall("rename", from, () => renameSync(from, to)),
+  link: (existing, newPath) => fsCall("create", newPath, () => linkSync(existing, newPath)),
+  remove: (path) => fsCall("remove", path, () => rmSync(path, { force: true })),
 };
 
-/** Filesystem failures (EACCES, EISDIR, ...) are environment problems, reported as DldError. */
-function fsCall<T>(path: string, operation: () => T): T {
+/** Filesystem failures (EACCES, EISDIR, ...) are environment problems, reported as FsError. */
+function fsCall<T>(operation: string, path: string, run: () => T): T {
   try {
-    return operation();
+    return run();
   } catch (error) {
     if (error instanceof Error && "code" in error && typeof error.code === "string") {
-      throw new DldError(`cannot read ${path}: ${error.code}`);
+      throw new FsError(operation, path, error.code);
     }
     throw error;
   }
@@ -52,7 +68,14 @@ export function createNodeContext(
   cwd: string,
   env: Readonly<Record<string, string | undefined>>,
 ): Context {
-  return { cwd, fs: nodeFileSystem, git: nodeGit(cwd, env), env };
+  return {
+    cwd,
+    fs: nodeFileSystem,
+    git: nodeGit(cwd, env),
+    env,
+    readStdin: () => fsCall("read", "standard input", () => readFileSync(0, "utf8")),
+    now: () => new Date(),
+  };
 }
 
 function hasCode(error: unknown, code: string): boolean {

@@ -1,10 +1,33 @@
 import { version } from "../../package.json";
 import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
-import { type Command, EXIT_OK, EXIT_USAGE, type Io, UsageError } from "./command.ts";
+import {
+  type Command,
+  EXIT_OK,
+  EXIT_USAGE,
+  HelpRequested,
+  type Io,
+  UsageError,
+} from "./command.ts";
+import { createConfigCommand } from "./commands/create-config.ts";
+import { createDecisionCommand } from "./commands/create-decision.ts";
+import { createDirectoriesCommand } from "./commands/create-directories.ts";
+import { createEmptyIndexCommand } from "./commands/create-empty-index.ts";
 import { nextIdCommand } from "./commands/next-id.ts";
+import { regenerateIndexCommand } from "./commands/regenerate-index.ts";
+import { updateStatusCommand } from "./commands/update-status.ts";
+import { verifyAnnotationsCommand } from "./commands/verify-annotations.ts";
 
-export const COMMANDS: readonly Command[] = [nextIdCommand];
+export const COMMANDS: readonly Command[] = [
+  createConfigCommand,
+  createDirectoriesCommand,
+  createEmptyIndexCommand,
+  nextIdCommand,
+  createDecisionCommand,
+  updateStatusCommand,
+  regenerateIndexCommand,
+  verifyAnnotationsCommand,
+];
 
 function usage(commands: readonly Command[]): string {
   return `Usage: dld <command> [options]
@@ -44,14 +67,14 @@ export function run(
     io.stderr(`dld: unknown command or option '${first}'\n\n${usage(commands)}`);
     return EXIT_USAGE;
   }
-  if (wantsHelp(rest)) {
-    io.stdout(command.usage);
-    return EXIT_OK;
-  }
 
   try {
     return command.run(rest, io, ctx);
   } catch (error) {
+    if (error instanceof HelpRequested) {
+      io.stdout(command.usage);
+      return EXIT_OK;
+    }
     if (error instanceof UsageError) {
       io.stderr(`dld ${command.name}: ${error.message}\n\n${command.usage}`);
       return error.exitCode;
@@ -63,14 +86,6 @@ export function run(
     io.stderr(`dld: unexpected error (this is a bug)\n${describe(error)}\n`);
     return 1;
   }
-}
-
-function wantsHelp(args: readonly string[]): boolean {
-  for (const arg of args) {
-    if (arg === "--") return false;
-    if (arg === "-h" || arg === "--help") return true;
-  }
-  return false;
 }
 
 function describe(error: unknown): string {

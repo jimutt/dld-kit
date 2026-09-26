@@ -40,3 +40,20 @@ describe("node context", () => {
     expect(() => ctx.fs.readDir(`${project?.root}/d/file.md`)).toThrow(/cannot read .*ENOTDIR/);
   });
 });
+
+describe("node context writes", () => {
+  test("write, link, rename and remove operate on real files", () => {
+    project = tempProject();
+    const { fs } = project.ctx;
+    const dir = `${project.root}/a/b`;
+    fs.mkdir(dir);
+    fs.writeFile(`${dir}/one`, "1");
+    fs.link(`${dir}/one`, `${dir}/two`);
+    expect(() => fs.link(`${dir}/one`, `${dir}/two`)).toThrow(/cannot create .*two: EEXIST/);
+    fs.rename(`${dir}/two`, `${dir}/three`);
+    expect(fs.readFile(`${dir}/three`)).toBe("1");
+    fs.remove(`${dir}/three`);
+    fs.remove(`${dir}/three`);
+    expect(fs.exists(`${dir}/three`)).toBe(false);
+  });
+});
