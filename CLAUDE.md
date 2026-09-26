@@ -2,11 +2,15 @@
 
 ## What this repo is
 
-DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development. It is not an application — it produces no runnable code. The deliverables are skill files (SKILL.md), shell scripts, a steering rule, and documentation.
+DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development. The deliverables are skill files (SKILL.md), a steering rule, documentation, and helper code the skills call. For 1.0 the bash helper scripts are being ported to a TypeScript CLI (`dld`, npm package `dld-kit`) — see `docs/plan/v1.md`. Until the port completes, both exist.
 
 ## Directory structure
 
 ```
+package.json               # npm package dld-kit (bin: dld) — DL-002
+src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.ts colocated
+scripts/                   # Build (esbuild) and package-check scripts, run with node
+tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
 .tessl-plugin/
   plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
 rules/
@@ -59,13 +63,19 @@ Scripts use `set -euo pipefail` and source `common.sh` via `BASH_SOURCE` path re
 
 ## Testing
 
-Tests use [bats-core](https://github.com/bats-core/bats-core) installed as a git submodule at `tests/bats/`. Run tests with:
+Dependencies are installed with Bun from `bun.lock`: `bun install`. Bun is a development tool only; shipped code targets Node 20+ (DL-001).
 
 ```bash
-tests/bats/bin/bats tests/
+npm run lint         # Biome (lint + format check); lint:fix to apply
+npm run typecheck    # tsc, including a Node-only pass over src/ that rejects Bun APIs
+npm run test:unit    # bun test, colocated src/**/*.test.ts
+npm run test:cli     # builds dist/dld.mjs, then runs tests/cli under node
+npm run test:bats    # bats suite for the shell scripts (until the port completes)
+npm test             # all three test layers
+npm run check:pack   # npm pack dry-run against the files allowlist
 ```
 
-If tests fail with "Could not find bats-support", init submodules first: `git submodule update --init --recursive`
+bats is a git submodule at `tests/bats/`. If tests fail with "Could not find bats-support", init submodules first: `git submodule update --init --recursive`
 
 ## Conventions
 

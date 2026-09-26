@@ -10,14 +10,15 @@ dld-kit is moving from bash scripts to a TypeScript CLI and library for 1.0 (see
 
 ### Shell scripts (bats) — during the port
 
-- Tests use [bats-core](https://github.com/bats-core/bats-core), vendored as a git submodule at `tests/bats/`. Run the suite with `tests/run.sh`. If bats is missing, run `git submodule update --init --recursive`.
+- Tests use [bats-core](https://github.com/bats-core/bats-core), vendored as a git submodule at `tests/bats/`. Run the suite with `npm run test:bats` (or `tests/run.sh`). If bats is missing, run `git submodule update --init --recursive`.
 - One test file per script or area: `tests/test_<script-or-area>.bats`, using `load 'test_helper/common'` and the shared fixtures (`setup_flat_project`, `setup_namespaced_project`, `create_decision`, `teardown_project`).
 - The bats suite is the behavioural specification for the port. A ported command must pass the same bats tests as the script it replaces before the script is removed. Do not weaken or delete a bats test to make a port pass.
 
 ### TypeScript (bun)
 
-- Tests run with `bun test` and live beside the code they cover as `*.test.ts`.
-- Typecheck (`tsc --noEmit`) is part of the definition of done.
+- Unit tests run with `bun test` (`npm run test:unit`) and live beside the code they cover as `*.test.ts`.
+- CLI integration tests live in `tests/cli/` and run the built `dist/dld.mjs` under `node` (`npm run test:cli`).
+- Typecheck (`npm run typecheck`) and Biome (`npm run lint`) are part of the definition of done.
 - Prefer dependency injection (filesystem, git, clock, process execution) over module-level side effects, so failure branches are reachable from unit tests. A function that can only touch the real filesystem can only ever be tested in the happy case.
 - The library is tested through unit tests against its functions; the CLI is covered by a thinner set of integration tests against the command surface.
 

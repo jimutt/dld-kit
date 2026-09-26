@@ -251,6 +251,16 @@ implement_review: false
 
 The review subagent operates with limited context and may flag false positives. The implementing agent uses its own judgment and asks for user input when uncertain about a finding.
 
+## Development
+
+```bash
+git submodule update --init --recursive   # first time only, vendors bats
+bun install                               # dev dependencies (Bun is a dev tool; the CLI runs on Node 20+)
+npm run lint && npm run typecheck && npm test
+```
+
+See `CLAUDE.md` for the full set of commands and `docs/plan/v1.md` for the 1.0 plan.
+
 ## Further reading
 
 - [Concept paper](docs/concept/dld-concept.md) — full rationale and design philosophy
