@@ -8,6 +8,8 @@ export type Status = (typeof STATUSES)[number];
 
 export const RECORD_FILE = /^DL-(\d+)\.md$/;
 export const DECISION_ID = /^DL-\d+$/;
+/** Every decision ID mentioned in a text. */
+export const DECISION_MENTION = /DL-\d+/g;
 
 export interface Reference {
   path: string;
@@ -63,12 +65,14 @@ interface FrontmatterBlock {
   end: number;
 }
 
-/** Locates the frontmatter between the first two lines that are exactly `---`. */
+const isDelimiter = (line: string) => line === "---" || line === "---\r";
+
+/** Locates the frontmatter between the first two lines that are exactly `---` (LF or CRLF). */
 function frontmatterBlock(text: string): FrontmatterBlock | undefined {
   const lines = text.split("\n");
-  const start = lines.indexOf("---");
+  const start = lines.findIndex(isDelimiter);
   if (start === -1) return undefined;
-  const end = lines.indexOf("---", start + 1);
+  const end = lines.findIndex((line, index) => index > start && isDelimiter(line));
   if (end === -1) return undefined;
   return { lines, start, end };
 }
@@ -86,7 +90,9 @@ export function parseRecord(text: string, source: string): DecisionRecord {
   const block = frontmatterBlock(text);
   if (block === undefined) throw invalid("no frontmatter between --- lines");
 
-  const frontmatter = block.lines.slice(block.start + 1, block.end);
+  const frontmatter = block.lines
+    .slice(block.start + 1, block.end)
+    .map((line) => line.replace(/\r$/, ""));
   const doc = parseDocument(frontmatter.join("\n"), { logLevel: "silent" });
   const problem = doc.errors[0] ?? doc.warnings[0];
   const raw: unknown = problem === undefined ? doc.toJS() : legacyFields(frontmatter);
@@ -183,12 +189,27 @@ export function setStatus(text: string, status: Status, source: string): string 
   const { lines, start, end } = block;
   let replaced = false;
   for (let i = start + 1; i < end; i++) {
-    if (lines[i]?.startsWith("status:")) {
-      lines[i] = `status: ${status}`;
+    const line = lines[i];
+    if (line?.startsWith("status:")) {
+      lines[i] = `status: ${status}${line.endsWith("\r") ? "\r" : ""}`;
       replaced = true;
     }
   }
   if (!replaced) throw new DldError(`${source}: frontmatter has no 'status' field`);
+  return lines.join("\n");
+}
+
+// @decision(DL-014) @decision(DL-029)
+/** Rewrites a frontmatter `id: <oldId>` line to `id: <newId>`, leaving every other byte unchanged. */
+export function setId(text: string, oldId: string, newId: string): string {
+  const block = frontmatterBlock(text);
+  if (block === undefined) return text;
+  const { lines, start, end } = block;
+  const idLine = new RegExp(`^id:[ \\t]*${oldId}(\\r?)$`);
+  for (let i = start + 1; i < end; i++) {
+    const line = lines[i];
+    if (line !== undefined && idLine.test(line)) lines[i] = line.replace(idLine, `id: ${newId}$1`);
+  }
   return lines.join("\n");
 }
 

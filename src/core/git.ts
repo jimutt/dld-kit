@@ -28,6 +28,11 @@ export function recordsPathspec(paths: ProjectPaths): string {
   return relative(paths.root, paths.recordsDir).split(sep).join("/");
 }
 
+/** The decisions directory as a root-relative, `/`-separated git pathspec. */
+export function decisionsPathspec(paths: ProjectPaths): string {
+  return relative(paths.root, paths.decisionsDir).split(sep).join("/");
+}
+
 const COMMIT_HASH = /^[0-9a-f]{4,64}$/i;
 
 /**

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Io } from "./cli/command.ts";
 import type { Context, DirEntry, FileSystem } from "./core/context.ts";
-import { FsError } from "./core/errors.ts";
+import { FsError, ToolNotFoundError } from "./core/errors.ts";
 import { createNodeContext } from "./node-context.ts";
 
 export const FLAT_CONFIG = "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\n";
@@ -49,6 +49,10 @@ export function tempProject(
       ...createNodeContext(root, env),
       now: () => FIXED_NOW,
       readStdin: () => "",
+      // Tests never reach a real gh; those that need one pass a fake.
+      gh: () => {
+        throw new ToolNotFoundError("gh");
+      },
       ...overrides,
     },
     write,
@@ -64,6 +68,7 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
   files: Record<string, string>;
 } {
   const dirs = new Set<string>();
+  const modes = new Map<string, number>();
   const isDirectory = (path: string) =>
     dirs.has(path) || Object.keys(files).some((file) => file.startsWith(`${path}/`));
   const missing = (operation: string, path: string) => new FsError(operation, path, "ENOENT");
@@ -71,11 +76,17 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
     files,
     exists: (path) => path in files || isDirectory(path),
     isDirectory,
+    lexists: (path) => path in files || isDirectory(path),
     isRegularFile: (path) => path in files,
     readFile: (path) => {
       const content = files[path];
       if (content === undefined) throw missing("read", path);
       return content;
+    },
+    readBytes: (path) => {
+      const content = files[path];
+      if (content === undefined) throw missing("read", path);
+      return new TextEncoder().encode(content);
     },
     readDir: (path) => {
       if (!isDirectory(path)) throw missing("read", path);
@@ -90,7 +101,15 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
       return [...entries.values()];
     },
     writeFile: (path, content) => {
-      files[path] = content;
+      files[path] = typeof content === "string" ? content : new TextDecoder().decode(content);
+    },
+    fileMode: (path) => {
+      if (!(path in files)) throw missing("read", path);
+      return modes.get(path) ?? 0o644;
+    },
+    chmod: (path, mode) => {
+      if (!(path in files)) throw missing("change mode of", path);
+      modes.set(path, mode);
     },
     mkdir: (path) => {
       for (let dir = path; dir !== dirname(dir); dir = dirname(dir)) dirs.add(dir);
@@ -100,6 +119,9 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
       if (content === undefined) throw missing("rename", from);
       files[to] = content;
       delete files[from];
+      const mode = modes.get(from);
+      if (mode !== undefined) modes.set(to, mode);
+      modes.delete(from);
     },
     link: (existing, newPath) => {
       const content = files[existing];
@@ -119,6 +141,9 @@ export function fakeContext(overrides: Partial<Context> = {}): Context {
     fs: memoryFs({}),
     git: () => {
       throw new Error("git not expected in this test");
+    },
+    gh: () => {
+      throw new Error("gh not expected in this test");
     },
     env: {},
     readStdin: () => "",
@@ -160,4 +185,41 @@ references: []
 ## Context
 Test context for ${id}.
 `;
+}
+
+export interface BranchedProject extends TempProject {
+  /** Stages everything and commits. */
+  commitAll(message: string): void;
+  /** Runs `change` on `main`, commits it, and returns to `feature`. */
+  onMain(message: string, change: () => void): void;
+}
+
+/**
+ * A project whose `main` branch holds DL-001 and INDEX.md, checked out on a `feature` branch
+ * that starts there, like the reindex bats fixture.
+ */
+export function branchedProject(
+  config: string = FLAT_CONFIG,
+  overrides: Partial<Context> = {},
+): BranchedProject {
+  const project = tempProject(config, overrides);
+  const commitAll = (message: string) => {
+    project.git("add", "-A");
+    project.git("commit", "--quiet", "-m", message);
+  };
+  project.write("decisions/records/DL-001.md", recordText("DL-001"));
+  project.write("decisions/INDEX.md", "# Decision Log\n");
+  commitAll("seed main");
+  project.git("branch", "-M", "main");
+  project.git("checkout", "--quiet", "-b", "feature");
+  return {
+    ...project,
+    commitAll,
+    onMain(message, change) {
+      project.git("checkout", "--quiet", "main");
+      change();
+      commitAll(message);
+      project.git("checkout", "--quiet", "feature");
+    },
+  };
 }

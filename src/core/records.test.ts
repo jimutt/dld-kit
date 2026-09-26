@@ -7,6 +7,7 @@ import {
   parseRecord,
   recordNumber,
   renderNewRecord,
+  setId,
   setStatus,
 } from "./records.ts";
 
@@ -124,6 +125,24 @@ body
     expect(error).toStartWith("DL-001.md: ");
     expect(error).toContain(message);
   });
+});
+
+describe("setId", () => {
+  test("rewrites only a frontmatter id line naming the old ID, keeping CRLF", () => {
+    const text = "---\nid:  DL-002\r\n---\nid: DL-002\n";
+    expect(setId(text, "DL-002", "DL-009")).toBe("---\nid: DL-009\r\n---\nid: DL-002\n");
+    const lf = "---\nid: DL-0020\n---\n";
+    expect(setId(lf, "DL-002", "DL-009")).toBe(lf);
+    expect(setId("no frontmatter", "DL-002", "DL-009")).toBe("no frontmatter");
+  });
+});
+
+test("CRLF records parse and keep their line endings on status changes", () => {
+  const text = recordText("DL-001", "proposed").replaceAll("\n", "\r\n");
+  expect(parseRecord(text, "f").id).toBe("DL-001");
+  expect(setStatus(text, "accepted", "f")).toBe(
+    text.replace("status: proposed\r\n", "status: accepted\r\n"),
+  );
 });
 
 describe("setStatus", () => {

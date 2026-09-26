@@ -10,15 +10,22 @@ import {
   UsageError,
 } from "./command.ts";
 import { collectActiveDecisionsCommand } from "./commands/collect-active-decisions.ts";
+import { commitReindexCommand } from "./commands/commit-reindex.ts";
 import { createConfigCommand } from "./commands/create-config.ts";
 import { createDecisionCommand } from "./commands/create-decision.ts";
 import { createDirectoriesCommand } from "./commands/create-directories.ts";
 import { createEmptyIndexCommand } from "./commands/create-empty-index.ts";
 import { detectSnapshotChangesCommand } from "./commands/detect-snapshot-changes.ts";
 import { findAnnotationsCommand } from "./commands/find-annotations.ts";
+import { findCollisionsCommand } from "./commands/find-collisions.ts";
 import { findMissingAmendsCommand } from "./commands/find-missing-amends.ts";
+import { findStaleMentionsCommand } from "./commands/find-stale-mentions.ts";
+import { listTakenIdsCommand } from "./commands/list-taken-ids.ts";
 import { nextIdCommand } from "./commands/next-id.ts";
+import { planRenamesCommand } from "./commands/plan-renames.ts";
 import { regenerateIndexCommand } from "./commands/regenerate-index.ts";
+import { renameDecisionCommand } from "./commands/rename-decision.ts";
+import { resolveBaseCommand } from "./commands/resolve-base.ts";
 import { updateAuditStateCommand } from "./commands/update-audit-state.ts";
 import { updateSnapshotStateCommand } from "./commands/update-snapshot-state.ts";
 import { updateStatusCommand } from "./commands/update-status.ts";
@@ -39,6 +46,13 @@ export const COMMANDS: readonly Command[] = [
   collectActiveDecisionsCommand,
   detectSnapshotChangesCommand,
   updateSnapshotStateCommand,
+  resolveBaseCommand,
+  listTakenIdsCommand,
+  findCollisionsCommand,
+  planRenamesCommand,
+  renameDecisionCommand,
+  findStaleMentionsCommand,
+  commitReindexCommand,
 ];
 
 function usage(commands: readonly Command[]): string {

@@ -25,10 +25,35 @@ export class FsError extends DldError {
 /** A git command ran and exited non-zero. */
 export class GitCommandError extends DldError {
   readonly stderr: string;
+  /** git's exit status, when known. */
+  readonly status: number | undefined;
 
-  constructor(args: readonly string[], stderr: string) {
+  constructor(args: readonly string[], stderr: string, status?: number) {
     super(`git ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
     this.name = "GitCommandError";
+    this.stderr = stderr;
+    this.status = status;
+  }
+}
+
+/** A required external program (e.g. gh) is not installed or not on PATH. */
+export class ToolNotFoundError extends DldError {
+  readonly tool: string;
+
+  constructor(tool: string) {
+    super(`${tool} is not installed or not on PATH`);
+    this.name = "ToolNotFoundError";
+    this.tool = tool;
+  }
+}
+
+/** A gh command ran and exited non-zero, or timed out. */
+export class GhCommandError extends DldError {
+  readonly stderr: string;
+
+  constructor(args: readonly string[], stderr: string) {
+    super(`gh ${args.join(" ")} failed${stderr ? `: ${stderr}` : ""}`);
+    this.name = "GhCommandError";
     this.stderr = stderr;
   }
 }

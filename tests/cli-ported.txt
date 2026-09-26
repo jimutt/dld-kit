@@ -15,3 +15,10 @@ update-audit-state
 collect-active-decisions
 detect-snapshot-changes
 update-snapshot-state
+resolve-base
+list-taken-ids
+find-collisions
+plan-renames
+rename-decision
+find-stale-mentions
+commit-reindex
