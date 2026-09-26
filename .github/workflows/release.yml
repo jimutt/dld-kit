@@ -89,7 +89,8 @@ jobs:
         env:
           PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: |
-          tarball="$(ls package/*.tgz)"
+          # A leading ./ keeps npm from reading "package/x.tgz" as a GitHub owner/repo.
+          tarball="$(ls ./package/*.tgz)"
           if [ "$PRERELEASE" = "true" ]; then
             npm publish "$tarball" --tag next
           else
