@@ -149,7 +149,10 @@ describe("the real templates", () => {
       expect(content).toContain(`\nname: ${skill}\n`);
       expect(content).toMatch(/\ndescription: .+\n/);
       expect(content).toMatch(/\ncompatibility: .+\n/);
+      // @decision(DL-051) npx skills leaves internal skills out of --all installs.
+      expect(content).not.toMatch(/^\s*internal:/m);
     }
+    expect(files.has("dld-common/SKILL.md")).toBe(true);
   });
 });
 

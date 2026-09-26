@@ -7,5 +7,6 @@ annotation_exclude:
   - README.md
   - docs/**
   - skills/**
+  - claude-plugin/**
   - templates/**
   - src/**/*.test.ts

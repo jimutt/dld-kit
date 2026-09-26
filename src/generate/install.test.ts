@@ -14,6 +14,7 @@ import {
   missingAgentsRuleWarning,
   packageSource,
   planInstall,
+  skillsLockWarning,
 } from "./install.ts";
 import { CLAUDE_RULE_FILE, renderRuleFile } from "./rule.ts";
 
@@ -118,7 +119,6 @@ describe("planInstall and applyInstall", () => {
       layouts: new Set(),
       rules: new Set(["block"]),
       version: "1.0.0",
-      codex: true,
     });
     expect(plan.skills).toEqual([]);
     expect(applyInstall(ctx, "/p", plan).ruleWritten).toEqual(["AGENTS.md"]);
@@ -159,6 +159,53 @@ describe("installed targets", () => {
     } finally {
       p.cleanup();
     }
+  });
+});
+
+describe("skills managed by npx skills", () => {
+  test("refuses symlinked dld-* skill directories, even with --force, and counts them as installed", () => {
+    const p = tempProject(null);
+    try {
+      p.write(".agents/skills/dld-plan/SKILL.md", "---\nname: dld-plan\n---\n");
+      p.write(".agents/skills/dld-common/scripts/dld.mjs", "");
+      mkdirSync(join(p.root, ".claude/skills"), { recursive: true });
+      for (const skill of ["dld-plan", "dld-common"]) {
+        symlinkSync(`../../.agents/skills/${skill}`, join(p.root, ".claude/skills", skill));
+      }
+      p.write(".claude/skills/other/SKILL.md", "");
+      expect(installedLayouts(p.ctx, p.root)).toEqual([CLAUDE_LAYOUT, AGENTS_LAYOUT]);
+      const request = {
+        layouts: new Set([CLAUDE_LAYOUT]),
+        rules: new Set<RuleChannel>(),
+        version: "1.0.0",
+        source: SOURCE,
+        force: true,
+      };
+      expect(() => planInstall(p.ctx, p.root, request)).toThrow(
+        ".claude/skills/dld-common, .claude/skills/dld-plan are symlinks, so another installer, such as npx skills, manages these skills. Update them with npx skills update",
+      );
+    } finally {
+      p.cleanup();
+    }
+  });
+
+  test("warns when skills-lock.json lists dld-* skills", () => {
+    const warn = (lock: string) => {
+      const { ctx } = project({ "/p/skills-lock.json": lock });
+      return install(ctx, [AGENTS_LAYOUT]).warnings;
+    };
+    expect(warn('{"version":1,"skills":{"dld-plan":{},"pdf":{},"dld-common":{}}}')).toEqual([
+      "skills-lock.json lists dld-common, dld-plan: npx skills manages those skills, so dld update and npx skills update overwrite each other's copies. Update them with one of the two.",
+    ]);
+    expect(warn('{"version":1,"skills":{"pdf":{}}}')).toEqual([]);
+    expect(warn('{"version":1}')).toEqual([]);
+    expect(warn("not json")).toEqual([]);
+  });
+
+  test("the lock warning needs a skills install and a regular lock file", () => {
+    const { ctx } = project({ "/p/skills-lock.json": '{"skills":{"dld-plan":{}}}' });
+    expect(install(ctx, [], ["claude-file"]).warnings).toEqual([]);
+    expect(skillsLockWarning(project().ctx, "/p")).toEqual([]);
   });
 });
 

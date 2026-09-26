@@ -55,7 +55,7 @@ ${AGENT_HELP}
       rules,
       version,
       force: values.force === true,
-      codex: requested.some((harness) => harness.name === "codex"),
+      harnesses: requested,
     });
     const report = applyInstall(ctx, root, plan);
     report.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));

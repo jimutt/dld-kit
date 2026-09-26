@@ -113,7 +113,7 @@ The rule tells the agent to look up `@decision` annotations before changing anno
 node "<skill-dir>/../dld-common/scripts/dld.mjs" install-rule --agent <harness>
 ```
 
-`<harness>` is one of `claude` (Claude Code), `antigravity`, `codex`, `cursor`, `opencode` or `pi`. If you are unsure which one you are, or the user says the team uses several agents, ask the user and pass them all, comma-separated (e.g. `--agent claude,codex`). The command decides where the rule goes (a rule file the harness loads, or a marked block in `AGENTS.md` or `CLAUDE.md`) and prints what it wrote; relay that to the user, including any warning.
+`<harness>` is one of `claude` (Claude Code), `antigravity`, `codex`, `cursor`, `opencode` or `pi`; for another harness that reads `AGENTS.md`, such as Copilot CLI, use `codex`. If you are unsure which one you are, or the user says the team uses several agents, ask the user and pass them all, comma-separated (e.g. `--agent claude,codex`). The command decides where the rule goes (a rule file the harness loads, or a marked block in `AGENTS.md` or `CLAUDE.md`) and prints what it wrote; relay that to the user, including any warning.
 
 Do not write the rule into `CLAUDE.md` or `AGENTS.md` yourself.
 

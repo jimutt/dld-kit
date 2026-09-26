@@ -68,7 +68,7 @@ ${AGENT_HELP}
       rules: targets.rules,
       version,
       force: values.force === true,
-      codex: harnesses.some((harness) => harness.name === "codex"),
+      harnesses,
     });
 
     createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);

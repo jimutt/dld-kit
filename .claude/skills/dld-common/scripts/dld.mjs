@@ -9040,31 +9040,56 @@ var AGENTS_LAYOUT = {
   dir: ".agents/skills"
 };
 var LAYOUTS = [CLAUDE_LAYOUT, AGENTS_LAYOUT];
+var AGENTS_FIRST = ["AGENTS.md", "CLAUDE.md"];
 var HARNESSES = [
   {
     name: "claude",
     title: "Claude Code",
     layout: CLAUDE_LAYOUT,
     rule: "claude-file",
-    markers: [".claude", "CLAUDE.md"]
+    markers: [".claude", "CLAUDE.md"],
+    instructions: ["CLAUDE.md", "AGENTS.md"]
   },
   {
     name: "antigravity",
     title: "Antigravity",
     layout: AGENTS_LAYOUT,
     rule: "agents-file",
-    markers: [".agents/rules", ".agent", "GEMINI.md"]
+    markers: [".agents/rules", ".agent", "GEMINI.md"],
+    instructions: ["AGENTS.md"]
   },
-  { name: "codex", title: "Codex", layout: AGENTS_LAYOUT, rule: "block", markers: [".codex"] },
-  { name: "cursor", title: "Cursor", layout: AGENTS_LAYOUT, rule: "block", markers: [".cursor"] },
+  {
+    name: "codex",
+    title: "Codex",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".codex"],
+    instructions: ["AGENTS.md"]
+  },
+  {
+    name: "cursor",
+    title: "Cursor",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".cursor"],
+    instructions: ["AGENTS.md"]
+  },
   {
     name: "opencode",
     title: "OpenCode",
     layout: AGENTS_LAYOUT,
     rule: "block",
-    markers: [".opencode", "opencode.json", "opencode.jsonc"]
+    markers: [".opencode", "opencode.json", "opencode.jsonc"],
+    instructions: AGENTS_FIRST
   },
-  { name: "pi", title: "Pi", layout: AGENTS_LAYOUT, rule: "block", markers: [".pi"] }
+  {
+    name: "pi",
+    title: "Pi",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".pi"],
+    instructions: AGENTS_FIRST
+  }
 ];
 var GENERIC_MARKERS = ["AGENTS.md", ".agents/skills"];
 var HARNESS_NAMES = HARNESSES.map((harness) => harness.name);
@@ -9298,7 +9323,7 @@ function upsertBlock(content, block, file) {
   const separator = content.endsWith("\n") ? eol : eol + eol;
   return content + separator + rendered + eol;
 }
-function planRule(ctx, root, channels, version2, { codex = false } = {}, text = RULE_TEXT) {
+function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text = RULE_TEXT) {
   const plan = { writes: [], removals: [], warnings: [] };
   const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
   const read = (file) => regular(file) ? ctx.fs.readFile(join15(root, file)) : "";
@@ -9317,19 +9342,22 @@ function planRule(ctx, root, channels, version2, { codex = false } = {}, text = 
   }
   const withBlock = new Set(blockFiles.map(resolved));
   const loads = (file) => withBlock.has(resolved(file));
-  const claudeReads = ctx.fs.exists(join15(root, CLAUDE_MD)) ? CLAUDE_MD : AGENTS_MD;
-  const loadsBlock = {
-    "claude-file": loads(claudeReads),
-    "agents-file": loads(AGENTS_MD)
+  const readsBlock = (harness) => loads(instructionFile(ctx, root, harness));
+  const ownerOf = (channel) => HARNESSES.find((h) => h.rule === channel);
+  const loadsBlock = (channel) => {
+    const owner = ownerOf(channel);
+    return owner !== void 0 && readsBlock(owner);
   };
-  if (codex && blockFiles.length > 0 && !loads(AGENTS_MD)) {
+  const blind = harnesses.filter((h) => h.rule === "block" && !readsBlock(h));
+  if (blockFiles.length > 0 && blind.length > 0) {
+    const names = blind.map((h) => h.title).join(" and ");
     plan.warnings.push(
-      "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. To cover Codex, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule. Pi and OpenCode read AGENTS.md instead of CLAUDE.md once it exists."
+      `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${blind.length === 1 ? "reads" : "read"} ${AGENTS_MD}. To cover ${blind.length === 1 ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${AGENTS_MD}, then run dld install-rule.`
     );
   }
   for (const channel of ["claude-file", "agents-file"]) {
     const path = RULE_FILES[channel];
-    if (loadsBlock[channel]) {
+    if (loadsBlock(channel)) {
       if (ctx.fs.lexists(join15(root, path))) plan.removals.push(path);
     } else if (channels.has(channel)) {
       refuseSymlinkedDir(ctx, root, dirname3(path));
@@ -9340,6 +9368,10 @@ function planRule(ctx, root, channels, version2, { codex = false } = {}, text = 
   const ruleInstalled = blockFiles.length > 0 || channels.size > 0;
   plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
   return plan;
+}
+function instructionFile(ctx, root, harness) {
+  const { instructions } = harness;
+  return instructions.find((file) => ctx.fs.exists(join15(root, file))) ?? instructions.at(-1) ?? AGENTS_MD;
 }
 function blockPlacement(ctx, root) {
   for (const file of [AGENTS_MD, CLAUDE_MD]) {
@@ -9361,6 +9393,18 @@ function legacyBlockWarnings(claudeMd, ruleInstalled) {
   return [
     ruleInstalled ? `${section} dld-kit now installs the rule separately, so that section can be removed.` : `${section} Install the rule with dld install-rule --agent <name> before removing it.`
   ];
+}
+function loadsRule(ctx, root, harness) {
+  if (harness.rule !== "block" && ctx.fs.exists(join15(root, RULE_FILES[harness.rule]))) {
+    return true;
+  }
+  const file = instructionFile(ctx, root, harness);
+  if (!ctx.fs.exists(join15(root, file))) return false;
+  return ctx.fs.readFile(join15(root, file)).split(/\r?\n/).some((line) => line === BLOCK_START || LEGACY_HEADING.test(line));
+}
+function sessionContext(ctx, root, harness, text = RULE_TEXT) {
+  if (!ctx.fs.exists(join15(root, CONFIG_FILE))) return void 0;
+  return loadsRule(ctx, root, harness) ? void 0 : text;
 }
 function refuseSymlinkedDir(ctx, root, dir) {
   let current = "";
@@ -9433,7 +9477,33 @@ var isOwned = (name) => name.startsWith("dld-");
 function ownedSkills(ctx, root, layout) {
   const dir = join16(root, layout.dir);
   if (!ctx.fs.isDirectory(dir)) return [];
-  return ctx.fs.readDir(dir).filter((entry) => entry.isDirectory && isOwned(entry.name)).map((entry) => entry.name).sort();
+  return ctx.fs.readDir(dir).filter((entry) => !entry.isFile && isOwned(entry.name)).map((entry) => entry.name).sort();
+}
+function refuseSymlinkedSkills(ctx, root, layout) {
+  const dir = join16(root, layout.dir);
+  if (!ctx.fs.isDirectory(dir)) return;
+  const linked = ctx.fs.readDir(dir).filter((entry) => isOwned(entry.name) && !entry.isDirectory && !entry.isFile).map((entry) => `${layout.dir}/${entry.name}`).sort();
+  if (linked.length === 0) return;
+  throw new DldError(
+    `${linked.join(", ")} ${linked.length === 1 ? "is a symlink" : "are symlinks"}, so another installer, such as npx skills, manages these skills. Update them with npx skills update, or remove them and run this command again. To set up DLD without touching them, run the dld-init skill or dld install-rule.`
+  );
+}
+var SKILLS_LOCK = "skills-lock.json";
+function skillsLockWarning(ctx, root) {
+  const path = join16(root, SKILLS_LOCK);
+  if (!ctx.fs.isRegularFile(path)) return [];
+  let skills;
+  try {
+    skills = JSON.parse(ctx.fs.readFile(path))?.skills;
+  } catch {
+    return [];
+  }
+  if (typeof skills !== "object" || skills === null) return [];
+  const listed = Object.keys(skills).filter(isOwned).sort();
+  if (listed.length === 0) return [];
+  return [
+    `${SKILLS_LOCK} lists ${listed.join(", ")}: npx skills manages those skills, so dld update and npx skills update overwrite each other's copies. Update them with one of the two.`
+  ];
 }
 function installedLayouts(ctx, root) {
   return LAYOUTS.filter((layout) => ownedSkills(ctx, root, layout).length > 0);
@@ -9501,11 +9571,15 @@ Upgrade dld-kit, or pass --force to replace them with ${version2}.`
   );
 }
 function planInstall(ctx, root, request) {
+  const layouts = LAYOUTS.filter((layout) => request.layouts.has(layout));
+  for (const layout of layouts) {
+    refuseSymlinkedDir(ctx, root, layout.dir);
+    refuseSymlinkedSkills(ctx, root, layout);
+  }
   if (!request.force) checkDowngrade(installedStamps(ctx, root), request.version);
-  const skills = LAYOUTS.filter((layout) => request.layouts.has(layout)).map((layout) => {
+  const skills = layouts.map((layout) => {
     const { source } = request;
     if (source === void 0) throw new DldError("installing skills needs the skill templates");
-    refuseSymlinkedDir(ctx, root, layout.dir);
     const cli = /* @__PURE__ */ new Map([
       [`${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`, { content: source.cli, mode: 493 }]
     ]);
@@ -9514,8 +9588,11 @@ function planInstall(ctx, root, request) {
     });
     return { layout, files };
   });
-  const rule = planRule(ctx, root, request.rules, request.version, { codex: request.codex });
-  return { skills, rule };
+  const rule = planRule(ctx, root, request.rules, request.version, {
+    harnesses: request.harnesses
+  });
+  const warnings = layouts.length > 0 ? skillsLockWarning(ctx, root) : [];
+  return { skills, rule, warnings };
 }
 function applyInstall(ctx, root, plan) {
   const skills = plan.skills.map(({ layout, files }) => {
@@ -9533,7 +9610,7 @@ function applyInstall(ctx, root, plan) {
     skills,
     ruleWritten: plan.rule.writes.map((write) => write.path),
     ruleRemoved: plan.rule.removals,
-    warnings: plan.rule.warnings
+    warnings: [...plan.warnings, ...plan.rule.warnings]
   };
 }
 
@@ -9666,7 +9743,7 @@ ${AGENT_HELP}
       rules: targets.rules,
       version,
       force: values.force === true,
-      codex: harnesses.some((harness) => harness.name === "codex")
+      harnesses
     });
     createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
     const project = loadProject(ctx);
@@ -9718,7 +9795,7 @@ ${AGENT_HELP}
       rules,
       version,
       force: values.force === true,
-      codex: requested.some((harness) => harness.name === "codex")
+      harnesses: requested
     });
     const report2 = applyInstall(ctx, root, plan);
     printReport(io, report2);
@@ -9868,6 +9945,49 @@ origin/main.
   }
 };
 
+// src/cli/commands/session-context.ts
+var sessionContextCommand = {
+  name: "session-context",
+  summary: "Print the DLD rule for a session hook, unless the agent loads it already",
+  usage: `Usage: dld session-context --agent <name>
+
+Print the always-on DLD rule, for a harness hook that adds it to the session context.
+Prints nothing outside a project with dld.config.yaml, or when the agent already loads
+the rule there (its rule file, or the dld-kit block in the instruction file it reads).
+Never fails the session: other errors print one line on stderr and exit 0.
+
+Options:
+  --agent <name>  The agent whose session this is
+
+Agents: ${HARNESS_NAMES.join(", ")}.
+`,
+  run(args, io, ctx) {
+    const { values } = parseCommandArgs({
+      args: [...args],
+      options: { agent: { type: "string" } }
+    });
+    const [harness, ...others] = parseAgents(values.agent === void 0 ? [] : [values.agent]);
+    if (harness === void 0 || others.length > 0) {
+      throw new UsageError(`name one agent with --agent (${HARNESS_NAMES.join(", ")})`);
+    }
+    let root;
+    try {
+      root = findProjectRoot(ctx);
+    } catch {
+      return EXIT_OK;
+    }
+    try {
+      const text = sessionContext(ctx, root, harness);
+      if (text !== void 0) io.stdout(text);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      io.stderr(`dld session-context: ${message}
+`);
+    }
+    return EXIT_OK;
+  }
+};
+
 // src/cli/commands/update.ts
 import { join as join18 } from "node:path";
 var updateCommand = {
@@ -9910,7 +10030,7 @@ ${AGENT_HELP}
       rules,
       version,
       force: values.force === true,
-      codex: requested.some((harness) => harness.name === "codex")
+      harnesses: requested
     });
     const report2 = applyInstall(ctx, root, plan);
     report2.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));
@@ -10020,6 +10140,7 @@ var COMMANDS = [
   initCommand,
   updateCommand,
   installRuleCommand,
+  sessionContextCommand,
   createConfigCommand,
   createDirectoriesCommand,
   createEmptyIndexCommand,
