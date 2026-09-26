@@ -1,0 +1,87 @@
+# @decision(DL-052)
+# Publishes a pushed v* tag to npm through trusted publishing, then creates its GitHub release.
+# One-time npm setup and the release steps: docs/releasing.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: npm with trusted publishing (11.5.1 or later)
+        run: npm install --global npm@11
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      - name: The tag matches package.json
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [ "$TAG" != "v$version" ]; then
+            echo "Tag $TAG does not match package.json version $version" >&2
+            exit 1
+          fi
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+      - name: Biome
+        run: npx biome ci .
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Generated files, unit tests and CLI tests
+        run: npm test
+      - name: Package contents
+        run: npm run check:pack
+      - name: Publish
+        env:
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          if [ "$PRERELEASE" = "true" ]; then
+            npm publish --tag next
+          else
+            npm publish
+          fi
+
+  release:
+    name: GitHub release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.publish.outputs.prerelease }}
+        run: |
+          flags=(--verify-tag --generate-notes --title "$TAG")
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" "${flags[@]}"
