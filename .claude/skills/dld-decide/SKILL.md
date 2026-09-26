@@ -1,7 +1,7 @@
 ---
 name: dld-decide
 description: Record a single development decision as a markdown file with YAML frontmatter. Collects context, rationale, and code references interactively.
-user_invocable: true
+allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -15,19 +15,11 @@ You are helping the developer record a development decision. This should be a fo
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-.claude/skills/dld-common/scripts/next-id.sh
-.claude/skills/dld-common/scripts/regenerate-index.sh
-.claude/skills/dld-common/scripts/update-status.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
-Skill-specific scripts:
-```
-.claude/skills/dld-decide/scripts/create-decision.sh
-```
+This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -77,9 +69,9 @@ If the project is namespaced, determine which namespace this decision belongs to
 
 ### 5. Assign ID
 
-Run the next-id script:
+Run `next-id`:
 ```bash
-bash .claude/skills/dld-common/scripts/next-id.sh
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" next-id
 ```
 
 This outputs the next available ID (e.g., `DL-004`).
@@ -88,9 +80,9 @@ This outputs the next available ID (e.g., `DL-004`).
 
 Compose the markdown body with the relevant sections (Context, Decision, Rationale, Consequences). Omit sections that aren't relevant, but always include Context and Decision.
 
-Then run the create-decision script, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body argument — use `\n` escape sequences so the entire command stays on one logical line):
+Then run `create-decision`, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body argument — use `\n` escape sequences so the entire command stays on one logical line):
 ```bash
-printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was decided.\n\n## Rationale\n\nWhy this choice.\n\n## Consequences\n\nWhat becomes easier or harder." | bash .claude/skills/dld-decide/scripts/create-decision.sh \
+printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was decided.\n\n## Rationale\n\nWhy this choice.\n\n## Consequences\n\nWhat becomes easier or harder." | node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" create-decision \
   --id "DL-NNN" \
   --title "Short descriptive title" \
   --namespace "billing" \
@@ -100,13 +92,13 @@ printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was de
   --body-stdin
 ```
 
-Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. The script creates the file with YAML frontmatter and the body content, and outputs the file path.
+Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. The command creates the file with YAML frontmatter and the body content, and outputs the file path.
 
 > **Note:** If the body contains literal `%` characters, escape them as `%%` (printf format string requirement).
 
 If this decision supersedes others, also update their status:
 ```bash
-bash .claude/skills/dld-common/scripts/update-status.sh DL-003 superseded
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" update-status DL-003 superseded
 ```
 
 **Do not** update the status of amended decisions — they stay `accepted`.
@@ -114,7 +106,7 @@ bash .claude/skills/dld-common/scripts/update-status.sh DL-003 superseded
 ### 7. Regenerate INDEX.md
 
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" regenerate-index
 ```
 
 ### 8. Suggest next steps

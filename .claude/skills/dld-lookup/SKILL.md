@@ -1,7 +1,6 @@
 ---
 name: dld-lookup
 description: Look up decisions by ID, tag, code path, or keyword. IMPORTANT — use this proactively whenever you encounter `@decision` annotations in code you are about to read or modify.
-user_invocable: true
 metadata:
   dld-kit-version: "0.9.0"
 ---

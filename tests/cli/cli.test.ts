@@ -4,6 +4,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -28,8 +29,13 @@ function dldIn(cwd: string, ...args: string[]) {
   return dldWithInput(cwd, "", ...args);
 }
 
+/** The environment without GIT_* variables, so a surrounding git hook cannot redirect a fixture. */
+const ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
+);
+
 function dldWithInput(cwd: string, input: string, ...args: string[]) {
-  const result = spawnSync("node", [BIN, ...args], { cwd, input, encoding: "utf8" });
+  const result = spawnSync("node", [BIN, ...args], { cwd, input, encoding: "utf8", env: ENV });
   if (result.error) throw result.error;
   return result;
 }
@@ -130,6 +136,121 @@ describe("list-taken-ids with gh (built, under node)", () => {
     });
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe("DL-001\nDL-004\n");
+  });
+});
+
+describe("reindex end to end (built, under node)", () => {
+  const FLAT = "decisions_dir: decisions\nmode: flat\n";
+  const NAMESPACED =
+    "decisions_dir: decisions\nmode: namespaced\nnamespaces:\n  - billing\n  - auth\n";
+
+  /** A project on branch `feature`, whose `main` holds DL-001 and a regenerated INDEX.md. */
+  function project(name: string, config: string, firstRecordDir = "decisions/records") {
+    const root = join(WORKDIR, name);
+    mkdirSync(join(root, firstRecordDir), { recursive: true });
+    writeFileSync(join(root, "dld.config.yaml"), config);
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: root, encoding: "utf8", env: ENV });
+    const record = (dir: string, id: string, status: string) => {
+      mkdirSync(join(root, dir), { recursive: true });
+      writeFileSync(
+        join(root, dir, `${id}.md`),
+        `---\nid: ${id}\ntitle: "T ${id}"\ntimestamp: 2026-01-15T10:00:00Z\nstatus: ${status}\nsupersedes: []\namends: []\ntags: []\nreferences: []\n---\n\nBody.\n`,
+      );
+    };
+    const run = (input: string, ...args: string[]) => {
+      const result = dldWithInput(root, input, ...args);
+      expect({ args, status: result.status, stderr: result.stderr }).toMatchObject({
+        args,
+        status: 0,
+      });
+      return result.stdout;
+    };
+    const commit = (message: string) => {
+      git("add", "-A");
+      git("commit", "--quiet", "-m", message);
+    };
+    git("init", "--quiet", "-b", "main");
+    // A local identity: commit-reindex commits too, and CI has no global git config.
+    git("config", "user.name", "T");
+    git("config", "user.email", "t@t");
+    record(firstRecordDir, "DL-001", "accepted");
+    run("", "regenerate-index");
+    commit("seed main");
+    git("checkout", "--quiet", "-b", "feature");
+    const onMain = (change: () => void, message: string) => {
+      git("checkout", "--quiet", "main");
+      change();
+      run("", "regenerate-index");
+      commit(message);
+      git("checkout", "--quiet", "feature");
+    };
+    const reindex = () => {
+      const plan = run("", "plan-renames", "--base", "main");
+      for (const line of plan.trim().split("\n")) {
+        const [path = "", oldId = "", newId = ""] = line.split("\t");
+        run(
+          "",
+          "rename-decision",
+          "--old",
+          oldId,
+          "--new",
+          newId,
+          "--path",
+          path,
+          "--base",
+          "main",
+        );
+      }
+      run(plan, "commit-reindex", "--base", "main");
+      return plan;
+    };
+    const read = (path: string) => readFileSync(join(root, path), "utf8");
+    return { root, git, record, run, commit, onMain, reindex, read };
+  }
+
+  test("flat: renames collisions, rewrites annotations and rebases cleanly", () => {
+    const p = project("reindex-flat", FLAT);
+    p.onMain(() => {
+      for (const id of ["DL-002", "DL-003", "DL-004"])
+        p.record("decisions/records", id, "accepted");
+    }, "land DL-002..DL-004");
+    p.record("decisions/records", "DL-002", "proposed");
+    p.record("decisions/records", "DL-003", "proposed");
+    mkdirSync(join(p.root, "src"));
+    writeFileSync(join(p.root, "src/auth.py"), "# @decision(DL-002)\n");
+    writeFileSync(join(p.root, "src/billing.py"), "# @decision(DL-003)\n");
+    p.run("", "regenerate-index");
+    p.commit("feature: DL-002 and DL-003");
+
+    expect(p.reindex()).toBe(
+      "decisions/records/DL-002.md\tDL-002\tDL-005\ndecisions/records/DL-003.md\tDL-003\tDL-006\n",
+    );
+    p.git("rebase", "--quiet", "main");
+    expect(p.read("decisions/records/DL-002.md")).toContain("status: accepted");
+    expect(p.read("decisions/records/DL-005.md")).toContain("id: DL-005");
+    expect(p.read("decisions/records/DL-006.md")).toContain("id: DL-006");
+    expect(p.read("src/auth.py")).toBe("# @decision(DL-005)\n");
+    expect(p.read("src/billing.py")).toBe("# @decision(DL-006)\n");
+    expect(p.read("decisions/INDEX.md")).not.toMatch(/DL-00[56]/);
+    p.run("", "regenerate-index");
+    expect(p.read("decisions/INDEX.md")).toMatch(/\| DL-006 \|[\s\S]*\| DL-005 \|/);
+  });
+
+  test("namespaced: keeps the namespace directory and rebases cleanly", () => {
+    const p = project("reindex-ns", NAMESPACED, "decisions/records/auth");
+    p.onMain(() => p.record("decisions/records/billing", "DL-002", "accepted"), "land DL-002");
+    p.record("decisions/records/auth", "DL-002", "proposed");
+    p.commit("feature: auth DL-002");
+    expect(p.run("", "find-collisions", "--base", "main")).toBe(
+      "decisions/records/auth/DL-002.md\tDL-002\n",
+    );
+    p.reindex();
+    expect(existsSync(join(p.root, "decisions/records/auth/DL-002.md"))).toBe(false);
+    expect(existsSync(join(p.root, "decisions/records/auth/DL-003.md"))).toBe(true);
+    p.git("rebase", "--quiet", "main");
+    expect(existsSync(join(p.root, "decisions/records/billing/DL-002.md"))).toBe(true);
+    expect(existsSync(join(p.root, "decisions/records/auth/DL-003.md"))).toBe(true);
   });
 });
 

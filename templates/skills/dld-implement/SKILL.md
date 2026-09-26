@@ -1,25 +1,18 @@
 ---
 name: dld-implement
 description: Implement one or more proposed decisions. Makes code changes, adds `@decision` annotations, and updates decision status.
-compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 ---
 
 # /dld-implement — Implement Decisions
 
 You are implementing one or more `proposed` decisions by making code changes, adding `@decision` annotations, and updating the decision records.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-{{script dld-common/scripts/regenerate-index.sh}}
-{{script dld-common/scripts/update-status.sh}}
-```
+{{dld-setup}}
 
-Skill-specific scripts:
-```
-{{script dld-implement/scripts/verify-annotations.sh}}
-```
+This skill uses: `update-status`, `verify-annotations`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -122,18 +115,18 @@ For each implemented decision:
 
 2. **Update status** from `proposed` to `accepted`:
    ```bash
-   bash {{script dld-common/scripts/update-status.sh}} DL-NNN accepted
+   {{dld}} update-status DL-NNN accepted
    ```
 
 ### 5. Verify annotations
 
-After updating all decision records, run the verification script to confirm every implemented decision has at least one `@decision` annotation in the codebase:
+After updating all decision records, run `verify-annotations` to confirm every implemented decision has at least one `@decision` annotation in the codebase:
 
 ```bash
-bash {{script dld-implement/scripts/verify-annotations.sh}} DL-005 DL-006
+{{dld}} verify-annotations DL-005 DL-006
 ```
 
-Pass all the decision IDs that were implemented. If any are missing annotations, the script will report them and exit with an error. Go back and add the missing annotations before proceeding.
+Pass all the decision IDs that were implemented. If any are missing annotations, the command will report them and exit with an error. Go back and add the missing annotations before proceeding.
 
 ### 6. Review code changes
 
@@ -199,12 +192,12 @@ Group findings by severity:
 
 **Note:** The review subagent operates with limited context and may flag false positives or misunderstand project-specific patterns. Use your own judgment — you have fuller context from having just written the code. If you're uncertain whether a finding warrants a fix, ask the user before making changes.
 
-If you made fixes, re-run the verification script from step 5 to ensure annotations are still intact.
+If you made fixes, re-run `verify-annotations` from step 5 to ensure annotations are still intact.
 
 ### 7. Regenerate INDEX.md
 
 ```bash
-bash {{script dld-common/scripts/regenerate-index.sh}}
+{{dld}} regenerate-index
 ```
 
 ### 8. Suggest next steps

@@ -1,7 +1,7 @@
 ---
 name: dld-plan
 description: Break down a feature into multiple decisions interactively. Creates a set of decision records grouped by a shared tag.
-user_invocable: true
+allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -15,19 +15,11 @@ You are helping the developer break down a larger feature into discrete decision
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-.claude/skills/dld-common/scripts/next-id.sh
-.claude/skills/dld-common/scripts/regenerate-index.sh
-.claude/skills/dld-common/scripts/update-status.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
-Skill-specific scripts (from dld-decide):
-```
-.claude/skills/dld-decide/scripts/create-decision.sh
-```
+This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -90,16 +82,16 @@ The tag should be descriptive, kebab-case, and specific to this feature.
 
 ### 6. Create decision records
 
-For each decision in the breakdown, run the same scripts used by `/dld-decide`:
+For each decision in the breakdown, run the same commands used by `/dld-decide`:
 
 First, get the next ID:
 ```bash
-bash .claude/skills/dld-common/scripts/next-id.sh
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" next-id
 ```
 
 Then create the record, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body — use `\n` escape sequences):
 ```bash
-printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n...\n\n## Consequences\n\n..." | bash .claude/skills/dld-decide/scripts/create-decision.sh \
+printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n...\n\n## Consequences\n\n..." | node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" create-decision \
   --id "DL-NNN" \
   --title "Short descriptive title" \
   --namespace "billing" \
@@ -109,11 +101,11 @@ printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n...\n\n## Con
   --body-stdin
 ```
 
-Repeat for each decision, incrementing the ID each time. Run `next-id.sh` before each creation to ensure correct sequencing.
+Repeat for each decision, incrementing the ID each time. Run `next-id` before each creation to ensure correct sequencing.
 
 If any decision supersedes an existing one, also update the old decision's status:
 ```bash
-bash .claude/skills/dld-common/scripts/update-status.sh DL-003 superseded
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" update-status DL-003 superseded
 ```
 
 **Do not** update the status of amended decisions — they stay `accepted`.
@@ -124,7 +116,7 @@ For each decision, compose a focused body. Keep it concise — the full feature 
 
 After all decisions are created:
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" regenerate-index
 ```
 
 ### 8. Suggest next steps

@@ -1,7 +1,7 @@
 ---
 name: dld-audit-auto
 description: Autonomous audit — detects drift, fixes issues, and opens a PR. Designed for scheduled/CI execution without human interaction.
-compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 ---
 
 # /dld-audit-auto — Autonomous Audit & Fix
@@ -10,21 +10,11 @@ You are running an autonomous audit of the decision-code relationship. Unlike th
 
 **This skill is designed for unattended execution** — scheduled runs, CI pipelines, or autonomous agent sessions. Do not ask questions or wait for user input.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-{{script dld-common/scripts/common.sh}}
-{{script dld-common/scripts/regenerate-index.sh}}
-{{script dld-common/scripts/update-status.sh}}
-```
+{{dld-setup}}
 
-Skill-specific scripts:
-```
-{{script dld-audit/scripts/find-annotations.sh}}
-{{script dld-audit/scripts/find-missing-amends.sh}}
-{{script dld-audit/scripts/update-audit-state.sh}}
-```
+This skill uses: `find-annotations`, `find-missing-amends`, `regenerate-index`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -44,7 +34,7 @@ Perform all the same checks as `/dld-audit`:
 ### a) Collect annotations and decision records
 
 ```bash
-bash {{script dld-audit/scripts/find-annotations.sh}}
+{{dld}} find-annotations
 ```
 
 Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references.
@@ -88,7 +78,7 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 
 **Annotations referencing amended decisions** — Do **not** rewrite or remove these annotations. The original decision is still active. Instead, note the amendment relationship in the PR description so reviewers can verify the code aligns with the amendment.
 
-**Missing amendment relationships** — Run `bash {{script dld-audit/scripts/find-missing-amends.sh}}` to get candidates. The script only emits candidates whose source decision changed since the last audit, so re-runs stay focused on new work. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
+**Missing amendment relationships** — Run `{{dld}} find-missing-amends` to get candidates. The command only emits candidates whose source decision changed since the last audit, so re-runs stay focused on new work. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
 
 **Decisions without annotations** — If an accepted decision has code references but no annotations, and the referenced files exist, add the missing `@decision(DL-NNN)` annotations to the referenced code locations.
 
@@ -109,13 +99,13 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 
 If any decision records were modified:
 ```bash
-bash {{script dld-common/scripts/regenerate-index.sh}}
+{{dld}} regenerate-index
 ```
 
 ## Step 5: Update audit state
 
 ```bash
-bash {{script dld-audit/scripts/update-audit-state.sh}}
+{{dld}} update-audit-state
 ```
 
 ## Step 6: Commit, push, and open PR

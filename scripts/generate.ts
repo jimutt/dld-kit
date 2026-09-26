@@ -1,6 +1,8 @@
 // @decision(DL-033)
 // Generates skills/ and .claude/skills/ from templates/skills/, or with --check reports drift.
 // Runs with Bun (a development tool); the generator itself is Node-compatible library code.
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { version } from "../package.json";
 import { DldError } from "../src/core/errors.ts";
@@ -12,10 +14,30 @@ const root = resolve(import.meta.dirname, "..");
 const check = process.argv.includes("--check");
 const ctx = createNodeContext(root, process.env);
 
+// @decision(DL-035)
+// The skills ship the CLI built from this checkout, so build it first.
+const build = spawnSync("node", [join(root, "scripts/build.mjs")], {
+  cwd: root,
+  stdio: ["ignore", "ignore", "inherit"],
+});
+if (build.error !== undefined) {
+  console.error(`Error: could not run the build: ${build.error.message}`);
+  process.exit(1);
+}
+if (build.status !== 0) process.exit(build.status ?? 1);
+const extraFiles = new Map([
+  [
+    "dld-common/scripts/dld.mjs",
+    { content: readFileSync(join(root, "dist/dld.mjs"), "utf8"), mode: 0o755 },
+  ],
+]);
+
 let drift = 0;
 try {
   for (const adapter of ADAPTERS) {
-    const files = generateSkills(ctx, join(root, "templates/skills"), adapter, version);
+    const files = generateSkills(ctx, join(root, "templates/skills"), adapter, version, {
+      extraFiles,
+    });
     const outDir = join(root, adapter.outputDir);
     const diff = check ? diffOutput(ctx, outDir, files) : writeOutput(ctx, outDir, files);
     const report = [

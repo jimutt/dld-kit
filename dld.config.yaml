@@ -8,5 +8,4 @@ annotation_exclude:
   - docs/**
   - skills/**
   - templates/**
-  - tests/**/*.bats
   - src/**/*.test.ts

@@ -1,7 +1,7 @@
 ---
 name: dld-snapshot
 description: Generate SNAPSHOT.md (detailed decision reference) and OVERVIEW.md (narrative synthesis with diagrams) from the decision log.
-compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -16,19 +16,11 @@ You are generating documents that project the current state of the decision log 
 
 If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional custom documents are generated as well (see Step 5).
 
-## Script Paths
+## Commands
 
-Shared scripts (used indirectly via skill scripts):
-```
-../dld-common/scripts/common.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-Skill-specific scripts:
-```
-scripts/collect-active-decisions.sh
-scripts/detect-snapshot-changes.sh
-scripts/update-snapshot-state.sh
-```
+This skill uses: `detect-snapshot-changes`, `collect-active-decisions`, `update-snapshot-state`.
 
 ## Prerequisites
 
@@ -45,7 +37,7 @@ If the user's message includes `--full` (e.g., `/dld-snapshot --full`), skip cha
 Otherwise, run:
 
 ```bash
-bash scripts/detect-snapshot-changes.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" detect-snapshot-changes
 ```
 
 This outputs:
@@ -60,7 +52,7 @@ If mode is `incremental` but both `new_decisions` and `modified_decisions` are e
 ## Step 2: Collect active decisions
 
 ```bash
-bash scripts/collect-active-decisions.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" collect-active-decisions
 ```
 
 This outputs the full content of all `accepted` decisions, separated by `===DLD_DECISION_BOUNDARY===` markers. Parse the output to extract each decision's frontmatter and body. Use the project mode from `dld.config.yaml` (already checked in prerequisites) to determine the organization strategy.
@@ -264,19 +256,19 @@ Keep track of which custom artifacts were successfully generated — you will ne
 Pass any successfully generated custom artifact filenames as arguments:
 
 ```bash
-bash scripts/update-snapshot-state.sh [ARTIFACT_NAME...]
+node "<skill-dir>/../dld-common/scripts/dld.mjs" update-snapshot-state [ARTIFACT_NAME...]
 ```
 
 For example, if custom artifacts `ONBOARDING.md` and `API-CONTRACTS.md` were generated:
 
 ```bash
-bash scripts/update-snapshot-state.sh ONBOARDING.md API-CONTRACTS.md
+node "<skill-dir>/../dld-common/scripts/dld.mjs" update-snapshot-state ONBOARDING.md API-CONTRACTS.md
 ```
 
 If no custom artifacts were generated, run without arguments:
 
 ```bash
-bash scripts/update-snapshot-state.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" update-snapshot-state
 ```
 
 ## Step 7: Suggest next steps

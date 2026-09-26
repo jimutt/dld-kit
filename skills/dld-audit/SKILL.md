@@ -1,7 +1,7 @@
 ---
 name: dld-audit
 description: Scan for drift between decisions and code. Finds orphaned annotations, stale references, and undocumented changes.
-compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -11,19 +11,11 @@ metadata:
 
 You are scanning the codebase for drift between decision records and code annotations. This helps catch situations where code evolved but decisions weren't updated.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-../dld-common/scripts/common.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-Skill-specific scripts:
-```
-scripts/find-annotations.sh
-scripts/find-missing-amends.sh
-scripts/update-audit-state.sh
-```
+This skill uses: `find-annotations`, `find-missing-amends`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -33,9 +25,9 @@ Check that `dld.config.yaml` exists at the repo root. If not, tell the user to r
 
 ### 1. Collect all annotations in code
 
-Run the find-annotations script:
+Run `find-annotations`:
 ```bash
-bash scripts/find-annotations.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" find-annotations
 ```
 
 This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation occurrence.
@@ -90,18 +82,18 @@ Cross-reference this list with annotated files. Files that changed but whose ass
 
 #### e) Missing amendment relationships
 
-**This check is mandatory — do not skip it.** Run the find-missing-amends script to get initial candidates:
+**This check is mandatory — do not skip it.** Run `find-missing-amends` to get initial candidates:
 
 ```bash
-bash scripts/find-missing-amends.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" find-missing-amends
 ```
 
 This outputs lines in the format `<source-id>:<referenced-id>` — decisions whose body references another decision ID that isn't listed in their `supersedes` or `amends` fields. Not every candidate is a missing amendment — some are just informational references (e.g., "this is similar to DL-005").
 
-By default the script only emits candidates whose source decision file changed since the last audit (recorded in `.dld-state.yaml`), so references the agent has already evaluated and judged informational don't keep resurfacing. To force a full rescan — useful for cold starts or manual deep audits — pass `--all`:
+By default the command only emits candidates whose source decision file changed since the last audit (recorded in `.dld-state.yaml`), so references the agent has already evaluated and judged informational don't keep resurfacing. To force a full rescan — useful for cold starts or manual deep audits — pass `--all`:
 
 ```bash
-bash scripts/find-missing-amends.sh --all
+node "<skill-dir>/../dld-common/scripts/dld.mjs" find-missing-amends --all
 ```
 
 For each candidate, read the source decision's body and evaluate whether the reference describes a partial modification of the referenced decision. Look for language like: "supersedes the X portions of", "changes the Y behavior from DL-Z", "replaces the approach in DL-Z for...", "modifies how DL-Z handles...". If so, flag it as a missing amendment.
@@ -156,7 +148,7 @@ No drift detected. All annotations reference valid, accepted decisions. All deci
 
 After the audit completes (regardless of findings):
 ```bash
-bash scripts/update-audit-state.sh
+node "<skill-dir>/../dld-common/scripts/dld.mjs" update-audit-state
 ```
 
 ### 6. Suggest next steps

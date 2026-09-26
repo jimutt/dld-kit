@@ -1,7 +1,7 @@
 ---
 name: dld-retrofit
 description: Bootstrap DLD decisions from an existing codebase. Analyzes code to infer rationale, generates decision records, and adds `@decision` annotations.
-user_invocable: true
+allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "0.9.0"
 ---
@@ -15,14 +15,11 @@ You are helping the developer bootstrap DLD in an existing codebase by generatin
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-.claude/skills/dld-common/scripts/next-id.sh
-.claude/skills/dld-common/scripts/regenerate-index.sh
-.claude/skills/dld-decide/scripts/create-decision.sh
-```
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
+
+This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -130,12 +127,12 @@ For each approved decision:
 1. Read the relevant code to understand what it does and infer the rationale
 2. Write the decision record with Context, Decision, and Rationale sections. The **Context** should describe the problem the code solves. The **Decision** should describe what the code does. The **Rationale** should be your best inference of *why* — acknowledge when you're inferring rather than stating known facts (e.g., "likely chosen because..." or "this approach avoids...").
 3. Include a Consequences section only when trade-offs are apparent from the code
-4. Assign sequential IDs using the next-id script
-5. Create each record using the create-decision script
+4. Assign sequential IDs using `next-id`
+5. Create each record using `create-decision`
 
 ```bash
-ID=$(bash .claude/skills/dld-common/scripts/next-id.sh)
-printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n..." | bash .claude/skills/dld-decide/scripts/create-decision.sh \
+ID=$(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" next-id)
+printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n..." | node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" create-decision \
   --id "$ID" \
   --title "Title" \
   --tags "tag1, tag2" \
@@ -156,7 +153,7 @@ Then update each decision record's `references` field directly in the YAML front
 Since the code already exists, these decisions go directly to `accepted` status:
 
 ```bash
-bash .claude/skills/dld-common/scripts/update-status.sh DL-NNN accepted
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" update-status DL-NNN accepted
 ```
 
 Do this for each generated decision.
@@ -164,7 +161,7 @@ Do this for each generated decision.
 ## Step 8: Regenerate INDEX.md
 
 ```bash
-bash .claude/skills/dld-common/scripts/regenerate-index.sh
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" regenerate-index
 ```
 
 ## Step 9: Summary and next steps

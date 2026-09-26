@@ -59,6 +59,16 @@ describe("createDecision", () => {
     expect(readFileSync(flat, "utf8")).not.toContain("namespace:");
   });
 
+  test("writes the namespace into the frontmatter in namespaced mode", () => {
+    project = tempProject(NAMESPACED_CONFIG);
+    const path = createDecision(project.ctx, loadProject(project.ctx), {
+      ...input,
+      namespace: "auth",
+    });
+    expect(path).toBe(join(project.root, "decisions/records/auth/DL-004.md"));
+    expect(readFileSync(path, "utf8")).toContain("amends: []\nnamespace: auth\ntags: []\n");
+  });
+
   test("refuses to overwrite an existing record", () => {
     project = tempProject();
     const ctx = project.ctx;

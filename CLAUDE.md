@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development. The deliverables are skill files (SKILL.md), a steering rule, documentation, and helper code the skills call. For 1.0 the bash helper scripts are being ported to a TypeScript CLI (`dld`, npm package `dld-kit`) — see `docs/plan/v1.md`. Until the skills switch to the CLI, both exist.
+DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development. The deliverables are skill files (SKILL.md), a steering rule, documentation, and helper code the skills call. Skills run their mechanical operations through a TypeScript CLI (`dld`, npm package `dld-kit`), bundled into the skills as a single file — see `docs/plan/v1.md` for the 1.0 plan.
 
 ## Directory structure
 
@@ -14,11 +14,11 @@ src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.
   generate/                # skill generator and per-harness adapters (DL-032)
   node-context.ts          # real fs/git Context passed into core (DL-008)
   bin.ts                   # entry point
-scripts/                   # Build (esbuild), skill generation, package check, bats-against-CLI runner, coverage report
+scripts/                   # Build (esbuild), skill generation, package check, coverage report
 templates/                 # canonical sources — edit these
-  skills/dld-*/            # SKILL.md template + scripts/ per skill (DL-031)
+  skills/dld-*/SKILL.md    # one template per skill (DL-031)
   rules/dld-workflow.md    # always-on rule text (delivery decided in workstream 8)
-skills/                    # GENERATED: portable Agent Skills layout (agent-skills adapter)
+skills/                    # GENERATED: portable Agent Skills layout, incl. dld-common/scripts/dld.mjs (DL-035)
 .claude/skills/            # GENERATED: Claude Code copy this repo runs (claude-code adapter)
 tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
 docs/
@@ -33,15 +33,13 @@ dld.config.yaml            # DLD config for this repo itself
 
 ## Skills are generated
 
+<!-- @decision(DL-038) -->
 Skill content lives only in `templates/skills/<skill>/` (DL-031). `npm run generate` renders it into `skills/` and `.claude/skills/` through the adapters in `src/generate/adapters.ts` (DL-032), and both outputs are committed. Never edit the generated copies; `npm run check:generated` fails when they differ from the templates (DL-033).
 
-- In a template, reference supporting files as `{{script <skill>/<path>}}` (e.g. `{{script dld-common/scripts/next-id.sh}}`). Each adapter renders the path its harness needs. Other `{{...}}` text is left as written.
+- Skills run operations only through the bundled CLI (DL-035): write `{{dld}} <command> ...` (e.g. `{{dld}} next-id`), and put `{{dld-setup}}` once before the first command. Each adapter renders the invocation its harness needs (DL-036). Other `{{...}}` text is left as written; `{{script <skill>/<path>}}` references any other supporting file.
+- `npm run generate` builds `dist/dld.mjs` first and copies it to `dld-common/scripts/dld.mjs` in both outputs, so any change under `src/` needs a regenerate.
 - Template frontmatter holds `name` (matching the directory), `description`, optional `compatibility`, and `internal: true` for skills that only provide shared files (`dld-common`).
 - Generated SKILL.md files carry `metadata.dld-kit-version` and a notice pointing at their template.
-
-## Shell scripts
-
-Scripts live in `templates/skills/<skill>/scripts/` and are copied into the generated outputs. Shared utilities are in `dld-common/scripts/` (`common.sh`, `next-id.sh`, `regenerate-index.sh`, `update-status.sh`). Scripts use `set -euo pipefail` and source `common.sh` via `BASH_SOURCE` path resolution. They are replaced by the `dld` CLI in workstream 7.
 
 ## Testing
 
@@ -53,17 +51,13 @@ npm run typecheck    # tsc, including a Node-only pass over src/ that rejects Bu
 npm run test:unit    # bun test, colocated src/**/*.test.ts
 npm run test:coverage  # unit tests with coverage; fails below 90% lines/functions per file (DL-020)
 npm run test:cli     # builds dist/dld.mjs, then runs tests/cli under node
-npm run test:bats    # bats suite for the shell scripts (until the port completes)
-npm run test:bats:cli  # the same bats suite, with ported scripts replaced by the CLI
 npm run generate     # regenerate skills/ and .claude/skills/ from templates/
 npm run check:generated  # fail if the generated skills are out of date
 npm test             # all test layers
 npm run check:pack   # npm pack dry-run against the files allowlist
 ```
 
-Porting a script to the CLI (DL-011, DL-013): add a command under `src/cli/commands/` named after the script, with its logic in `src/core/`; register it in `src/cli/index.ts`; add its name to `tests/cli-ported.txt`; make `npm run test:bats:cli` pass without changing the bats tests.
-
-bats is a git submodule at `tests/bats/`. If tests fail with "Could not find bats-support", init submodules first: `git submodule update --init --recursive`
+Adding a command (DL-011): put its logic in `src/core/` with unit tests, add a module under `src/cli/commands/`, register it in `src/cli/index.ts`, cover it in `src/cli/commands.test.ts`, then call it from templates with `{{dld}} <command>` and run `npm run generate`.
 
 ## Conventions
 

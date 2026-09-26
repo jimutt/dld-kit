@@ -90,9 +90,17 @@ describe("create-decision", () => {
 
   test("requires --id and --title", () => {
     project = tempProject();
-    expect(dld(project, "create-decision", "--id", "DL-001").err).toBe(
-      "Error: --id and --title are required.\n",
-    );
+    for (const args of [
+      ["--id", "DL-001"],
+      ["--title", "No ID"],
+    ]) {
+      expect(dld(project, "create-decision", ...args)).toEqual({
+        code: 1,
+        out: "",
+        err: "Error: --id and --title are required.\n",
+      });
+    }
+    expect(existsSync(join(project.root, "decisions/records"))).toBe(false);
   });
 });
 
@@ -131,19 +139,52 @@ describe("regenerate-index", () => {
     project = tempProject();
     expect(dld(project, "regenerate-index").err).toContain("records directory not found");
   });
+
+  test("replaces a stale INDEX.md", () => {
+    project = tempProject();
+    project.write("decisions/INDEX.md", "old content\n");
+    project.write("decisions/records/DL-001.md", recordText("DL-001"));
+    dld(project, "regenerate-index");
+    const index = readFileSync(join(project.root, "decisions/INDEX.md"), "utf8");
+    expect(index).toStartWith("# Decision Log");
+    expect(index).not.toContain("old content");
+  });
+
+  test("--include-base adds base-only records and rejects an unknown ref", () => {
+    const p = branchedProject();
+    project = p;
+    p.write("decisions/records/DL-002.md", recordText("DL-002"));
+    p.commitAll("feature");
+    p.onMain("land DL-003", () => p.write("decisions/records/DL-003.md", recordText("DL-003")));
+    expect(dld(p, "regenerate-index", "--include-base", "main")).toEqual({
+      code: EXIT_OK,
+      out: "INDEX.md regenerated.\n",
+      err: "",
+    });
+    const index = readFileSync(join(p.root, "decisions/INDEX.md"), "utf8");
+    for (const id of ["DL-001", "DL-002", "DL-003"]) expect(index).toContain(`| ${id} |`);
+    expect(dld(p, "regenerate-index", "--include-base", "does/not/exist")).toEqual({
+      code: 1,
+      out: "",
+      err: "Error: --include-base ref 'does/not/exist' not found.\n",
+    });
+  });
 });
 
 describe("verify-annotations", () => {
   test("exits 0 when every ID is annotated and 1 listing the missing ones", () => {
     project = tempProject();
     project.write("src/a.ts", "// @decision(DL-001)\n");
-    expect(dld(project, "verify-annotations", "DL-001").out).toBe(
-      "All decisions have code annotations.\n",
-    );
-    const missing = dld(project, "verify-annotations", "DL-001", "DL-002", "DL-003");
+    project.write("src/b.ts", "// @decision(DL-002)\n");
+    expect(dld(project, "verify-annotations", "DL-001", "DL-002")).toEqual({
+      code: EXIT_OK,
+      out: "All decisions have code annotations.\n",
+      err: "",
+    });
+    const missing = dld(project, "verify-annotations", "DL-001", "DL-003", "DL-004");
     expect(missing.code).toBe(1);
     expect(missing.out).toBe(
-      "MISSING annotations in source code for: DL-002 DL-003\nEvery implemented decision must have at least one @decision(DL-NNN) annotation in the codebase.\n",
+      "MISSING annotations in source code for: DL-003 DL-004\nEvery implemented decision must have at least one @decision(DL-NNN) annotation in the codebase.\n",
     );
   });
 

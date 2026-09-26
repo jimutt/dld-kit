@@ -1,7 +1,7 @@
 ---
 name: dld-init
 description: Bootstrap DLD (Decision-Linked Development) in a repository. Creates dld.config.yaml, the decisions/ directory, and INDEX.md. Run once per project.
-compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 ---
 
 # /dld-init — Bootstrap DLD
@@ -12,14 +12,11 @@ You are initializing Decision-Linked Development (DLD) in this repository. This 
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
 
-## Script Paths
+## Commands
 
-Skill-specific scripts:
-```
-{{script dld-init/scripts/create-config.sh}}
-{{script dld-init/scripts/create-directories.sh}}
-{{script dld-init/scripts/create-empty-index.sh}}
-```
+{{dld-setup}}
+
+This skill uses: `create-config`, `create-directories`, `create-empty-index`.
 
 ## Prerequisites
 
@@ -41,25 +38,25 @@ If namespaced, ask for the initial namespace list. Suggest they can add more lat
 
 ### 2. Create `dld.config.yaml`
 
-Run the create-config script:
+Run `create-config`:
 ```bash
-bash {{script dld-init/scripts/create-config.sh}} <mode> [namespace1 namespace2 ...]
+{{dld}} create-config <mode> [namespace1 namespace2 ...]
 ```
 
 Example flat:
 ```bash
-bash {{script dld-init/scripts/create-config.sh}} flat
+{{dld}} create-config flat
 ```
 
 Example namespaced:
 ```bash
-bash {{script dld-init/scripts/create-config.sh}} namespaced billing auth shared
+{{dld}} create-config namespaced billing auth shared
 ```
 
 ### 3. Create directory structure
 
 ```bash
-bash {{script dld-init/scripts/create-directories.sh}}
+{{dld}} create-directories
 ```
 
 This reads mode and namespaces from `dld.config.yaml` (created in step 2).
@@ -67,7 +64,7 @@ This reads mode and namespaces from `dld.config.yaml` (created in step 2).
 ### 4. Create initial INDEX.md
 
 ```bash
-bash {{script dld-init/scripts/create-empty-index.sh}}
+{{dld}} create-empty-index
 ```
 
 This reads mode from `dld.config.yaml`.

@@ -1,7 +1,7 @@
 ---
 name: dld-adjust
 description: Adjust or update existing decision records. Handles permission gating for accepted decisions and correctly interprets adjustment requests.
-compatibility: Requires bash and git. Scripts use BASH_SOURCE for path resolution.
+compatibility: Requires Node.js 20+ and git.
 ---
 
 # /dld-adjust — Adjust a Decision
@@ -12,13 +12,11 @@ You are helping the developer adjust one or more existing decision records. Your
 
 Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user.
 
-## Script Paths
+## Commands
 
-Shared scripts:
-```
-{{script dld-common/scripts/update-status.sh}}
-{{script dld-common/scripts/regenerate-index.sh}}
-```
+{{dld-setup}}
+
+This skill uses: `regenerate-index`.
 
 ## Prerequisites
 
@@ -128,7 +126,7 @@ If multiple decisions are being adjusted, process them one at a time.
 If any decision titles or metadata changed:
 
 ```bash
-bash {{script dld-common/scripts/regenerate-index.sh}}
+{{dld}} regenerate-index
 ```
 
 ## Step 6: Suggest next steps

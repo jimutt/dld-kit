@@ -2,10 +2,11 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-038 | Development docs describe the CLI-only toolkit | proposed | v1-skills-cli, docs |
-| DL-037 | Remove the bash scripts and the bats suite after a coverage audit | proposed | v1-skills-cli, testing |
-| DL-036 | A dld placeholder renders the CLI invocation per harness | proposed | v1-skills-cli, skills |
-| DL-035 | Skills always use the CLI bundled in dld-common | proposed | v1-skills-cli, skills, distribution |
+| DL-039 | Drop the no-op user_invocable line from Claude Code skills | accepted | v1-skills-cli, skills |
+| DL-038 | Development docs describe the CLI-only toolkit | accepted | v1-skills-cli, docs |
+| DL-037 | Remove the bash scripts and the bats suite after a coverage audit | accepted | v1-skills-cli, testing |
+| DL-036 | A dld placeholder renders the CLI invocation per harness | accepted | v1-skills-cli, skills |
+| DL-035 | Skills always use the CLI bundled in dld-common | accepted | v1-skills-cli, skills, distribution |
 | DL-034 | Retire Tessl packaging and the hand-maintained skill copy | accepted | v1-generator, distribution |
 | DL-033 | Commit generated skills and check them for drift | accepted | v1-generator, skills, testing |
 | DL-032 | Generate skills through an adapter registry in src/generate | accepted | v1-generator, skills |
