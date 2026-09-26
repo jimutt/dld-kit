@@ -2,6 +2,10 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-034 | Retire Tessl packaging and the hand-maintained skill copy | proposed | v1-generator, distribution |
+| DL-033 | Commit generated skills and check them for drift | proposed | v1-generator, skills, testing |
+| DL-032 | Generate skills through an adapter registry in src/generate | proposed | v1-generator, skills |
+| DL-031 | Canonical skill templates with a single script placeholder | proposed | v1-generator, skills |
 | DL-030 | Port commit-reindex with literal staging and full rollback | accepted | v1-port-reindex, reindex, git |
 | DL-029 | Port rename-decision and find-stale-mentions with the scanner file filter and byte-preserving rewrites | accepted | v1-port-reindex, reindex, annotations |
 | DL-028 | Validate the rename plan before acting on it | accepted | v1-port-reindex, reindex, security |
