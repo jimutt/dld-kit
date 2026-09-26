@@ -32,6 +32,9 @@ export interface FileSystem {
   link(existing: string, newPath: string): void;
   /** Removes a file; does nothing if it does not exist. */
   remove(path: string): void;
+  // @decision(DL-043)
+  /** Removes an empty directory; fails with ENOTEMPTY if it has entries. */
+  removeDir(path: string): void;
 }
 
 // @decision(DL-008)

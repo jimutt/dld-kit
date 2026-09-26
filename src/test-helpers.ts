@@ -132,6 +132,13 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
     remove: (path) => {
       delete files[path];
     },
+    removeDir: (path) => {
+      if (!isDirectory(path)) throw missing("remove directory", path);
+      if ([...Object.keys(files), ...dirs].some((entry) => entry.startsWith(`${path}/`))) {
+        throw new FsError("remove directory", path, "ENOTEMPTY");
+      }
+      dirs.delete(path);
+    },
   };
 }
 

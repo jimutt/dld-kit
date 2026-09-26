@@ -1,13 +1,16 @@
 // @decision(DL-033)
-// Generates skills/ and .claude/skills/ from templates/skills/, or with --check reports drift.
+// Generates skills/ and .claude/skills/ from templates/skills/, and this repository's Claude Code
+// rule file from templates/rules/, or with --check reports drift.
 // Runs with Bun (a development tool); the generator itself is Node-compatible library code.
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { version } from "../package.json";
 import { DldError } from "../src/core/errors.ts";
+import { writeFileAtomic } from "../src/core/files.ts";
 import { ADAPTERS } from "../src/generate/adapters.ts";
 import { diffOutput, generateSkills, writeOutput } from "../src/generate/generate.ts";
+import { CLAUDE_RULE_FILE, RULE_TEXT, renderRuleFile } from "../src/generate/rule.ts";
 import { createNodeContext } from "../src/node-context.ts";
 
 const root = resolve(import.meta.dirname, "..");
@@ -55,6 +58,21 @@ try {
       );
     }
   }
+
+  // @decision(DL-047)
+  const rulePath = join(root, CLAUDE_RULE_FILE);
+  const rule = renderRuleFile("claude-file", RULE_TEXT, version);
+  const current = existsSync(rulePath) ? readFileSync(rulePath, "utf8") : undefined;
+  if (current !== rule) {
+    drift += 1;
+    if (check)
+      console.error(`${current === undefined ? "missing" : "changed"}: ${CLAUDE_RULE_FILE}`);
+    else {
+      ctx.fs.mkdir(dirname(rulePath));
+      writeFileAtomic(ctx, rulePath, rule);
+      console.log(`${CLAUDE_RULE_FILE}: written`);
+    }
+  }
 } catch (error) {
   if (!(error instanceof DldError)) throw error;
   console.error(`Error: ${error.message}`);
@@ -62,7 +80,7 @@ try {
 }
 
 if (check && drift > 0) {
-  console.error("\nGenerated skills are out of date. Run: npm run generate");
+  console.error("\nGenerated files are out of date. Run: npm run generate");
   process.exit(1);
 }
-if (check) console.log("generated skills are up to date");
+if (check) console.log("generated files are up to date");

@@ -2,14 +2,14 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-047 | Install the rule through the CLI from the dld-init skill and in this repository | proposed | v1-init-update, rule, skills |
-| DL-046 | Keep generated skills usable in harnesses that read another harness's directory | proposed | v1-init-update, skills, harnesses |
-| DL-045 | Deliver the always-on rule through owned rule files and a managed AGENTS.md block | proposed | v1-init-update, rule, harnesses |
-| DL-044 | Use one generated-file notice that holds in every install | proposed | v1-init-update, skills |
-| DL-043 | Own the dld-* skill directories on update: overwrite, prune, refuse downgrades | proposed | v1-init-update, skills, migration |
-| DL-042 | Ship templates in the npm package; the CLI installs itself into dld-common | proposed | v1-init-update, packaging, npm |
-| DL-041 | Target harnesses by name, detect them, and confirm the selection | proposed | v1-init-update, harnesses |
-| DL-040 | Add dld init and dld update for project setup through npm | proposed | v1-init-update, cli, commands |
+| DL-047 | Install the rule through the CLI from the dld-init skill and in this repository | accepted | v1-init-update, rule, skills |
+| DL-046 | Keep generated skills usable in harnesses that read another harness's directory | accepted | v1-init-update, skills, harnesses |
+| DL-045 | Deliver the always-on rule through owned rule files and a managed AGENTS.md block | accepted | v1-init-update, rule, harnesses |
+| DL-044 | Use one generated-file notice that holds in every install | accepted | v1-init-update, skills |
+| DL-043 | Own the dld-* skill directories on update: overwrite, prune, refuse downgrades | accepted | v1-init-update, skills, migration |
+| DL-042 | Ship templates in the npm package; the CLI installs itself into dld-common | accepted | v1-init-update, packaging, npm |
+| DL-041 | Target harnesses by name, detect them, and confirm the selection | accepted | v1-init-update, harnesses |
+| DL-040 | Add dld init and dld update for project setup through npm | accepted | v1-init-update, cli, commands |
 | DL-039 | Drop the no-op user_invocable line from Claude Code skills | accepted | v1-skills-cli, skills |
 | DL-038 | Development docs describe the CLI-only toolkit | accepted | v1-skills-cli, docs |
 | DL-037 | Remove the bash scripts and the bats suite after a coverage audit | accepted | v1-skills-cli, testing |

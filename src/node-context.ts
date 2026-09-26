@@ -9,6 +9,7 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -48,6 +49,7 @@ export const nodeFileSystem: FileSystem = {
   rename: (from, to) => fsCall("rename", from, () => renameSync(from, to)),
   link: (existing, newPath) => fsCall("create", newPath, () => linkSync(existing, newPath)),
   remove: (path) => fsCall("remove", path, () => rmSync(path, { force: true })),
+  removeDir: (path) => fsCall("remove directory", path, () => rmdirSync(path)),
 };
 
 /** Filesystem failures (EACCES, EISDIR, ...) are environment problems, reported as FsError. */

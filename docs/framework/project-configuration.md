@@ -108,7 +108,9 @@ The `/dld-init` skill bootstraps DLD in a repository:
 2. If namespaced, asks for the initial namespace list
 3. Creates `dld.config.yaml` at the repo root
 4. Creates the `decisions/` directory with a `records/` subdirectory (and namespace subdirectories under `records/` if applicable)
-5. Adds DLD instructions to `CLAUDE.md` — specifically, the instruction for the AI agent to look up `@decision` references before modifying annotated code
+5. Installs the always-on rule (the instruction for the AI agent to look up `@decision` references before modifying annotated code) with `dld install-rule`, into the file the agent's harness loads
+
+From a terminal, `npx dld-kit init` does the same without an agent session and also installs the skills; `dld update` refreshes them after an upgrade.
 
 ## Decision Log Index
 

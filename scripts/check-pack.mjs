@@ -1,10 +1,15 @@
-// @decision(DL-002) @decision(DL-005) @decision(DL-034)
+// @decision(DL-002) @decision(DL-005) @decision(DL-034) @decision(DL-042)
 // Fails if the npm tarball is missing the CLI or contains anything outside the allowlist.
 import { execFileSync } from "node:child_process";
 
-const REQUIRED = ["dist/dld.mjs", "package.json"];
+const REQUIRED = [
+  "dist/dld.mjs",
+  "package.json",
+  "templates/rules/dld-workflow.md",
+  "templates/skills/dld-init/SKILL.md",
+];
 const ALLOWED_FILES = new Set(["dist/dld.mjs", "package.json", "README.md", "LICENSE"]);
-const ALLOWED_DIRS = ["skills/"];
+const ALLOWED_DIRS = ["skills/", "templates/skills/", "templates/rules/"];
 
 const output = execFileSync("npm", ["pack", "--dry-run", "--json"], { encoding: "utf8" });
 const [pack] = JSON.parse(output);

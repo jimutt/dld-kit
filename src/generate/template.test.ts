@@ -38,6 +38,13 @@ describe("parseTemplate", () => {
     ["non-boolean internal", `${HEADER}internal: yes please\n---\n`, ":4: 'internal' must be"],
     ["missing description", "---\nname: dld-x\n---\n", ":1: frontmatter needs 'name'"],
     ["mismatched name", "---\ndescription: d\nname: dld-y\n---\n", ":3: name 'dld-y' must match"],
+    [
+      "an argument placeholder",
+      `${HEADER}---\n\nUse $ARGUMENTS.\n`,
+      ":6: '$ARGUMENTS' is rewritten",
+    ],
+    ["a positional argument", `${HEADER}---\nx\n\`awk '{print $1}'\`\n`, ":6: '$1' is rewritten"],
+    ["shell output", `${HEADER}---\nRun !\`date\`.\n`, ":5: '!`' is rewritten"],
   ])("rejects %s", (_, text, message) => {
     expect(() => parse(text)).toThrow(`${SOURCE}${message}`);
   });
