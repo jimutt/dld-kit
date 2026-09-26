@@ -151,3 +151,52 @@ describe("verify-annotations", () => {
     expect(dld(project, "verify-annotations").code).toBe(EXIT_USAGE);
   });
 });
+
+describe("audit commands", () => {
+  test("find-annotations prints file:line:id and honours annotation_exclude", () => {
+    project = tempProject("decisions_dir: decisions\nmode: flat\nannotation_exclude: [docs/**]\n");
+    project.write("src/a.ts", "x\n// @decision(DL-001) replaces DL-005\n");
+    project.write("docs/example.md", "@decision(DL-002)\n");
+    expect(dld(project, "find-annotations")).toEqual({
+      code: EXIT_OK,
+      out: "src/a.ts:2:DL-001\n",
+      err: "",
+    });
+  });
+
+  test("find-missing-amends lists pairs; --all ignores the audit state", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-002.md", `${recordText("DL-002")}Changes DL-001.\n`);
+    expect(dld(project, "find-missing-amends").out).toBe("DL-002:DL-001\n");
+    expect(dld(project, "find-missing-amends", "--all").out).toBe("DL-002:DL-001\n");
+  });
+
+  test("update-audit-state reports the time and commit", () => {
+    project = tempProject();
+    project.write("decisions/records/.gitkeep");
+    const head = project.git("rev-parse", "--short", "HEAD").trim();
+    expect(dld(project, "update-audit-state").out).toBe(
+      `Audit state updated: 2026-01-15T10:00:00Z at ${head}\n`,
+    );
+  });
+});
+
+describe("snapshot commands", () => {
+  test("collect, detect and update work together", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/DL-002.md", recordText("DL-002", "proposed"));
+    expect(dld(project, "collect-active-decisions").out).toBe(recordText("DL-001"));
+    expect(dld(project, "detect-snapshot-changes").out).toBe("mode: full\n");
+
+    project.write("decisions/SNAPSHOT.md");
+    project.write("decisions/OVERVIEW.md");
+    const head = project.git("rev-parse", "--short", "HEAD").trim();
+    expect(dld(project, "update-snapshot-state", "ONBOARDING.md").out).toBe(
+      `Snapshot state updated: 2026-01-15T10:00:00Z at ${head} (through DL-001)\n`,
+    );
+    expect(dld(project, "detect-snapshot-changes").out).toBe(
+      "mode: incremental\nnew_decisions: \nmodified_decisions: \ncommit_range: \n",
+    );
+  });
+});

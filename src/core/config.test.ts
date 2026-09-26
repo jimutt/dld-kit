@@ -20,6 +20,7 @@ describe("parseConfig", () => {
       mode: "flat",
       namespaces: [],
       annotationPrefix: "@decision",
+      annotationExclude: [],
       implementReview: true,
       snapshotArtifacts: [],
     });
@@ -41,6 +42,9 @@ namespaces:
   - billing
   - auth
 annotation_prefix: "@decision"
+annotation_exclude:
+  - docs/**
+  - "*.md"
 implement_review: false
 snapshot_artifacts:
   - title: ONBOARDING.md
@@ -51,6 +55,7 @@ snapshot_artifacts:
     expect(config.mode).toBe("namespaced");
     expect(config.namespaces).toEqual(["billing", "auth"]);
     expect(config.implementReview).toBe(false);
+    expect(config.annotationExclude).toEqual(["docs/**", "*.md"]);
     expect(config.snapshotArtifacts).toEqual([
       { title: "ONBOARDING.md", prompt: "Generate a developer onboarding guide from scratch.\n" },
     ]);
@@ -76,6 +81,18 @@ snapshot_artifacts:
     [
       "decisions_dir: d\nmode: flat\nimplement_review: yes\n",
       "'implement_review' must be true or false",
+    ],
+    [
+      "decisions_dir: d\nmode: flat\nannotation_exclude: docs\n",
+      "'annotation_exclude' must be a list",
+    ],
+    [
+      "decisions_dir: d\nmode: flat\nannotation_exclude: [../x]\n",
+      "must be relative to the repository root, got '../x'",
+    ],
+    [
+      "decisions_dir: d\nmode: flat\nannotation_exclude: [/tmp]\n",
+      "must be relative to the repository root, got '/tmp'",
     ],
     [
       "decisions_dir: d\nmode: flat\nsnapshot_artifacts: x\n",

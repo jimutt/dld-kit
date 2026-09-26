@@ -9,3 +9,9 @@ regenerate-index
 update-status
 create-decision
 verify-annotations
+find-annotations
+find-missing-amends
+update-audit-state
+collect-active-decisions
+detect-snapshot-changes
+update-snapshot-state

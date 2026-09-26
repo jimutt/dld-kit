@@ -9,12 +9,18 @@ import {
   type Io,
   UsageError,
 } from "./command.ts";
+import { collectActiveDecisionsCommand } from "./commands/collect-active-decisions.ts";
 import { createConfigCommand } from "./commands/create-config.ts";
 import { createDecisionCommand } from "./commands/create-decision.ts";
 import { createDirectoriesCommand } from "./commands/create-directories.ts";
 import { createEmptyIndexCommand } from "./commands/create-empty-index.ts";
+import { detectSnapshotChangesCommand } from "./commands/detect-snapshot-changes.ts";
+import { findAnnotationsCommand } from "./commands/find-annotations.ts";
+import { findMissingAmendsCommand } from "./commands/find-missing-amends.ts";
 import { nextIdCommand } from "./commands/next-id.ts";
 import { regenerateIndexCommand } from "./commands/regenerate-index.ts";
+import { updateAuditStateCommand } from "./commands/update-audit-state.ts";
+import { updateSnapshotStateCommand } from "./commands/update-snapshot-state.ts";
 import { updateStatusCommand } from "./commands/update-status.ts";
 import { verifyAnnotationsCommand } from "./commands/verify-annotations.ts";
 
@@ -27,6 +33,12 @@ export const COMMANDS: readonly Command[] = [
   updateStatusCommand,
   regenerateIndexCommand,
   verifyAnnotationsCommand,
+  findAnnotationsCommand,
+  findMissingAmendsCommand,
+  updateAuditStateCommand,
+  collectActiveDecisionsCommand,
+  detectSnapshotChangesCommand,
+  updateSnapshotStateCommand,
 ];
 
 function usage(commands: readonly Command[]): string {

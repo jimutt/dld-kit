@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { rmSync, symlinkSync } from "node:fs";
 import { type TempProject, tempProject } from "../test-helpers.ts";
-import { missingAnnotations, type ScanOptions, scanAnnotations } from "./annotations.ts";
+import {
+  formatAnnotation,
+  missingAnnotations,
+  type ScanOptions,
+  scanAnnotations,
+} from "./annotations.ts";
 
 let project: TempProject | undefined;
 afterEach(() => {
@@ -79,6 +84,30 @@ describe("scanAnnotations", () => {
     project?.git("add", "gone.ts");
     rmSync(`${options.root}/gone.ts`);
     expect(scanAnnotations(ctx, options)).toEqual([]);
+  });
+});
+
+describe("annotation_exclude", () => {
+  test("leaves out paths matching the configured git globs", () => {
+    const { ctx, options } = setup({
+      "docs/guide.md": "@decision(DL-001)",
+      "README.md": "@decision(DL-002)",
+      "tests/test_a.bats": "# @decision(DL-003)",
+      "tests/cli/a.test.ts": "// @decision(DL-004)",
+      "src/notes.md": "@decision(DL-005)",
+    });
+    const ids = scanAnnotations(ctx, {
+      ...options,
+      exclude: ["docs/**", "*.md", "tests/**/*.bats"],
+    }).map((a) => a.id);
+    // `*.md` matches only at the top level under git's glob rules.
+    expect(ids).toEqual(["DL-005", "DL-004"]);
+  });
+});
+
+describe("formatAnnotation", () => {
+  test("prints file:line:id", () => {
+    expect(formatAnnotation({ file: "src/a.ts", line: 3, id: "DL-001" })).toBe("src/a.ts:3:DL-001");
   });
 });
 
