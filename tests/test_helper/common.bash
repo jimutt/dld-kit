@@ -4,8 +4,15 @@
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 
-# Path to the skills scripts (tessl version — canonical source)
-SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/skills"
+# Path to the skills scripts (tessl version — canonical source).
+# With DLD_BATS_TARGET=cli, point at the shim tree built by scripts/bats-cli.mjs,
+# where ported scripts run the dld CLI instead.
+# @decision(DL-013)
+if [[ "${DLD_BATS_TARGET:-}" == "cli" ]]; then
+  SKILLS_DIR="${DLD_BATS_SHIM_DIR:?DLD_BATS_TARGET=cli needs DLD_BATS_SHIM_DIR; use npm run test:bats:cli}"
+else
+  SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/skills"
+fi
 
 # Create a temporary git repo with a flat dld config
 setup_flat_project() {

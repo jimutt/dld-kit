@@ -9,7 +9,11 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 ```
 package.json               # npm package dld-kit (bin: dld) — DL-002
 src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.ts colocated
-scripts/                   # Build (esbuild) and package-check scripts, run with node
+  core/                    # library: config, paths, IDs; no stdout, no process access (DL-007)
+  cli/                     # `dld` dispatch and one module per command (DL-011)
+  node-context.ts          # real fs/git Context passed into core (DL-008)
+  bin.ts                   # entry point
+scripts/                   # Build (esbuild), package check and bats-against-CLI runner, run with node
 tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
 .tessl-plugin/
   plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
@@ -71,9 +75,12 @@ npm run typecheck    # tsc, including a Node-only pass over src/ that rejects Bu
 npm run test:unit    # bun test, colocated src/**/*.test.ts
 npm run test:cli     # builds dist/dld.mjs, then runs tests/cli under node
 npm run test:bats    # bats suite for the shell scripts (until the port completes)
-npm test             # all three test layers
+npm run test:bats:cli  # the same bats suite, with ported scripts replaced by the CLI
+npm test             # all test layers
 npm run check:pack   # npm pack dry-run against the files allowlist
 ```
+
+Porting a script to the CLI (DL-011, DL-013): add a command under `src/cli/commands/` named after the script, with its logic in `src/core/`; register it in `src/cli/index.ts`; add its name to `tests/cli-ported.txt`; make `npm run test:bats:cli` pass without changing the bats tests.
 
 bats is a git submodule at `tests/bats/`. If tests fail with "Could not find bats-support", init submodules first: `git submodule update --init --recursive`
 

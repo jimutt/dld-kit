@@ -1,0 +1,4 @@
+# Scripts ported to the dld CLI (DL-013). One command per line, named after the
+# script it replaces without `.sh`. `npm run test:bats:cli` runs the bats suite
+# with these scripts replaced by `node dist/dld.mjs <command>`.
+next-id
