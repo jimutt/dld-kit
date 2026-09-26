@@ -2,10 +2,11 @@ decisions_dir: decisions
 mode: flat
 annotation_prefix: '@decision'
 # Example and fixture annotations, not references to this repo's decisions
-# @decision(DL-023)
+# @decision(DL-023) @decision(DL-034)
 annotation_exclude:
   - README.md
   - docs/**
   - skills/**
+  - templates/**
   - tests/**/*.bats
   - src/**/*.test.ts

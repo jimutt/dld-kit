@@ -13,17 +13,13 @@ AI agents write code confidently. They just don't know *why* your code looks the
 
 ### Install
 
-**Via [Tessl](https://tessl.io)** (works across Claude Code, Cursor, Copilot, etc.):
-
-```bash
-tessl install dld-kit/dld
-```
-
-**Manual** (Claude Code only):
+**Manual** (Claude Code):
 
 ```bash
 cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
 ```
+
+Other agents can copy the portable skills from `skills/` into their skills directory. Install through npm, `npx skills` and plugin marketplaces arrives with 1.0.
 
 Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
 
@@ -259,7 +255,7 @@ bun install                               # dev dependencies (Bun is a dev tool;
 npm run lint && npm run typecheck && npm test
 ```
 
-See `CLAUDE.md` for the full set of commands and `docs/plan/v1.md` for the 1.0 plan.
+Skills are generated: edit `templates/skills/`, then run `npm run generate` to rebuild `skills/` and `.claude/skills/`. See `CLAUDE.md` for the full set of commands and `docs/plan/v1.md` for the 1.0 plan.
 
 ## Further reading
 

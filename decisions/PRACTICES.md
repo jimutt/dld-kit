@@ -43,7 +43,8 @@ dld-kit is moving from bash scripts to a TypeScript CLI and library for 1.0 (see
 
 ## Skills
 
-- Until the generator lands, skills exist in two synchronized places: `skills/` and `.claude/skills/`. Content must match; only script path references and frontmatter differ. Update both copies in the same change. Once skills are generated from canonical templates, edit the templates only and never the generated output.
+- Skills are generated from canonical templates in `templates/skills/` (DL-031). Edit the templates only and run `npm run generate`; never edit `skills/` or `.claude/skills/` by hand. `npm run check:generated` (part of `npm test` and CI) fails when the output is out of date (DL-033).
+- Reference a skill's supporting files with `{{script <skill>/<path>}}`, never a literal path; each adapter renders the path its harness needs (DL-032).
 - Skills that ask the user anything use the `AskUserQuestion` tool rather than waiting for freeform replies.
 - SKILL.md documents the commands or scripts it uses, checks prerequisites before doing work, and ends by suggesting next steps.
 - In markdown, escape the annotation pattern as `` `@decision` ``.

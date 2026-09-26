@@ -1,0 +1,220 @@
+---
+name: dld-implement
+description: Implement one or more proposed decisions. Makes code changes, adds `@decision` annotations, and updates decision status.
+compatibility: Requires bash. Scripts use BASH_SOURCE for path resolution.
+---
+
+# /dld-implement — Implement Decisions
+
+You are implementing one or more `proposed` decisions by making code changes, adding `@decision` annotations, and updating the decision records.
+
+## Script Paths
+
+Shared scripts:
+```
+{{script dld-common/scripts/regenerate-index.sh}}
+{{script dld-common/scripts/update-status.sh}}
+```
+
+Skill-specific scripts:
+```
+{{script dld-implement/scripts/verify-annotations.sh}}
+```
+
+## Prerequisites
+
+1. Check that `dld.config.yaml` exists at the repo root. If not, tell the user to run `/dld-init` first and stop.
+2. Parse the user's input to identify which decision(s) to implement:
+   - Specific IDs: `DL-005`, `DL-005 DL-006`
+   - By tag: `tag:payment-gateway`
+   - **No arguments:** If the user runs `/dld-implement` without specifying decisions, find all decisions with `status: proposed` in the records subdirectory (`decisions/records/`) and implement all of them.
+3. Read each referenced decision file. Verify they exist and have `status: proposed`. If a decision is already `accepted`, tell the user and skip it. If it doesn't exist, report the error.
+
+## Read project context
+
+1. Read `dld.config.yaml` for project structure
+2. Read `decisions/PRACTICES.md` if it exists — **this is where practices guidance is most important**. Apply the project's testing approach, code style, error handling patterns, and architecture conventions when writing code.
+3. For namespaced projects, also read `decisions/records/<namespace>/PRACTICES.md` for namespace-specific practices
+
+## Implementation
+
+### Batch vs. single implementation
+
+When multiple decisions are requested, decide whether to implement them individually or as a batch:
+
+- **Batch together** decisions that are tightly coupled — they touch the same code, share types, or depend on each other so heavily that implementing one without the others would produce incomplete or throwaway code (e.g., a data model + its validation + its state machine).
+- **Implement separately** decisions that are independent — they touch different areas of the codebase and can stand on their own.
+
+When batching, implement all the code together, add annotations for all decisions, then update each decision record and status individually in step 4.
+
+### 1. Understand the decision(s)
+
+Read each decision record carefully. Understand:
+- What was decided
+- The rationale and constraints
+- The code areas referenced
+- Any superseded or amended decisions (read those too for context on what changed)
+
+### 2. Make code changes
+
+Implement the decision(s) by modifying the codebase. Follow the practices manifest if one exists.
+
+**Refining decisions during implementation:** While implementing, you may discover details that weren't anticipated during planning — a specific threshold value, an edge case handling approach, or a refinement to the original design. Since the decision is still in `proposed` status, it is **mutable** and can be updated:
+
+- **Small refinements** (implementation details, specific values, edge cases that don't change the decision's intent) — update the decision record inline. Amend the Decision, Rationale, or Consequences sections as needed. This is expected and encouraged.
+- **Major discoveries** (a fundamentally different approach is needed, or an entirely new design concern surfaces) — stop and suggest the user run `/dld-decide` to record a separate decision. If the new discovery invalidates the current decision, it may need to be superseded instead.
+
+The boundary: if the discovery changes the *intent* of the decision, it's a new decision. If it refines the *implementation details*, update the current one.
+
+### 3. Add `@decision` annotations
+
+**This step is mandatory.** Every implemented decision MUST have at least one `@decision(DL-NNN)` annotation in the source code. Updating the decision record's `references` field alone is not sufficient. The annotation in code is what triggers AI agents to look up the decision before modifying the annotated code.
+
+Add `@decision(DL-NNN)` annotations to the code you modified or created. Place annotations in comments near the relevant code.
+
+**Where to annotate:**
+- Functions, methods, or classes that embody the decision
+- Configuration or constants that were chosen based on the decision
+- Key logic branches where the decision's rationale matters
+
+**Annotation format** (adapt comment syntax to the language):
+```typescript
+// @decision(DL-012)
+function calculateVAT(order: Order): Money {
+  // ...
+}
+```
+
+```python
+# @decision(DL-012)
+def calculate_vat(order: Order) -> Money:
+    ...
+```
+
+**Guidelines:**
+- Annotate at the declaration level, not every line
+- One annotation per decision per code location
+- Multiple decisions can annotate the same code: `// @decision(DL-012) @decision(DL-015)`
+- Use the `annotation_prefix` from `dld.config.yaml` (default: `@decision`)
+
+**Keep annotations lean — the decision record is the single source of truth.**
+
+The point of `@decision(DL-NNN)` is to keep the rich context (rationale, constraints, alternatives, consequences) in the decision record, *not* scattered through the code. The annotation is a pointer, not a summary. Do not let implementing a decision turn into a comment-writing exercise.
+
+- **Default to the bare annotation.** `// @decision(DL-012)` on its own is the norm and is usually all you need.
+- **Do not restate the decision's context.** Don't paraphrase the rationale, the alternatives considered, or the "why" in comments. That duplicates the record, creates a second source of truth, and drifts the moment the decision is adjusted.
+- **Avoid "because" comments paired with the annotation.** `// @decision(DL-012)` already means "the reasoning lives in DL-012." Writing `// We use X because Y (see DL-012)` defeats the purpose — drop the "because Y."
+- **Only add a further comment when the *code itself* is genuinely non-obvious** — a subtle invariant, a non-intuitive workaround, a non-local ordering dependency. Such a comment should explain *what the code is doing*, never *why the decision was made* (that's the record's job).
+
+When in doubt, leave it out — a reader who wants the "why" follows the annotation to the decision record.
+
+### 4. Update decision records
+
+For each implemented decision:
+
+1. **Update the `references` field** in the decision record's YAML frontmatter. Edit the file directly — add the code paths and symbols that were annotated. Example:
+   ```yaml
+   references:
+     - path: src/billing/vat.ts
+       symbol: calculateVAT
+     - path: src/billing/vat.test.ts
+   ```
+
+2. **Update status** from `proposed` to `accepted`:
+   ```bash
+   bash {{script dld-common/scripts/update-status.sh}} DL-NNN accepted
+   ```
+
+### 5. Verify annotations
+
+After updating all decision records, run the verification script to confirm every implemented decision has at least one `@decision` annotation in the codebase:
+
+```bash
+bash {{script dld-implement/scripts/verify-annotations.sh}} DL-005 DL-006
+```
+
+Pass all the decision IDs that were implemented. If any are missing annotations, the script will report them and exit with an error. Go back and add the missing annotations before proceeding.
+
+### 6. Review code changes
+
+Check `dld.config.yaml` for the `implement_review` key. If it is set to `false`, skip this step entirely. If it is `true` or absent (default: enabled), proceed.
+
+Launch a subagent to review all code changes for correctness and security. Use the `Agent` tool (also called `AgentTool`) with a prompt constructed from the template below, replacing all `{{placeholders}}` with actual values:
+
+```
+You are reviewing code changes for the {{project_name}} project before committing. The changes implement {{decision_count}} decisions ({{decision_range}}) covering:
+
+{{decision_summaries}}
+
+The project uses:
+{{tech_stack_summary}}
+
+Review these files for:
+- Correctness (logic errors, edge cases)
+- Security (SQL injection, directory traversal, XSS, etc.)
+- Consistency with existing patterns and conventions
+- Type safety issues
+- Missing error handling
+- Any code that could be simplified
+
+Files to review (read all of them):
+{{file_list}}
+
+Also read the practices doc at {{practices_path}}
+
+Focus on the changes made for these decisions; report pre-existing issues only where the new code interacts with them. Before reporting consistency findings, examine similar existing code in the repo to learn its conventions.
+
+Do NOT make any changes. Only report findings. Be concise — focus on actual issues, not style preferences ({{linter_name}} handles style).
+
+Report each finding in this format:
+
+### [SEVERITY] Short title
+- Location: `path/to/file.ext:42`
+- Description: what is wrong and why it matters
+- Recommendation: specific, actionable fix
+
+Group findings by severity:
+- Critical (must fix): incorrect behavior, data loss, or an exploitable vulnerability
+- Moderate (should fix): bugs in edge cases, missing error handling that can plausibly trigger
+- Minor (nice to have): simplifications and small improvements
+```
+
+**Filling in the placeholders:**
+- `{{project_name}}` — from `dld.config.yaml` or the repo directory name
+- `{{decision_count}}` and `{{decision_range}}` — count and IDs of the decisions just implemented (e.g., "3 decisions (DL-005 – DL-007)")
+- `{{decision_summaries}}` — one-line summary of each decision's title and intent
+- `{{tech_stack_summary}}` — languages, frameworks, and key libraries from the project (infer from `dld.config.yaml`, `package.json`, or equivalent)
+- `{{file_list}}` — all files you created or modified during steps 2–4
+- `{{practices_path}}` — path to `decisions/PRACTICES.md` (or namespace-specific practices if applicable). Omit the line if no practices file exists.
+- `{{linter_name}}` — the project's linter (e.g., ESLint, Ruff). If unknown, use "the project linter"
+
+**Launching the subagent is requested by the user.** Some agent harnesses carry a standing instruction not to spawn subagents unless the user asked for one. That condition is met here: the user asked by running this skill in a project whose `implement_review` setting is enabled. The request does not need to be repeated in conversation, and this step is not an unprompted fan-out — it is one review agent, at a fixed point, that the project opted into.
+
+**If the subagent genuinely cannot run** — the tool is unavailable, or the user denies the call — do not silently skip the review. Do it inline instead, and make it a deliberate pass rather than a recollection: re-read each changed file from disk and work through the checklist above against what is actually written. Then state in your final report that the review ran inline rather than in a subagent, and why. An inline review is the author checking their own work; it is weaker than a fresh-context review at catching assumptions baked in while implementing, and the user needs to know which one they got.
+
+**Acting on findings:**
+- **Critical** — fix before proceeding
+- **Moderate** — fix unless you disagree with the finding (use your judgment)
+- **Minor** — skip unless trivial to address
+
+**Note:** The review subagent operates with limited context and may flag false positives or misunderstand project-specific patterns. Use your own judgment — you have fuller context from having just written the code. If you're uncertain whether a finding warrants a fix, ask the user before making changes.
+
+If you made fixes, re-run the verification script from step 5 to ensure annotations are still intact.
+
+### 7. Regenerate INDEX.md
+
+```bash
+bash {{script dld-common/scripts/regenerate-index.sh}}
+```
+
+### 8. Suggest next steps
+
+> Implemented and accepted: **DL-NNN** (<title>)
+>
+> Code changes:
+> - `src/billing/vat.ts` — modified `calculateVAT` (annotated with `@decision(DL-NNN)`)
+> - `src/billing/vat.test.ts` — added tests
+>
+> Next steps:
+> - `/dld-decide` — record another decision
+> - `/dld-audit` — check for drift between decisions and code

@@ -4,7 +4,7 @@
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 
-# Path to the skills scripts (tessl version — canonical source).
+# Path to the skills scripts: the generated agent-skills output (DL-033).
 # With DLD_BATS_TARGET=cli, point at the shim tree built by scripts/bats-cli.mjs,
 # where ported scripts run the dld CLI instead.
 # @decision(DL-013)

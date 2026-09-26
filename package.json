@@ -23,16 +23,18 @@
   },
   "files": [
     "dist/dld.mjs",
-    "skills/",
-    "rules/"
+    "skills/"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
+    "generate": "bun scripts/generate.ts",
+    "check:generated": "bun scripts/generate.ts --check",
     "prepack": "npm run build",
+    "version": "npm run generate && git add skills .claude/skills",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.src.json",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "test": "npm run test:unit && npm run test:cli && npm run test:bats && npm run test:bats:cli",
+    "test": "npm run check:generated && npm run test:unit && npm run test:cli && npm run test:bats && npm run test:bats:cli",
     "test:unit": "bun test src",
     "test:coverage": "bun test --coverage src",
     "test:cli": "npm run build && bun test tests/cli",
