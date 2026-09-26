@@ -6,21 +6,37 @@ import { DldError, GitCommandError } from "./core/errors.ts";
 
 export const nodeFileSystem: FileSystem = {
   exists: (path) => existsSync(path),
-  isDirectory: (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false,
-  readFile: (path) => readFileSync(path, "utf8"),
+  isDirectory: (path) =>
+    fsCall(path, () => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false),
+  readFile: (path) => fsCall(path, () => readFileSync(path, "utf8")),
   readDir: (path) =>
-    readdirSync(path, { withFileTypes: true }).map((entry) => ({
-      name: entry.name,
-      isFile: entry.isFile(),
-      isDirectory: entry.isDirectory(),
-    })),
+    fsCall(path, () =>
+      readdirSync(path, { withFileTypes: true }).map((entry) => ({
+        name: entry.name,
+        isFile: entry.isFile(),
+        isDirectory: entry.isDirectory(),
+      })),
+    ),
 };
 
-export function nodeGit(cwd: string): Context["git"] {
+/** Filesystem failures (EACCES, EISDIR, ...) are environment problems, reported as DldError. */
+function fsCall<T>(path: string, operation: () => T): T {
+  try {
+    return operation();
+  } catch (error) {
+    if (error instanceof Error && "code" in error && typeof error.code === "string") {
+      throw new DldError(`cannot read ${path}: ${error.code}`);
+    }
+    throw error;
+  }
+}
+
+export function nodeGit(cwd: string, env: Context["env"]): Context["git"] {
   return (args) => {
     try {
       return execFileSync("git", args, {
         cwd,
+        env,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
       });
@@ -36,7 +52,7 @@ export function createNodeContext(
   cwd: string,
   env: Readonly<Record<string, string | undefined>>,
 ): Context {
-  return { cwd, fs: nodeFileSystem, git: nodeGit(cwd), env };
+  return { cwd, fs: nodeFileSystem, git: nodeGit(cwd, env), env };
 }
 
 function hasCode(error: unknown, code: string): boolean {

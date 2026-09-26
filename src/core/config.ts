@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { parse, YAMLParseError } from "yaml";
+import { parseDocument } from "yaml";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 
@@ -31,13 +31,11 @@ export function loadConfig(ctx: Context, root: string): Config {
 
 // @decision(DL-009)
 export function parseConfig(text: string): Config {
-  let raw: unknown;
-  try {
-    raw = parse(text);
-  } catch (error) {
-    if (error instanceof YAMLParseError) throw invalid(`not valid YAML: ${error.message}`);
-    throw error;
-  }
+  // logLevel "silent": problems are reported through doc.errors/doc.warnings, never printed.
+  const doc = parseDocument(text, { logLevel: "silent" });
+  const problem = doc.errors[0] ?? doc.warnings[0];
+  if (problem !== undefined) throw invalid(`not valid YAML: ${problem.message}`);
+  const raw: unknown = doc.toJS();
   if (!isRecord(raw)) throw invalid("expected a mapping of keys to values");
 
   const mode = raw.mode;

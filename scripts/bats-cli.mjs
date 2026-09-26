@@ -30,7 +30,7 @@ const ported = new Set(
 );
 
 for (const command of ported) {
-  const help = spawnSync("node", [bin, command, "--help"], { encoding: "utf8" });
+  const help = spawnSync(process.execPath, [bin, command, "--help"], { encoding: "utf8" });
   if (help.status !== 0)
     fail(`tests/cli-ported.txt lists '${command}', which is not a dld command`);
 }
@@ -53,9 +53,13 @@ function mirror(dir) {
       entry.name.endsWith(".sh") &&
       ported.has(command)
     ) {
-      writeFileSync(target, `#!/usr/bin/env bash\nexec node ${quote(bin)} ${command} "$@"\n`, {
-        mode: 0o755,
-      });
+      writeFileSync(
+        target,
+        `#!/usr/bin/env bash\nexec ${quote(process.execPath)} ${quote(bin)} ${command} "$@"\n`,
+        {
+          mode: 0o755,
+        },
+      );
       shimmed.add(command);
     } else {
       symlinkSync(source, target);
@@ -67,13 +71,17 @@ let status = 1;
 try {
   mirror(skills);
   const missing = [...ported].filter((command) => !shimmed.has(command));
-  if (missing.length > 0) fail(`no script found under skills/ for: ${missing.join(", ")}`);
+  if (missing.length > 0) {
+    throw new Error(`no script found under skills/ for: ${missing.join(", ")}`);
+  }
 
   const result = spawnSync(join(repo, "tests/run.sh"), process.argv.slice(2), {
     stdio: "inherit",
     env: { ...process.env, DLD_BATS_TARGET: "cli", DLD_BATS_SHIM_DIR: shim },
   });
   status = result.status ?? 1;
+} catch (error) {
+  console.error(`bats-cli: ${error instanceof Error ? error.message : error}`);
 } finally {
   rmSync(shim, { recursive: true, force: true });
 }

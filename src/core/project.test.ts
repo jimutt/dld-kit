@@ -18,7 +18,7 @@ describe("findProjectRoot", () => {
     const sub = join(project.root, "a", "b");
     mkdirSync(sub, { recursive: true });
     expect(findProjectRoot(project.ctx)).toBe(project.root);
-    expect(findProjectRoot(createNodeContext(sub, {}))).toBe(project.root);
+    expect(findProjectRoot(createNodeContext(sub, project.ctx.env))).toBe(project.root);
   });
 
   test("reports 'not a git repository' when git rev-parse fails", () => {

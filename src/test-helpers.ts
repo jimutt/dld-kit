@@ -19,7 +19,11 @@ export interface TempProject {
 /** A temporary git repository with a flat dld.config.yaml, like the bats fixtures. */
 export function tempProject(config: string | null = FLAT_CONFIG): TempProject {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "dld-unit-")));
-  const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
+  // Drop GIT_DIR and friends so a surrounding git hook cannot redirect the fixture.
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
+  );
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: root, env, stdio: "ignore" });
   git("init", "--quiet");
   git(
     "-c",
@@ -39,7 +43,7 @@ export function tempProject(config: string | null = FLAT_CONFIG): TempProject {
   if (config !== null) write("dld.config.yaml", config);
   return {
     root,
-    ctx: createNodeContext(root, {}),
+    ctx: createNodeContext(root, env),
     write,
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };

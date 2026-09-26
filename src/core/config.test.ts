@@ -64,6 +64,7 @@ snapshot_artifacts:
     ["", "expected a mapping"],
     ["- a\n- b\n", "expected a mapping"],
     ["decisions_dir: [unclosed\n", "not valid YAML"],
+    ["decisions_dir: !custom d\nmode: flat\n", "not valid YAML"],
     ["mode: flat\n", "'decisions_dir' is required"],
     ["decisions_dir: ''\nmode: flat\n", "'decisions_dir' must be a non-empty string"],
     ["decisions_dir: 12\nmode: flat\n", "'decisions_dir' must be a non-empty string"],

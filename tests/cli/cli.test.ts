@@ -56,6 +56,16 @@ describe("next-id (built, under node)", () => {
     expect(result.stdout).toBe("DL-010\n");
   });
 
+  test("fails without stdout when the config is missing", () => {
+    const bare = join(WORKDIR, "bare");
+    mkdirSync(bare);
+    execFileSync("git", ["init", "--quiet"], { cwd: bare });
+    const result = dldIn(bare, "next-id");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("Error: dld.config.yaml not found. Run /dld-init first.\n");
+  });
+
   test("fails outside a git repository", () => {
     const result = dld("next-id");
     expect(result.status).toBe(1);

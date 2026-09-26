@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { GitCommandError } from "./core/errors.ts";
+import { DldError, GitCommandError } from "./core/errors.ts";
 import { type TempProject, tempProject } from "./test-helpers.ts";
 
 let project: TempProject | undefined;
@@ -30,5 +30,13 @@ describe("node context", () => {
       { name: "sub", isFile: false, isDirectory: true },
     ]);
     expect(project.ctx.fs.isDirectory(`${project.root}/missing`)).toBe(false);
+  });
+
+  test("fs failures are reported as DldError naming the path", () => {
+    project = tempProject();
+    project.write("d/file.md");
+    const ctx = project.ctx;
+    expect(() => ctx.fs.readFile(`${project?.root}/d`)).toThrow(DldError);
+    expect(() => ctx.fs.readDir(`${project?.root}/d/file.md`)).toThrow(/cannot read .*ENOTDIR/);
   });
 });
