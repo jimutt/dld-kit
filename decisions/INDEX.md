@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-054 | Resolve the instruction file each agent reads from Claude Code's documented rules and the planned block | accepted | rule, harnesses |
 | DL-053 | Rewrite the README around the 1.0 install channels | accepted | v1-distribution, docs |
 | DL-052 | Release from a version tag with npm trusted publishing; package.json holds the one version | accepted | v1-distribution, release, npm, ci |
 | DL-051 | Coexist with npx skills and gh skill installs, and check the installers in CI | accepted | v1-distribution, skills, npx-skills, ci |

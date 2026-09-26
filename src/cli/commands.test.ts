@@ -526,6 +526,30 @@ describe("install-rule", () => {
   });
 });
 
+describe("init with Claude Code and a block reader (DL-054)", () => {
+  test("puts the block in a new AGENTS.md, notes the dependency, and warns about nothing else", async () => {
+    project = tempProject(null);
+    const { code, err, out } = await dldInstall(
+      project,
+      fakePackage(project),
+      "init",
+      "--yes",
+      "--agent",
+      "claude,opencode",
+    );
+    expect(code).toBe(EXIT_OK);
+    expect(out).toContain("Wrote the DLD rule to AGENTS.md\n");
+    // Only the note: before DL-054 this also warned that OpenCode could not see the block.
+    expect(err).toBe(
+      "Warning: Claude Code reads the DLD rule from the AGENTS.md block, because the project has no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md. Adding one of those later stops Claude Code from reading AGENTS.md; run dld update then, which installs .claude/rules/dld-workflow.md.\n",
+    );
+    expect(existsSync(join(project.root, ".claude/rules/dld-workflow.md"))).toBe(false);
+    expect(readFileSync(join(project.root, "AGENTS.md"), "utf8")).toContain(
+      "<!-- dld-kit:start -->",
+    );
+  });
+});
+
 describe("session-context", () => {
   test("prints the rule in a DLD project until Claude Code loads it", async () => {
     project = tempProject();
