@@ -2,6 +2,10 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-038 | Development docs describe the CLI-only toolkit | proposed | v1-skills-cli, docs |
+| DL-037 | Remove the bash scripts and the bats suite after a coverage audit | proposed | v1-skills-cli, testing |
+| DL-036 | A dld placeholder renders the CLI invocation per harness | proposed | v1-skills-cli, skills |
+| DL-035 | Skills always use the CLI bundled in dld-common | proposed | v1-skills-cli, skills, distribution |
 | DL-034 | Retire Tessl packaging and the hand-maintained skill copy | accepted | v1-generator, distribution |
 | DL-033 | Commit generated skills and check them for drift | accepted | v1-generator, skills, testing |
 | DL-032 | Generate skills through an adapter registry in src/generate | accepted | v1-generator, skills |
@@ -23,7 +27,7 @@
 | DL-016 | Give Context standard input and a clock | accepted | v1-port-common, context, testing |
 | DL-015 | Write files atomically through new Context operations, and create new files exclusively | accepted | v1-port-common, filesystem, context |
 | DL-014 | Parse decision records with yaml, edit their metadata line by line, and render new records from a fixed template | accepted | v1-port-common, records, frontmatter |
-| DL-013 | Run the bats suite against the CLI through a shim selected by DLD_BATS_TARGET | accepted | v1-core, testing, bats |
+| DL-013 | Run the bats suite against the CLI through a shim selected by DLD_BATS_TARGET | superseded | v1-core, testing, bats |
 | DL-012 | Report errors on stderr with exit 1, usage errors with exit 2, and tolerate closed pipes | accepted | v1-core, cli, errors |
 | DL-011 | Name CLI commands after the scripts they replace until the port is complete | accepted | v1-core, cli, commands |
 | DL-010 | Resolve the project root with git rev-parse --show-toplevel | accepted | v1-core, config, git |
