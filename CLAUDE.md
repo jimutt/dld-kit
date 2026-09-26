@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development. The deliverables are skill files (SKILL.md), a steering rule, documentation, and helper code the skills call. For 1.0 the bash helper scripts are being ported to a TypeScript CLI (`dld`, npm package `dld-kit`) — see `docs/plan/v1.md`. Until the port completes, both exist.
+DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development. The deliverables are skill files (SKILL.md), a steering rule, documentation, and helper code the skills call. For 1.0 the bash helper scripts are being ported to a TypeScript CLI (`dld`, npm package `dld-kit`) — see `docs/plan/v1.md`. Until the skills switch to the CLI, both exist.
 
 ## Directory structure
 
@@ -11,18 +11,16 @@ package.json               # npm package dld-kit (bin: dld) — DL-002
 src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.ts colocated
   core/                    # library: config, records, index, annotations, audit, snapshot, state, reindex; no stdout, no process access (DL-007)
   cli/                     # `dld` dispatch and one module per command (DL-011)
+  generate/                # skill generator and per-harness adapters (DL-032)
   node-context.ts          # real fs/git Context passed into core (DL-008)
   bin.ts                   # entry point
-scripts/                   # Build (esbuild), package check, bats-against-CLI runner, coverage report; run with node
+scripts/                   # Build (esbuild), skill generation, package check, bats-against-CLI runner, coverage report
+templates/                 # canonical sources — edit these
+  skills/dld-*/            # SKILL.md template + scripts/ per skill (DL-031)
+  rules/dld-workflow.md    # always-on rule text (delivery decided in workstream 8)
+skills/                    # GENERATED: portable Agent Skills layout (agent-skills adapter)
+.claude/skills/            # GENERATED: Claude Code copy this repo runs (claude-code adapter)
 tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
-.tessl-plugin/
-  plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
-rules/
-  dld-workflow.md          # Tessl steering rule (always-on agent guidance)
-skills/                    # Tessl plugin skills (used by tessl install)
-  dld-*/                   # Each skill has SKILL.md + optional scripts/
-.claude/skills/            # Claude Code skills (used by manual copy install)
-  dld-*/                   # Mirror of skills/ — see "Dual directory" below
 docs/
   concept/                 # Design philosophy, FAQ, TL;DR
   framework/               # Decision record format, project configuration specs
@@ -33,37 +31,17 @@ decisions/                 # dld-kit's OWN decision log (dogfooding, not shipped
 dld.config.yaml            # DLD config for this repo itself
 ```
 
-## Dual directory layout
+## Skills are generated
 
-Skills exist in **two places** that must be kept in sync:
+Skill content lives only in `templates/skills/<skill>/` (DL-031). `npm run generate` renders it into `skills/` and `.claude/skills/` through the adapters in `src/generate/adapters.ts` (DL-032), and both outputs are committed. Never edit the generated copies; `npm run check:generated` fails when they differ from the templates (DL-033).
 
-- **`skills/`** — The Tessl plugin version. Referenced by `.tessl-plugin/plugin.json`. Uses relative script paths (`scripts/create-config.sh`). Has `compatibility` field instead of `user_invocable` in frontmatter. Validated by `tessl plugin lint`.
-- **`.claude/skills/`** — The Claude Code manual-install version. Uses `.claude/skills/dld-*/scripts/` paths. Has `user_invocable: true` in frontmatter.
-
-The content (instructions, logic, templates) must match between the two. The differences are only in:
-- Script path references (relative vs `.claude/skills/` prefixed)
-- Frontmatter fields (`compatibility` vs `user_invocable`)
-- The tessl version may have a note about steering rules replacing CLAUDE.md instructions
-
-When modifying a skill, update **both** copies.
-
-## Tessl packaging
-
-- `.tessl-plugin/plugin.json` defines the plugin `dld-kit/dld`
-- `rules/dld-workflow.md` is a steering rule (always loaded, ~300 tokens)
-- Validate with: `tessl plugin lint`
-- The `@decision` pattern in markdown must be backtick-escaped (`` `@decision` ``) or the linter interprets it as a file reference
+- In a template, reference supporting files as `{{script <skill>/<path>}}` (e.g. `{{script dld-common/scripts/next-id.sh}}`). Each adapter renders the path its harness needs. Other `{{...}}` text is left as written.
+- Template frontmatter holds `name` (matching the directory), `description`, optional `compatibility`, and `internal: true` for skills that only provide shared files (`dld-common`).
+- Generated SKILL.md files carry `metadata.dld-kit-version` and a notice pointing at their template.
 
 ## Shell scripts
 
-Scripts live in `skills/<skill>/scripts/` (tessl) and `.claude/skills/<skill>/scripts/` (Claude Code). Shared utilities are in `dld-common/scripts/`:
-
-- `common.sh` — config reading, path resolution
-- `next-id.sh` — sequential ID assignment
-- `regenerate-index.sh` — rebuilds INDEX.md
-- `update-status.sh` — updates decision status in frontmatter
-
-Scripts use `set -euo pipefail` and source `common.sh` via `BASH_SOURCE` path resolution.
+Scripts live in `templates/skills/<skill>/scripts/` and are copied into the generated outputs. Shared utilities are in `dld-common/scripts/` (`common.sh`, `next-id.sh`, `regenerate-index.sh`, `update-status.sh`). Scripts use `set -euo pipefail` and source `common.sh` via `BASH_SOURCE` path resolution. They are replaced by the `dld` CLI in workstream 7.
 
 ## Testing
 
@@ -77,6 +55,8 @@ npm run test:coverage  # unit tests with coverage; fails below 90% lines/functio
 npm run test:cli     # builds dist/dld.mjs, then runs tests/cli under node
 npm run test:bats    # bats suite for the shell scripts (until the port completes)
 npm run test:bats:cli  # the same bats suite, with ported scripts replaced by the CLI
+npm run generate     # regenerate skills/ and .claude/skills/ from templates/
+npm run check:generated  # fail if the generated skills are out of date
 npm test             # all test layers
 npm run check:pack   # npm pack dry-run against the files allowlist
 ```
@@ -89,7 +69,7 @@ bats is a git submodule at `tests/bats/`. If tests fail with "Could not find bat
 
 - Commit messages: concise, no buzzwords
 - Use PRs for changes (project is maturing)
-- Run `tessl plugin lint` before committing skill changes
+- Edit skills in `templates/`, then run `npm run generate`
 - Skills that involve user interaction should use the `AskUserQuestion` tool
 
 ## DLD (Decision-Linked Development)

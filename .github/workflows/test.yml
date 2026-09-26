@@ -1,4 +1,4 @@
-# @decision(DL-005) @decision(DL-013) @decision(DL-020)
+# @decision(DL-005) @decision(DL-013) @decision(DL-020) @decision(DL-033)
 name: Tests
 
 on:
@@ -30,6 +30,8 @@ jobs:
         run: npx biome ci .
       - name: Typecheck
         run: npm run typecheck
+      - name: Generated skills are up to date
+        run: npm run check:generated
       - name: Unit tests
         run: npm run test:unit
       - name: Build

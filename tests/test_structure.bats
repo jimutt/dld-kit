@@ -148,59 +148,6 @@ setup() {
   done
 }
 
-# --- plugin.json integrity ---
-
-@test "plugin.json exists and tile.json is gone" {
-  [[ -f "$REPO_ROOT/.tessl-plugin/plugin.json" ]] || {
-    echo "missing .tessl-plugin/plugin.json"
-    return 1
-  }
-  [[ ! -f "$REPO_ROOT/tile.json" ]] || {
-    echo "tile.json still present — plugin.json is authoritative, tile.json must be removed"
-    return 1
-  }
-}
-
-@test "plugin.json references all skill directories" {
-  for dir in "$REPO_ROOT"/skills/dld-*/; do
-    skill_name="$(basename "$dir")"
-    run grep "\"skills/$skill_name\"" "$REPO_ROOT/.tessl-plugin/plugin.json"
-    assert_success "plugin.json missing skill: $skill_name"
-  done
-}
-
-@test "plugin.json skill entries point to directories containing SKILL.md" {
-  # Read entries into an array first — a `while` loop on the right-hand side of a
-  # pipe runs in a subshell, where a failing return cannot fail the test.
-  mapfile -t paths < <(sed -n '/"skills"/,/]/p' "$REPO_ROOT/.tessl-plugin/plugin.json" \
-    | grep -o '"skills/[^"]*"' | tr -d '"')
-  [[ ${#paths[@]} -gt 0 ]] || {
-    echo "no skill entries parsed from plugin.json"
-    return 1
-  }
-  for path in "${paths[@]}"; do
-    [[ -f "$REPO_ROOT/$path/SKILL.md" ]] || {
-      echo "plugin.json references skill without SKILL.md: $path"
-      return 1
-    }
-  done
-}
-
-@test "plugin.json steering rule paths exist" {
-  mapfile -t rules < <(sed -n '/"rules"/,/]/p' "$REPO_ROOT/.tessl-plugin/plugin.json" \
-    | grep -o '"rules/[^"]*"' | tr -d '"')
-  [[ ${#rules[@]} -gt 0 ]] || {
-    echo "no rule entries parsed from plugin.json"
-    return 1
-  }
-  for path in "${rules[@]}"; do
-    [[ -f "$REPO_ROOT/$path" ]] || {
-      echo "plugin.json steering rule missing: $path"
-      return 1
-    }
-  done
-}
-
 # --- Shell script conventions ---
 
 @test "all shell scripts use strict mode (set -euo pipefail)" {
