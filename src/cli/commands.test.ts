@@ -191,6 +191,15 @@ describe("verify-annotations", () => {
     );
   });
 
+  test("does not count annotation examples in installed skills", () => {
+    project = tempProject();
+    for (const dir of [".agents", ".agent", ".codex", ".cursor", ".opencode", ".pi"]) {
+      project.write(`${dir}/skills/dld-implement/SKILL.md`, "// @decision(DL-001)\n");
+    }
+    expect(dld(project, "verify-annotations", "DL-001").code).toBe(1);
+    expect(dld(project, "find-annotations")).toEqual({ code: EXIT_OK, out: "", err: "" });
+  });
+
   test("needs at least one ID", () => {
     project = tempProject();
     expect(dld(project, "verify-annotations").code).toBe(EXIT_USAGE);

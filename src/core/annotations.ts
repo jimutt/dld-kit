@@ -2,11 +2,18 @@ import { join, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import type { Project } from "./project.ts";
 
-// @decision(DL-019)
+// @decision(DL-019) @decision(DL-060)
 /** Directories never scanned, wherever they appear in a path. */
 export const EXCLUDED_DIRS: ReadonlySet<string> = new Set([
   ".git",
+  // Agent configuration directories, which hold installed skills.
   ".claude",
+  ".agents",
+  ".agent",
+  ".codex",
+  ".cursor",
+  ".opencode",
+  ".pi",
   ".tessl",
   "node_modules",
   "vendor",
