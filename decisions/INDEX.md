@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-061 | Put a new rule block in AGENTS.md when a harness it is installed for reads only AGENTS.md | proposed | v1-release, rule, harnesses |
 | DL-060 | Skip the agent configuration directories that hold installed skills when scanning for annotations | proposed | v1-release, annotations, audit |
 | DL-059 | Move the pinned GitHub Actions to their Node 24 majors, still pinned by commit SHA | proposed | v1-release, ci, github-actions |
 | DL-058 | Ship workstream 10 as 1.0.0-rc.3 from v1; release 1.0.0 from main only after the release candidates run clean | proposed | v1-release, release |
