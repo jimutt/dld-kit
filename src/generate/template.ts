@@ -23,6 +23,7 @@ export interface SkillTemplate {
 /** Parses a SKILL.md template: single-line `key: value` frontmatter, then a Markdown body. */
 export function parseTemplate(text: string, skill: string, source: string): SkillTemplate {
   const fail = (line: number, message: string) => new DldError(`${source}:${line}: ${message}`);
+  if (text.includes("\r")) throw fail(1, "must use LF line endings, not CRLF");
   const lines = text.split("\n");
   if (lines[0] !== "---") throw fail(1, "must start with a --- frontmatter line");
   const end = lines.indexOf("---", 1);
@@ -30,7 +31,10 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
 
   const doc = parseDocument(lines.slice(1, end).join("\n"), { logLevel: "silent" });
   const problem = doc.errors[0];
-  if (problem !== undefined) throw fail(2, `frontmatter is not valid YAML: ${problem.message}`);
+  if (problem !== undefined) {
+    const line = 1 + (problem.linePos?.[0].line ?? 1);
+    throw fail(line, `frontmatter is not valid YAML: ${problem.message.split("\n", 1)[0]}`);
+  }
   const values: unknown = doc.toJS();
 
   const raw: SkillTemplate["lines"] = {};
@@ -59,7 +63,10 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
     throw fail(1, "frontmatter needs 'name' and 'description'");
   }
   const name = isRecord(values) ? values.name : undefined;
-  if (name !== skill) throw fail(2, `name '${String(name)}' must match the directory '${skill}'`);
+  if (name !== skill) {
+    const line = lines.findIndex((l, i) => i > 0 && i < end && l.startsWith("name:")) + 1;
+    throw fail(line, `name '${String(name)}' must match the directory '${skill}'`);
+  }
   return {
     skill,
     source,

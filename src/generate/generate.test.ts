@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { fakeContext, memoryFs } from "../test-helpers.ts";
+import { symlinkSync } from "node:fs";
+import { join } from "node:path";
+import { fakeContext, memoryFs, tempProject } from "../test-helpers.ts";
 import { agentSkillsAdapter, claudeCodeAdapter } from "./adapters.ts";
 import { diffOutput, type GeneratedFiles, generateSkills, writeOutput } from "./generate.ts";
 
@@ -65,6 +67,34 @@ describe("generateSkills", () => {
   });
 });
 
+describe("supporting files", () => {
+  test("rejects files that are not UTF-8 text", () => {
+    const ctx = templates();
+    ctx.fs.readBytes = (path) =>
+      path.endsWith("p.sh")
+        ? new Uint8Array([0xff, 0xfe])
+        : new TextEncoder().encode(ctx.fs.readFile(path));
+    expect(() => generateSkills(ctx, T, agentSkillsAdapter, "1.0")).toThrow(
+      "templates/skills/dld-plan/scripts/p.sh: not UTF-8 text",
+    );
+  });
+
+  test("rejects symlinks in templates", () => {
+    const p = tempProject(null);
+    try {
+      const dir = join(p.root, "t");
+      p.write("t/dld-x/SKILL.md", "---\nname: dld-x\ndescription: X.\n---\n");
+      p.write("t/dld-x/scripts/real.sh", "#!/bin/sh\n");
+      symlinkSync("real.sh", join(dir, "dld-x/scripts/link.sh"));
+      expect(() => generateSkills(p.ctx, dir, agentSkillsAdapter, "1.0")).toThrow(
+        "templates/skills/dld-x/scripts/link.sh: templates must be regular files",
+      );
+    } finally {
+      p.cleanup();
+    }
+  });
+});
+
 describe("diffOutput and writeOutput", () => {
   const files: GeneratedFiles = new Map([
     ["a/SKILL.md", { content: "skill\n", mode: 0o644 }],
@@ -76,20 +106,22 @@ describe("diffOutput and writeOutput", () => {
     const fs = memoryFs({
       "/out/a/SKILL.md": "edited\n",
       "/out/a/scripts/run.sh": "#!/bin/sh\n",
-      "/out/old/SKILL.md": "stale\n",
+      "/out/dld-old/SKILL.md": "stale\n",
+      "/out/my-skill/SKILL.md": "the project's own\n",
       "/out/.keep": "",
     });
     const ctx = fakeContext({ fs });
     expect(diffOutput(ctx, "/out", files)).toEqual({
       changed: ["a/SKILL.md", "a/scripts/run.sh"],
       missing: ["b/SKILL.md"],
-      extra: ["old/SKILL.md"],
+      extra: ["dld-old/SKILL.md"],
     });
     writeOutput(ctx, "/out", files);
     expect(diffOutput(ctx, "/out", files)).toEqual({ changed: [], missing: [], extra: [] });
     expect(fs.files["/out/a/SKILL.md"]).toBe("skill\n");
     expect(fs.fileMode("/out/a/scripts/run.sh")).toBe(0o755);
-    expect("/out/old/SKILL.md" in fs.files).toBe(false);
+    expect("/out/dld-old/SKILL.md" in fs.files).toBe(false);
+    expect(fs.files["/out/my-skill/SKILL.md"]).toBe("the project's own\n");
     expect("/out/.keep" in fs.files).toBe(true);
   });
 

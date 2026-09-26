@@ -21,12 +21,17 @@ describe("parseTemplate", () => {
   test.each([
     ["no frontmatter", "# X\n", ":1: must start with a --- frontmatter line"],
     ["unclosed frontmatter", "---\nname: dld-x\n", ":1: frontmatter has no closing --- line"],
-    ["invalid YAML", "---\nname: [x\n---\n", ":2: frontmatter is not valid YAML"],
+    [
+      "invalid YAML",
+      "---\nname: dld-x\ndescription: [x\n---\n",
+      ":3: frontmatter is not valid YAML",
+    ],
+    ["CRLF line endings", "---\r\nname: dld-x\r\n---\r\n", ":1: must use LF line endings"],
     ["unknown field", `${HEADER}user_invocable: true\n---\n`, ":4: unexpected frontmatter line"],
     ["nested value", `${HEADER}compatibility:\n  - bash\n---\n`, ":4: 'compatibility' must be"],
     ["non-boolean internal", `${HEADER}internal: yes please\n---\n`, ":4: 'internal' must be"],
     ["missing description", "---\nname: dld-x\n---\n", ":1: frontmatter needs 'name'"],
-    ["mismatched name", "---\nname: dld-y\ndescription: d\n---\n", ":2: name 'dld-y' must match"],
+    ["mismatched name", "---\ndescription: d\nname: dld-y\n---\n", ":3: name 'dld-y' must match"],
   ])("rejects %s", (_, text, message) => {
     expect(() => parse(text)).toThrow(`${SOURCE}${message}`);
   });

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type { Context } from "../core/context.ts";
+import { DldError } from "../core/errors.ts";
 import { writeFileAtomic } from "../core/files.ts";
 import type { Adapter } from "./adapters.ts";
 import { parseTemplate, renderBody, type SkillTemplate } from "./template.ts";
@@ -16,17 +17,41 @@ export type GeneratedFiles = Map<string, GeneratedFile>;
 const MANIFEST = "SKILL.md";
 const normalMode = (mode: number) => (mode & 0o111 ? 0o755 : 0o644);
 
-/** Regular files under `dir`, relative and `/`-separated; names starting with `.` are skipped. */
-function listFiles(ctx: Context, dir: string, prefix = ""): string[] {
+/**
+ * Files under `dir`, relative and `/`-separated; names starting with `.` are skipped. Anything
+ * that is neither a regular file nor a directory (a symlink) is passed to `other`.
+ */
+function listFiles(
+  ctx: Context,
+  dir: string,
+  other: (rel: string) => void = () => {},
+  prefix = "",
+): string[] {
   if (!ctx.fs.isDirectory(dir)) return [];
   const found: string[] = [];
   for (const entry of ctx.fs.readDir(dir).sort((a, b) => (a.name < b.name ? -1 : 1))) {
     if (entry.name.startsWith(".")) continue;
     const rel = `${prefix}${entry.name}`;
-    if (entry.isDirectory) found.push(...listFiles(ctx, join(dir, entry.name), `${rel}/`));
-    else found.push(rel);
+    if (entry.isDirectory) {
+      found.push(...listFiles(ctx, join(dir, entry.name), other, `${rel}/`));
+    } else {
+      if (!entry.isFile) other(rel);
+      found.push(rel);
+    }
   }
   return found;
+}
+
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+/** A supporting file's text; symlinks and files that are not UTF-8 are rejected. */
+function readSupportingFile(ctx: Context, path: string, source: string): string {
+  try {
+    return utf8.decode(ctx.fs.readBytes(path));
+  } catch (error) {
+    if (error instanceof TypeError) throw new DldError(`${source}: not UTF-8 text`);
+    throw error;
+  }
 }
 
 // @decision(DL-033)
@@ -64,7 +89,9 @@ export function generateSkills(
   const provided = new Set<string>();
   const support = new Map<string, string[]>();
   for (const skill of skills) {
-    const files = listFiles(ctx, join(templatesDir, skill)).filter((file) => file !== MANIFEST);
+    const files = listFiles(ctx, join(templatesDir, skill), (rel) => {
+      throw new DldError(`${sourceDir}/${skill}/${rel}: templates must be regular files`);
+    }).filter((file) => file !== MANIFEST);
     support.set(skill, files);
     for (const file of files) provided.add(`${skill}/${file}`);
   }
@@ -88,7 +115,7 @@ export function generateSkills(
     for (const file of support.get(skill) ?? []) {
       const full = join(templatesDir, skill, file);
       output.set(`${skill}/${file}`, {
-        content: ctx.fs.readFile(full),
+        content: readSupportingFile(ctx, full, `${sourceDir}/${skill}/${file}`),
         mode: normalMode(ctx.fs.fileMode(full)),
       });
     }
@@ -102,10 +129,23 @@ export interface OutputDiff {
   extra: string[];
 }
 
+/** Skill directories the generator owns in an output: those it generates, and any `dld-*`. */
+function ownedSkill(path: string, files: GeneratedFiles, generated: Set<string>): boolean {
+  const skill = path.split("/", 1)[0] ?? "";
+  return generated.has(skill) || skill.startsWith("dld-") || files.has(path);
+}
+
 // @decision(DL-033)
-/** How the files under `dir` differ from `files`, by content and executable bit. */
+/**
+ * How the files under `dir` differ from `files`, by content and executable bit. Only skill
+ * directories the generator owns are compared, so other skills in the same directory (e.g. a
+ * project's own `.claude/skills/`) are never reported or removed.
+ */
 export function diffOutput(ctx: Context, dir: string, files: GeneratedFiles): OutputDiff {
-  const existing = new Set(listFiles(ctx, dir));
+  const generated = new Set([...files.keys()].map((path) => path.split("/", 1)[0] ?? ""));
+  const existing = new Set(
+    listFiles(ctx, dir).filter((path) => ownedSkill(path, files, generated)),
+  );
   const diff: OutputDiff = { changed: [], missing: [], extra: [] };
   for (const [path, file] of files) {
     const full = join(dir, path);
@@ -122,7 +162,10 @@ export function diffOutput(ctx: Context, dir: string, files: GeneratedFiles): Ou
 }
 
 // @decision(DL-033)
-/** Makes `dir` hold exactly `files`: writes what differs and deletes everything else. */
+/**
+ * Makes the owned skill directories under `dir` hold exactly `files`: writes what differs and
+ * deletes the rest. Emptied directories are left in place.
+ */
 export function writeOutput(ctx: Context, dir: string, files: GeneratedFiles): OutputDiff {
   const diff = diffOutput(ctx, dir, files);
   for (const path of diff.extra) ctx.fs.remove(join(dir, path));
