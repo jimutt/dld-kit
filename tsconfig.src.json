@@ -1,0 +1,10 @@
+{
+  // @decision(DL-001)
+  // Shipped code only, with Node types and no Bun types: any use of Bun APIs fails to typecheck.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}
