@@ -1,4 +1,4 @@
-# @decision(DL-005)
+# @decision(DL-005) @decision(DL-013)
 name: Tests
 
 on:
@@ -56,11 +56,28 @@ jobs:
         run: npm run test:cli
 
   bats:
-    name: Shell scripts (bats)
+    name: bats (${{ matrix.target }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [scripts, cli]
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      - name: Run tests
-        run: tests/run.sh
+      - name: Run against the shell scripts
+        if: matrix.target == 'scripts'
+        run: npm run test:bats
+      - uses: actions/setup-node@v4
+        if: matrix.target == 'cli'
+        with:
+          node-version: 20
+      - uses: oven-sh/setup-bun@v2
+        if: matrix.target == 'cli'
+        with:
+          bun-version: 1.3.11
+      - if: matrix.target == 'cli'
+        run: bun install --frozen-lockfile
+      - name: Run against the dld CLI
+        if: matrix.target == 'cli'
+        run: npm run test:bats:cli

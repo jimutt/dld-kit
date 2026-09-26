@@ -11,7 +11,14 @@ await build({
   platform: "node",
   format: "esm",
   target: "node20",
-  banner: { js: "#!/usr/bin/env node" },
+  // Bundled CommonJS dependencies (yaml) call require() for Node built-ins.
+  banner: {
+    js: [
+      "#!/usr/bin/env node",
+      'import { createRequire as __dldCreateRequire } from "node:module";',
+      "const require = __dldCreateRequire(import.meta.url);",
+    ].join("\n"),
+  },
   legalComments: "none",
   logLevel: "warning",
 });
