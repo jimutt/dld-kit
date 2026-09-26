@@ -75,7 +75,7 @@ namespaces:
 
 `annotation_exclude` lists paths whose annotations are not treated as references to the project's decisions. Use it for documentation, examples and test fixtures that contain `` `@decision` `` annotations only to illustrate the syntax. `find-annotations` (used by `/dld-audit`) and `verify-annotations` (used by `/dld-implement`) both skip matching files.
 
-Each entry is a git glob pattern relative to the repository root, applied as a `:(exclude,glob)` pathspec. `*` matches within a single directory level, so `*.md` matches only top-level markdown files; `**` matches across directories, so `docs/**` covers everything under `docs/`. Files ignored by `.gitignore`, the decisions directory, and common build and dependency directories are always skipped.
+Each entry is a git glob pattern relative to the repository root, applied as a `:(exclude,glob)` pathspec. `*` matches within a single directory level, so `*.md` matches only top-level markdown files; `**` matches across directories, so `docs/**` covers everything under `docs/`. A pattern that matches a directory excludes everything beneath it, so `docs/*` also covers `docs/sub/…`. Patterns must be relative to the root; absolute paths and `..` are rejected. Files ignored by `.gitignore`, the decisions directory, and common build and dependency directories are always skipped.
 
 ### Implement Review
 

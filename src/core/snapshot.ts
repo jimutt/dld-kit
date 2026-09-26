@@ -1,6 +1,7 @@
-import { basename, join, relative, sep } from "node:path";
+import { basename, join, relative } from "node:path";
 import type { Context } from "./context.ts";
-import { DldError, GitCommandError } from "./errors.ts";
+import { DldError } from "./errors.ts";
+import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec, resolveStateCommit } from "./git.ts";
 import { formatId } from "./ids.ts";
 import type { Project } from "./project.ts";
 import {
@@ -76,49 +77,28 @@ export function detectSnapshotChanges(ctx: Context, project: Project): SnapshotC
     .filter((record) => record.number > includedNumber && record.accepted)
     .map((record) => formatId(record.number));
 
-  const git = (...args: string[]) => ctx.git(["-C", paths.root, ...args]);
-  let commit = stateString(state, "commit_hash");
+  const git = gitAt(ctx, paths.root);
+  let stored = stateString(state, "commit_hash");
   const lastRun = stateString(state, "last_run");
-  if ((commit === undefined || commit === "unknown") && lastRun !== undefined) {
-    commit = gitOrEmpty(git, "log", `--until=${lastRun}`, "--format=%h", "-1").trim() || undefined;
+  if ((stored === undefined || stored === "unknown") && lastRun !== undefined) {
+    stored = gitOrEmpty(git, "log", `--until=${lastRun}`, "--format=%h", "-1").trim() || undefined;
   }
+  const commit = resolveStateCommit(git, stored);
 
   let modifiedDecisions: string[] = [];
   let commitRange = "";
-  if (commit !== undefined && commit !== "unknown" && commitExists(git, commit)) {
-    if (commit !== shortHead(ctx, paths.root)) {
-      commitRange = `${commit}..HEAD`;
-      const records = relative(paths.root, paths.recordsDir).split(sep).join("/");
-      const numbers = gitOrEmpty(git, "diff", "--name-only", commitRange, "--", records)
-        .split("\n")
-        .map((path) => basename(path))
-        .filter((name) => RECORD_FILE.test(name))
-        .map((name) => recordNumber(name))
-        .filter((number) => number <= includedNumber);
-      modifiedDecisions = [...new Set(numbers)].sort((a, b) => a - b).map(formatId);
-    }
+  if (commit !== undefined && commit !== shortHead(ctx, paths.root)) {
+    commitRange = `${commit}..HEAD`;
+    const numbers = nulSeparated(
+      gitOrEmpty(git, "diff", "-z", "--name-only", commitRange, "--", recordsPathspec(paths)),
+    )
+      .map((path) => basename(path))
+      .filter((name) => RECORD_FILE.test(name))
+      .map((name) => recordNumber(name))
+      .filter((number) => number <= includedNumber);
+    modifiedDecisions = [...new Set(numbers)].sort((a, b) => a - b).map(formatId);
   }
   return { mode: "incremental", newDecisions, modifiedDecisions, commitRange };
-}
-
-/** Runs git, treating a failure as empty output (the scripts used `|| true`). */
-function gitOrEmpty(git: (...args: string[]) => string, ...args: string[]): string {
-  try {
-    return git(...args);
-  } catch (error) {
-    if (error instanceof GitCommandError) return "";
-    throw error;
-  }
-}
-
-function commitExists(git: (...args: string[]) => string, commit: string): boolean {
-  try {
-    git("cat-file", "-t", commit);
-    return true;
-  } catch (error) {
-    if (error instanceof GitCommandError) return false;
-    throw error;
-  }
 }
 
 /** The lines detect-snapshot-changes.sh printed. */
@@ -146,7 +126,8 @@ export function updateSnapshotState(
   const highest = readRecords(ctx, project)
     .filter((record) => record.accepted)
     .reduce((max, record) => Math.max(max, record.number), 0);
-  const artifacts: SectionValue = {};
+  // A null-prototype object, so an artifact named `__proto__` is stored like any other.
+  const artifacts: SectionValue = Object.create(null);
   for (const name of [...BUILT_IN_ARTIFACTS, ...customArtifacts]) artifacts[name] = timestamp;
   writeStateSection(ctx, paths, "snapshot", {
     last_run: timestamp,

@@ -87,6 +87,14 @@ snapshot_artifacts:
       "'annotation_exclude' must be a list",
     ],
     [
+      "decisions_dir: d\nmode: flat\nannotation_exclude: [../x]\n",
+      "must be relative to the repository root, got '../x'",
+    ],
+    [
+      "decisions_dir: d\nmode: flat\nannotation_exclude: [/tmp]\n",
+      "must be relative to the repository root, got '/tmp'",
+    ],
+    [
       "decisions_dir: d\nmode: flat\nsnapshot_artifacts: x\n",
       "'snapshot_artifacts' must be a list",
     ],

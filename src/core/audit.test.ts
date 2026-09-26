@@ -67,10 +67,20 @@ describe("findMissingAmends", () => {
     expect(pairs(project, true)).toEqual(["DL-001:DL-009", "DL-002:DL-007", "DL-003:DL-006"]);
   });
 
-  test("checks every record when the audit commit is unknown or unreachable", () => {
+  test("finds changed records under non-ASCII paths", () => {
+    project = tempProject("decisions_dir: beslut/décisions\nmode: flat\n");
+    project.write("beslut/décisions/records/DL-001.md", record("DL-001", "Mentions DL-009."));
+    project.git("add", ".");
+    project.git("commit", "-qm", "records");
+    updateAuditState(project.ctx, loadProject(project.ctx));
+    project.write("beslut/décisions/records/DL-001.md", record("DL-001", "Mentions DL-008."));
+    expect(pairs(project)).toEqual(["DL-001:DL-008"]);
+  });
+
+  test("checks every record when the audit commit is unknown, unreachable or not a hash", () => {
     project = tempProject();
     project.write("decisions/records/DL-001.md", record("DL-001", "Mentions DL-009."));
-    for (const hash of ["unknown", "deadbee"]) {
+    for (const hash of ["unknown", "deadbee", "--output=x", "HEAD"]) {
       project.write("decisions/.dld-state.yaml", `audit:\n  last_run: t\n  commit_hash: ${hash}\n`);
       expect(pairs(project)).toEqual(["DL-001:DL-009"]);
     }

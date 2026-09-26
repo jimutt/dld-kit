@@ -63,6 +63,7 @@ describe("state file", () => {
   test.each([
     ["invalid YAML", "audit: [\n", "not valid YAML"],
     ["a list", "- a\n", "expected a mapping"],
+    ["several documents", "---\naudit: {}\n---\nsnapshot: {}\n", "not valid YAML"],
   ])("rejects %s, naming the file", (_name, text, message) => {
     project = tempProject();
     project.write("decisions/.dld-state.yaml", text);

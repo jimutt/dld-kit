@@ -108,14 +108,30 @@ describe("detectSnapshotChanges", () => {
     expect(detect(project)).toMatchObject({ modifiedDecisions: [], commitRange: "" });
   });
 
-  test("treats an unknown or unreachable commit as no baseline", () => {
+  test("treats an unreachable or non-hash commit as no baseline", () => {
     project = tempProject();
     snapshotted(project);
-    project.write(
-      "decisions/.dld-state.yaml",
-      "snapshot:\n  commit_hash: deadbee\n  decisions_included: 2\n",
-    );
-    expect(detect(project)).toMatchObject({ mode: "incremental", commitRange: "" });
+    for (const hash of ["deadbee", "--textconv", "HEAD~0"]) {
+      project.write(
+        "decisions/.dld-state.yaml",
+        `snapshot:\n  commit_hash: "${hash}"\n  decisions_included: 2\n`,
+      );
+      expect(detect(project)).toMatchObject({ mode: "incremental", commitRange: "" });
+    }
+  });
+
+  test("detects modified records under non-ASCII paths", () => {
+    project = tempProject("decisions_dir: beslut/décisions\nmode: flat\n");
+    project.write("beslut/décisions/records/DL-001.md", recordText("DL-001"));
+    project.write("beslut/décisions/SNAPSHOT.md");
+    project.write("beslut/décisions/OVERVIEW.md");
+    project.git("add", ".");
+    project.git("commit", "-qm", "snapshot");
+    updateSnapshotState(project.ctx, loadProject(project.ctx), []);
+    project.write("beslut/décisions/records/DL-001.md", recordText("DL-001", "superseded"));
+    project.git("add", ".");
+    project.git("commit", "-qm", "change");
+    expect(detect(project)).toMatchObject({ modifiedDecisions: ["DL-001"] });
   });
 });
 
@@ -125,7 +141,10 @@ describe("updateSnapshotState", () => {
     writeRecord(project, "DL-001");
     writeRecord(project, "DL-003");
     writeRecord(project, "DL-004", "proposed");
-    const result = updateSnapshotState(project.ctx, loadProject(project.ctx), ["ONBOARDING.md"]);
+    const result = updateSnapshotState(project.ctx, loadProject(project.ctx), [
+      "ONBOARDING.md",
+      "__proto__",
+    ]);
     expect(result.highest).toBe(3);
     const head = project.git("rev-parse", "--short", "HEAD").trim();
     expect(readFileSync(join(project.root, "decisions/.dld-state.yaml"), "utf8")).toBe(
@@ -137,6 +156,7 @@ describe("updateSnapshotState", () => {
     SNAPSHOT.md: 2026-01-15T10:00:00Z
     OVERVIEW.md: 2026-01-15T10:00:00Z
     ONBOARDING.md: 2026-01-15T10:00:00Z
+    __proto__: 2026-01-15T10:00:00Z
 `,
     );
   });

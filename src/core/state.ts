@@ -21,7 +21,8 @@ function loadStateDocument(ctx: Context, paths: ProjectPaths): Document {
   const path = statePath(paths);
   if (!ctx.fs.exists(path)) return new Document(undefined, { schema: "failsafe" });
   const source = relative(paths.root, path);
-  const doc = parseDocument(ctx.fs.readFile(path), { schema: "failsafe", logLevel: "silent" });
+  // logLevel "error" records every error (including a second document) without printing.
+  const doc = parseDocument(ctx.fs.readFile(path), { schema: "failsafe", logLevel: "error" });
   const problem = doc.errors[0] ?? doc.warnings[0];
   if (problem !== undefined) throw new DldError(`${source}: not valid YAML: ${problem.message}`);
   if (doc.contents !== null && !isMap(doc.contents)) {

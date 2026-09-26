@@ -1,6 +1,6 @@
 import { basename, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
-import { GitCommandError } from "./errors.ts";
+import { gitAt, nulSeparated, recordsPathspec, resolveStateCommit } from "./git.ts";
 import type { Project } from "./project.ts";
 import {
   formatTimestamp,
@@ -26,21 +26,15 @@ const idNumber = (id: string) => Number.parseInt(id.slice(3), 10);
  * when every record should be checked.
  */
 function recordsChangedSinceAudit(ctx: Context, { paths }: Project): Set<string> | undefined {
-  const commit = stateString(readStateSection(ctx, paths, "audit"), "commit_hash");
-  if (commit === undefined || commit === "unknown") return undefined;
-  const git = (...args: string[]) => ctx.git(["-C", paths.root, ...args]);
-  try {
-    git("rev-parse", "--verify", "--quiet", `${commit}^{commit}`);
-  } catch (error) {
-    if (error instanceof GitCommandError) return undefined;
-    throw error;
-  }
-  const records = toPosix(relative(paths.root, paths.recordsDir));
-  const changed = [
-    ...git("diff", "--name-only", commit, "--", records).split("\n"),
-    ...git("ls-files", "--others", "--exclude-standard", "--", records).split("\n"),
-  ];
-  return new Set(changed.filter((path) => path !== ""));
+  const git = gitAt(ctx, paths.root);
+  const stored = stateString(readStateSection(ctx, paths, "audit"), "commit_hash");
+  const commit = resolveStateCommit(git, stored);
+  if (commit === undefined) return undefined;
+  const records = recordsPathspec(paths);
+  return new Set([
+    ...nulSeparated(git("diff", "-z", "--name-only", commit, "--", records)),
+    ...nulSeparated(git("ls-files", "-z", "--others", "--exclude-standard", "--", records)),
+  ]);
 }
 
 // @decision(DL-024)

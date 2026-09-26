@@ -55,7 +55,7 @@ export function parseConfig(text: string): Config {
     namespaces,
     annotationPrefix: optionalString(raw.annotation_prefix, "annotation_prefix") ?? "@decision",
     // @decision(DL-023)
-    annotationExclude: optionalStringList(raw.annotation_exclude, "annotation_exclude"),
+    annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
     implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
   };
@@ -98,6 +98,16 @@ function optionalStringList(value: unknown, key: string): string[] {
     }
     return item;
   });
+}
+
+/** Patterns must stay inside the repository; git rejects anything else at scan time. */
+function repoRelativePatterns(value: unknown, key: string): string[] {
+  const patterns = optionalStringList(value, key);
+  const outside = patterns.find((pattern) => /^([/\\]|[A-Za-z]:|\.\.([/\\]|$))/.test(pattern));
+  if (outside !== undefined) {
+    throw invalid(`'${key}' patterns must be relative to the repository root, got '${outside}'`);
+  }
+  return patterns;
 }
 
 function snapshotArtifacts(value: unknown): SnapshotArtifact[] {
