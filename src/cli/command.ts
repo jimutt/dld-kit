@@ -27,15 +27,38 @@ export class UsageError extends DldError {
   }
 }
 
-// @decision(DL-011)
-/** `parseArgs` (strict by default) with its errors turned into usage errors. */
+/** Thrown by `parseCommandArgs` when -h/--help was given; the CLI prints the command's usage. */
+export class HelpRequested extends Error {
+  constructor() {
+    super("help requested");
+    this.name = "HelpRequested";
+  }
+}
+
+// @decision(DL-011) @decision(DL-017)
+/**
+ * `parseArgs` (strict by default) for a command. Throws `HelpRequested` for -h/--help and
+ * turns parse errors into usage errors.
+ */
 export function parseCommandArgs<T extends ParseArgsConfig>(
   config: T,
 ): ReturnType<typeof parseArgs<T>> {
+  if (requestsHelp(config)) throw new HelpRequested();
   try {
     return parseArgs(config);
   } catch (error) {
     if (error instanceof TypeError && "code" in error) throw new UsageError(error.message);
     throw error;
   }
+}
+
+/** True if -h/--help appears as an option, rather than as an option's value or after `--`. */
+function requestsHelp(config: ParseArgsConfig): boolean {
+  const { tokens } = parseArgs({
+    ...config,
+    options: { ...config.options, help: { type: "boolean", short: "h" } },
+    strict: false,
+    tokens: true,
+  });
+  return tokens.some((token) => token.kind === "option" && token.name === "help");
 }

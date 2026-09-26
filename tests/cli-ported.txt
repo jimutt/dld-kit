@@ -2,3 +2,10 @@
 # script it replaces without `.sh`. `npm run test:bats:cli` runs the bats suite
 # with these scripts replaced by `node dist/dld.mjs <command>`.
 next-id
+create-config
+create-directories
+create-empty-index
+regenerate-index
+update-status
+create-decision
+verify-annotations

@@ -14,6 +14,13 @@ describe("node context", () => {
     expect(project.ctx.git(["rev-parse", "--is-inside-work-tree"]).trim()).toBe("true");
   });
 
+  test("git returns output larger than execFileSync's default 1 MB buffer", () => {
+    project = tempProject();
+    project.write("big.txt", "x".repeat(3 * 1024 * 1024));
+    project.git("add", "big.txt");
+    expect(project.ctx.git(["show", ":big.txt"]).length).toBe(3 * 1024 * 1024);
+  });
+
   test("git throws GitCommandError with stderr on a non-zero exit", () => {
     project = tempProject();
     const ctx = project.ctx;
@@ -38,5 +45,22 @@ describe("node context", () => {
     const ctx = project.ctx;
     expect(() => ctx.fs.readFile(`${project?.root}/d`)).toThrow(DldError);
     expect(() => ctx.fs.readDir(`${project?.root}/d/file.md`)).toThrow(/cannot read .*ENOTDIR/);
+  });
+});
+
+describe("node context writes", () => {
+  test("write, link, rename and remove operate on real files", () => {
+    project = tempProject();
+    const { fs } = project.ctx;
+    const dir = `${project.root}/a/b`;
+    fs.mkdir(dir);
+    fs.writeFile(`${dir}/one`, "1");
+    fs.link(`${dir}/one`, `${dir}/two`);
+    expect(() => fs.link(`${dir}/one`, `${dir}/two`)).toThrow(/cannot create .*two: EEXIST/);
+    fs.rename(`${dir}/two`, `${dir}/three`);
+    expect(fs.readFile(`${dir}/three`)).toBe("1");
+    fs.remove(`${dir}/three`);
+    fs.remove(`${dir}/three`);
+    expect(fs.exists(`${dir}/three`)).toBe(false);
   });
 });

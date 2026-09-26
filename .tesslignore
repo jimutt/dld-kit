@@ -15,3 +15,5 @@ tsconfig.src.json
 biome.jsonc
 decisions/
 dld.config.yaml
+bunfig.toml
+coverage/

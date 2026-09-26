@@ -9,11 +9,11 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 ```
 package.json               # npm package dld-kit (bin: dld) — DL-002
 src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.ts colocated
-  core/                    # library: config, paths, IDs; no stdout, no process access (DL-007)
+  core/                    # library: config, records, index, annotations; no stdout, no process access (DL-007)
   cli/                     # `dld` dispatch and one module per command (DL-011)
   node-context.ts          # real fs/git Context passed into core (DL-008)
   bin.ts                   # entry point
-scripts/                   # Build (esbuild), package check and bats-against-CLI runner, run with node
+scripts/                   # Build (esbuild), package check, bats-against-CLI runner, coverage report; run with node
 tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
 .tessl-plugin/
   plugin.json              # Tessl plugin manifest (packaging for multi-agent distribution)
@@ -73,6 +73,7 @@ Dependencies are installed with Bun from `bun.lock`: `bun install`. Bun is a dev
 npm run lint         # Biome (lint + format check); lint:fix to apply
 npm run typecheck    # tsc, including a Node-only pass over src/ that rejects Bun APIs
 npm run test:unit    # bun test, colocated src/**/*.test.ts
+npm run test:coverage  # unit tests with coverage; fails below 90% lines/functions per file (DL-020)
 npm run test:cli     # builds dist/dld.mjs, then runs tests/cli under node
 npm run test:bats    # bats suite for the shell scripts (until the port completes)
 npm run test:bats:cli  # the same bats suite, with ported scripts replaced by the CLI

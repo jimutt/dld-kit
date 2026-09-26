@@ -2,13 +2,13 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-020 | Report unit-test coverage on PRs with a self-hosted comment and a 90% floor | proposed | v1-port-common, ci, coverage, testing |
-| DL-019 | Scan for annotations with one core scanner over git's file list and a single exclusion list | proposed | v1-port-common, annotations, audit |
-| DL-018 | Render INDEX.md with a single renderer that matches regenerate-index.sh byte for byte | proposed | v1-port-common, index |
-| DL-017 | Handle -h/--help inside parseCommandArgs instead of scanning raw arguments | proposed | v1-port-common, cli, commands |
-| DL-016 | Give Context standard input and a clock | proposed | v1-port-common, context, testing |
-| DL-015 | Write files atomically through new Context operations, and create new files exclusively | proposed | v1-port-common, filesystem, context |
-| DL-014 | Parse decision records with yaml, edit their metadata line by line, and render new records from a fixed template | proposed | v1-port-common, records, frontmatter |
+| DL-020 | Report unit-test coverage on PRs with a self-hosted comment and a 90% floor | accepted | v1-port-common, ci, coverage, testing |
+| DL-019 | Scan for annotations with one core scanner over git's file list and a single exclusion list | accepted | v1-port-common, annotations, audit |
+| DL-018 | Render INDEX.md with a single renderer that matches regenerate-index.sh byte for byte | accepted | v1-port-common, index |
+| DL-017 | Handle -h/--help inside parseCommandArgs instead of scanning raw arguments | accepted | v1-port-common, cli, commands |
+| DL-016 | Give Context standard input and a clock | accepted | v1-port-common, context, testing |
+| DL-015 | Write files atomically through new Context operations, and create new files exclusively | accepted | v1-port-common, filesystem, context |
+| DL-014 | Parse decision records with yaml, edit their metadata line by line, and render new records from a fixed template | accepted | v1-port-common, records, frontmatter |
 | DL-013 | Run the bats suite against the CLI through a shim selected by DLD_BATS_TARGET | accepted | v1-core, testing, bats |
 | DL-012 | Report errors on stderr with exit 1, usage errors with exit 2, and tolerate closed pipes | accepted | v1-core, cli, errors |
 | DL-011 | Name CLI commands after the scripts they replace until the port is complete | accepted | v1-core, cli, commands |

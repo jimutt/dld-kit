@@ -11,6 +11,17 @@ export class DldError extends Error {
   }
 }
 
+/** A filesystem operation failed; `code` is the errno code, e.g. EEXIST or EACCES. */
+export class FsError extends DldError {
+  readonly code: string;
+
+  constructor(operation: string, path: string, code: string) {
+    super(`cannot ${operation} ${path}: ${code}`);
+    this.name = "FsError";
+    this.code = code;
+  }
+}
+
 /** A git command ran and exited non-zero. */
 export class GitCommandError extends DldError {
   readonly stderr: string;

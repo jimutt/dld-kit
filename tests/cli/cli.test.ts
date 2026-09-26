@@ -2,7 +2,7 @@
 // Runs the built bundle under node; build first with `npm run build`.
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { version } from "../../package.json";
@@ -17,7 +17,11 @@ function dld(...args: string[]) {
 }
 
 function dldIn(cwd: string, ...args: string[]) {
-  const result = spawnSync("node", [BIN, ...args], { cwd, encoding: "utf8" });
+  return dldWithInput(cwd, "", ...args);
+}
+
+function dldWithInput(cwd: string, input: string, ...args: string[]) {
+  const result = spawnSync("node", [BIN, ...args], { cwd, input, encoding: "utf8" });
   if (result.error) throw result.error;
   return result;
 }
@@ -54,6 +58,24 @@ describe("next-id (built, under node)", () => {
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
     expect(result.stdout).toBe("DL-010\n");
+  });
+
+  test("create-decision reads the body from standard input", () => {
+    const result = dldWithInput(
+      project,
+      "## Context\n\nPiped body\n",
+      "create-decision",
+      "--id",
+      "DL-010",
+      "--title",
+      "Piped",
+      "--body-stdin",
+    );
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    const path = join(project, "decisions/records/DL-010.md");
+    expect(result.stdout).toBe(`${path}\n`);
+    expect(readFileSync(path, "utf8")).toEndWith("---\n\n## Context\n\nPiped body\n");
   });
 
   test("fails without stdout when the config is missing", () => {

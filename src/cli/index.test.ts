@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { version } from "../../package.json";
 import { DldError } from "../core/errors.ts";
 import { captureIo, fakeContext, type TempProject, tempProject } from "../test-helpers.ts";
-import { type Command, EXIT_OK, EXIT_USAGE, UsageError } from "./command.ts";
+import { type Command, EXIT_OK, EXIT_USAGE, parseCommandArgs, UsageError } from "./command.ts";
 import { COMMANDS, run } from "./index.ts";
 
 const ctx = fakeContext();
@@ -55,13 +55,37 @@ describe("command dispatch", () => {
     return { code: run(["probe", ...argv], io, ctx, [command]), io };
   }
 
-  test("-h and --help anywhere before -- print the command's usage", () => {
-    for (const argv of [["-h"], ["x", "--help"]]) {
-      const { code, io } = withCommand(() => 99, argv);
+  const parsing: Command["run"] = (args) => {
+    parseCommandArgs({
+      args: [...args],
+      options: { title: { type: "string" } },
+      allowPositionals: true,
+    });
+    return 7;
+  };
+
+  test("-h and --help as options print the command's usage", () => {
+    for (const argv of [["-h"], ["x", "--help"], ["--title", "t", "-h"]]) {
+      const { code, io } = withCommand(parsing, argv);
       expect(code).toBe(EXIT_OK);
       expect(io.out).toBe("Usage: dld probe\n");
     }
-    expect(withCommand(() => 7, ["--", "--help"]).code).toBe(7);
+  });
+
+  test("--help after -- or as an option's value is not a help request", () => {
+    expect(withCommand(parsing, ["--", "--help"]).code).toBe(7);
+    expect(withCommand(parsing, ["--title=--help"]).code).toBe(7);
+    const { code, io } = withCommand(parsing, ["--title", "--help"]);
+    expect(code).toBe(EXIT_USAGE);
+    expect(io.err).toContain("dld probe: ");
+  });
+
+  test("every registered command answers --help", () => {
+    for (const command of COMMANDS) {
+      const io = captureIo();
+      expect(run([command.name, "--help"], io, ctx)).toBe(EXIT_OK);
+      expect(io.out).toBe(command.usage);
+    }
   });
 
   test("a DldError prints 'Error:' on stderr with its exit code", () => {
