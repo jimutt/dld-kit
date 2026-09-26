@@ -80,12 +80,22 @@ describe("command dispatch", () => {
     expect(io.err).toContain("dld probe: ");
   });
 
-  test("every registered command answers --help", () => {
+  test("every registered command answers --help", async () => {
     for (const command of COMMANDS) {
       const io = captureIo();
-      expect(run([command.name, "--help"], io, ctx)).toBe(EXIT_OK);
+      expect(await run([command.name, "--help"], io, ctx)).toBe(EXIT_OK);
       expect(io.out).toBe(command.usage);
     }
+  });
+
+  test("errors from an async command are reported like synchronous ones", async () => {
+    const { code, io } = withCommand(async () => {
+      throw new DldError("async broke", 3);
+    }, []);
+    expect(await code).toBe(3);
+    expect(io.err).toBe("Error: async broke\n");
+    const ok = withCommand(async () => EXIT_OK, []);
+    expect(await ok.code).toBe(EXIT_OK);
   });
 
   test("a DldError prints 'Error:' on stderr with its exit code", () => {

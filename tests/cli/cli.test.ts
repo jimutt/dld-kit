@@ -254,6 +254,46 @@ describe("reindex end to end (built, under node)", () => {
   });
 });
 
+// @decision(DL-040) @decision(DL-042)
+describe("init and update (built, under node)", () => {
+  const project = join(WORKDIR, "installed");
+  mkdirSync(project);
+  execFileSync("git", ["init", "--quiet"], { cwd: project, env: ENV });
+  writeFileSync(join(project, "CLAUDE.md"), "# Project\n");
+
+  test("init installs the running bundle, the skills and the rule", () => {
+    const result = dldIn(project, "init", "--agent", "pi", "--yes");
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("DLD is set up for: claude, pi.");
+    for (const dir of [".claude/skills", ".agents/skills"]) {
+      const cli = join(project, dir, "dld-common/scripts/dld.mjs");
+      expect(readFileSync(cli, "utf8")).toBe(readFileSync(BIN, "utf8"));
+    }
+    expect(readFileSync(join(project, "CLAUDE.md"), "utf8")).toContain("<!-- dld-kit:start -->");
+    expect(existsSync(join(project, ".claude/rules/dld-workflow.md"))).toBe(false);
+  });
+
+  test("the installed copy runs commands but cannot install skills", () => {
+    const installed = join(project, ".agents/skills/dld-common/scripts/dld.mjs");
+    const run = (...args: string[]) =>
+      spawnSync("node", [installed, ...args], { cwd: project, encoding: "utf8", env: ENV });
+    expect(run("next-id").stdout).toBe("DL-001\n");
+    const update = run("update");
+    expect(update.status).toBe(1);
+    expect(update.stderr).toContain("npx dld-kit@latest update");
+    expect(run("install-rule").stdout).toBe("The DLD rule is up to date.\n");
+  });
+
+  test("update reports every installed location as unchanged", () => {
+    const result = dldIn(project, "update");
+    expect(result.status).toBe(0);
+    expect(result.stdout).toMatch(
+      /^\.claude\/skills: 0 written, 0 removed, \d+ unchanged\n\.agents\/skills: 0 written/,
+    );
+  });
+});
+
 describe("output to a closed pipe", () => {
   test("exits quietly instead of crashing on EPIPE", async () => {
     const child = spawn("node", [BIN, "--help"], {

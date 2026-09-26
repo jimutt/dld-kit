@@ -17,9 +17,10 @@ src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.
 scripts/                   # Build (esbuild), skill generation, package check, coverage report
 templates/                 # canonical sources — edit these
   skills/dld-*/SKILL.md    # one template per skill (DL-031)
-  rules/dld-workflow.md    # always-on rule text (delivery decided in workstream 8)
+  rules/dld-workflow.md    # always-on rule text, installed by `dld install-rule` (DL-045)
 skills/                    # GENERATED: portable Agent Skills layout, incl. dld-common/scripts/dld.mjs (DL-035)
 .claude/skills/            # GENERATED: Claude Code copy this repo runs (claude-code adapter)
+.claude/rules/             # GENERATED: this repo's copy of the always-on rule (DL-047)
 tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
 docs/
   concept/                 # Design philosophy, FAQ, TL;DR
@@ -38,6 +39,7 @@ Skill content lives only in `templates/skills/<skill>/` (DL-031). `npm run gener
 
 - Skills run operations only through the bundled CLI (DL-035): write `{{dld}} <command> ...` (e.g. `{{dld}} next-id`), and put `{{dld-setup}}` once before the first command. Each adapter renders the invocation its harness needs (DL-036). Other `{{...}}` text is left as written; `{{script <skill>/<path>}}` references any other supporting file.
 - `npm run generate` builds `dist/dld.mjs` first and copies it to `dld-common/scripts/dld.mjs` in both outputs, so any change under `src/` needs a regenerate.
+- `npm run generate` also writes `.claude/rules/dld-workflow.md` from `templates/rules/dld-workflow.md`; edit the template, not the copy.
 - Template frontmatter holds `name` (matching the directory), `description`, optional `compatibility`, and `internal: true` for skills that only provide shared files (`dld-common`).
 - Generated SKILL.md files carry `metadata.dld-kit-version` and a notice pointing at their template.
 
@@ -68,20 +70,4 @@ Adding a command (DL-011): put its logic in `src/core/` with unit tests, add a m
 
 ## DLD (Decision-Linked Development)
 
-This project uses Decision-Linked Development. Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in `decisions/`.
-
-`decisions/` is dld-kit's own decision log — dogfooding, not example content shipped to users. Development practices live in `decisions/PRACTICES.md`.
-
-### Rules
-
-- When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
-- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
-- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (via `/dld-decide`) that explicitly supersedes the old one.
-- Use `/dld-decide` to record new decisions
-- Use `/dld-plan` to break down a feature into multiple grouped decisions
-- Use `/dld-implement` to implement proposed decisions
-- Use `/dld-lookup` to query decisions by ID, tag, or code path
-- Use `/dld-audit` to scan for drift between decisions and code
-- Use `/dld-snapshot` to regenerate SNAPSHOT.md and OVERVIEW.md from the decision log
-- Use `/dld-status` for a quick overview of the decision log state
-- Use `/dld-retrofit` to generate decisions from an existing codebase
+This project uses Decision-Linked Development; the always-on rule is in `.claude/rules/dld-workflow.md`, generated from `templates/rules/dld-workflow.md`. `decisions/` is dld-kit's own decision log — dogfooding, not example content shipped to users. Development practices live in `decisions/PRACTICES.md`.

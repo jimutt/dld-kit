@@ -69,6 +69,21 @@ describe("node context writes", () => {
   });
 });
 
+describe("removeDir", () => {
+  test("removes an empty directory and refuses a non-empty one", () => {
+    const p = tempProject(null);
+    project = p;
+    const { fs } = p.ctx;
+    p.write("full/file.txt", "x");
+    fs.mkdir(join(p.root, "empty"));
+    fs.removeDir(join(p.root, "empty"));
+    expect(fs.exists(join(p.root, "empty"))).toBe(false);
+    expect(() => fs.removeDir(join(p.root, "full"))).toThrow(DldError);
+    expect(fs.exists(join(p.root, "full/file.txt"))).toBe(true);
+    expect(fs.realPath(join(p.root, "full"))).toBe(join(p.root, "full"));
+  });
+});
+
 describe("nodeGh", () => {
   /** A directory holding a fake `gh` script, for use as PATH. */
   function fakeGhPath(script: string): { path: string; cleanup(): void } {

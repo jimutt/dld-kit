@@ -7248,7 +7248,7 @@ var require_public_api = __commonJS({
         return docs;
       return Object.assign([], { empty: true }, composer$1.streamInfo());
     }
-    function parseDocument4(source, options = {}) {
+    function parseDocument5(source, options = {}) {
       const { lineCounter: lineCounter2, prettyErrors } = parseOptions(options);
       const parser$1 = new parser.Parser(lineCounter2?.addNewLine);
       const composer$1 = new composer.Composer(options);
@@ -7274,7 +7274,7 @@ var require_public_api = __commonJS({
       } else if (options === void 0 && reviver && typeof reviver === "object") {
         options = reviver;
       }
-      const doc = parseDocument4(src, options);
+      const doc = parseDocument5(src, options);
       if (!doc)
         return null;
       doc.warnings.forEach((warning) => log.warn(doc.options.logLevel, warning));
@@ -7310,7 +7310,7 @@ var require_public_api = __commonJS({
     }
     exports.parse = parse;
     exports.parseAllDocuments = parseAllDocuments;
-    exports.parseDocument = parseDocument4;
+    exports.parseDocument = parseDocument5;
     exports.stringify = stringify;
   }
 });
@@ -7366,6 +7366,10 @@ var require_dist = __commonJS({
     exports.visitAsync = visit.visitAsync;
   }
 });
+
+// src/bin.ts
+import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 
 // package.json
 var version = "0.9.0";
@@ -8877,6 +8881,854 @@ Options:
   }
 };
 
+// src/cli/commands/init.ts
+import { join as join17, relative as relative8 } from "node:path";
+
+// src/generate/harnesses.ts
+import { join as join13 } from "node:path";
+
+// src/generate/template.ts
+var import_yaml4 = __toESM(require_dist(), 1);
+var TEMPLATE_FIELDS = ["name", "description", "compatibility", "internal"];
+function parseTemplate(text, skill, source) {
+  const fail = (line, message) => new DldError(`${source}:${line}: ${message}`);
+  if (text.includes("\r")) throw fail(1, "must use LF line endings, not CRLF");
+  const lines = text.split("\n");
+  if (lines[0] !== "---") throw fail(1, "must start with a --- frontmatter line");
+  const end = lines.indexOf("---", 1);
+  if (end === -1) throw fail(1, "frontmatter has no closing --- line");
+  const doc = (0, import_yaml4.parseDocument)(lines.slice(1, end).join("\n"), { logLevel: "silent" });
+  const problem = doc.errors[0];
+  if (problem !== void 0) {
+    const line = 1 + (problem.linePos?.[0].line ?? 1);
+    throw fail(line, `frontmatter is not valid YAML: ${problem.message.split("\n", 1)[0]}`);
+  }
+  const values = doc.toJS();
+  const raw = {};
+  let internal = false;
+  for (let i = 1; i < end; i++) {
+    const line = lines[i] ?? "";
+    const key = /^([a-z_]+):/.exec(line)?.[1];
+    if (key === void 0 || !isField(key)) {
+      throw fail(
+        i + 1,
+        `unexpected frontmatter line; allowed fields: ${TEMPLATE_FIELDS.join(", ")}`
+      );
+    }
+    const value = isRecord3(values) ? values[key] : void 0;
+    if (key === "internal") {
+      if (typeof value !== "boolean") throw fail(i + 1, "'internal' must be true or false");
+      internal = value;
+    } else {
+      if (typeof value !== "string" || value === "") {
+        throw fail(i + 1, `'${key}' must be a single-line string`);
+      }
+      raw[key] = line;
+    }
+  }
+  if (raw.name === void 0 || raw.description === void 0) {
+    throw fail(1, "frontmatter needs 'name' and 'description'");
+  }
+  const name = isRecord3(values) ? values.name : void 0;
+  if (name !== skill) {
+    const line = lines.findIndex((l, i) => i > 0 && i < end && l.startsWith("name:")) + 1;
+    throw fail(line, `name '${String(name)}' must match the directory '${skill}'`);
+  }
+  for (let i = end + 1; i < lines.length; i++) {
+    const rewritten = HARNESS_TEMPLATING.exec(lines[i] ?? "")?.[0];
+    if (rewritten !== void 0) {
+      throw fail(
+        i + 1,
+        `'${rewritten}' is rewritten by some harnesses' skill loaders; rephrase it`
+      );
+    }
+  }
+  return {
+    skill,
+    source,
+    lines: raw,
+    internal,
+    body: lines.slice(end + 1).join("\n"),
+    bodyLine: end + 2
+  };
+}
+var HARNESS_TEMPLATING = /\$ARGUMENTS|\$\d|!`/;
+var BUNDLED_CLI = { skill: "dld-common", path: "scripts/dld.mjs" };
+var PLACEHOLDER_START = /\{\{\s*(?:script|dld)/g;
+var SCRIPT = /\{\{script ([a-z0-9-]+)\/([A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\}\}/y;
+var DLD = /\{\{dld(-setup)?\}\}/y;
+function renderBody(template, renderers) {
+  const { body } = template;
+  let out = "";
+  let last = 0;
+  let usesDld = false;
+  for (const start of body.matchAll(PLACEHOLDER_START)) {
+    const at = start.index;
+    const line = template.bodyLine + (body.slice(0, at).match(/\n/g)?.length ?? 0);
+    const fail = (message) => new DldError(`${template.source}:${line}: ${message}`);
+    DLD.lastIndex = at;
+    const dld = DLD.exec(body);
+    if (dld !== null) {
+      if (!renderers.exists(BUNDLED_CLI)) {
+        throw fail(`{{dld}} needs the bundled CLI at ${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`);
+      }
+      usesDld = true;
+      out += body.slice(last, at) + (dld[1] === void 0 ? renderers.dld() : renderers.dldSetup());
+      last = at + dld[0].length;
+      continue;
+    }
+    SCRIPT.lastIndex = at;
+    const [text, skill, path] = SCRIPT.exec(body) ?? [];
+    if (text === void 0 || skill === void 0 || path === void 0) {
+      throw fail(
+        "malformed placeholder; expected {{script <skill>/<path>}}, {{dld}} or {{dld-setup}}"
+      );
+    }
+    if (path.split("/").some((segment) => segment === "." || segment === "..")) {
+      throw fail(`placeholder path '${skill}/${path}' must not contain '.' or '..'`);
+    }
+    const ref = { skill, path };
+    if (!renderers.exists(ref)) throw fail(`no template provides ${skill}/${path}`);
+    out += body.slice(last, at) + renderers.script(ref);
+    last = at + text.length;
+  }
+  return { body: out + body.slice(last), usesDld };
+}
+function isField(key) {
+  return TEMPLATE_FIELDS.some((field) => field === key);
+}
+function isRecord3(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// src/generate/adapters.ts
+var relativeRef = (fromSkill, { skill, path }) => skill === fromSkill ? path : `../${skill}/${path}`;
+var SETUP = "The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+.";
+var agentSkillsAdapter = {
+  id: "agent-skills",
+  outputDir: "skills",
+  fields: ["name", "description", "compatibility"],
+  extraFrontmatter: [],
+  dldFrontmatter: [],
+  scriptRef: relativeRef,
+  dld: (fromSkill) => `node "<skill-dir>/${relativeRef(fromSkill, BUNDLED_CLI)}"`,
+  dldSetup: (fromSkill) => `${SETUP} \`<skill-dir>\` stands for the absolute path of this skill's directory. If \`<skill-dir>/${relativeRef(fromSkill, BUNDLED_CLI)}\` does not exist, stop and tell the user to install the dld-common skill: \`npx skills add jimutt/dld-kit --skill dld-common\`.`,
+  internalManifest: true
+};
+var CLAUDE_CLI = `\${CLAUDE_SKILL_DIR}/../${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`;
+var claudeCodeAdapter = {
+  id: "claude-code",
+  outputDir: ".claude/skills",
+  fields: ["name", "description"],
+  extraFrontmatter: [],
+  dldFrontmatter: [`allowed-tools: Bash(node "${CLAUDE_CLI}" *)`],
+  scriptRef: (_fromSkill, { skill, path }) => `\${CLAUDE_SKILL_DIR}/../${skill}/${path}`,
+  dld: () => `node "${CLAUDE_CLI}"`,
+  dldSetup: () => `\`\${CLAUDE_SKILL_DIR}\` is the absolute path of this skill's directory. ${SETUP} If \`${CLAUDE_CLI}\` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.`,
+  internalManifest: false
+};
+
+// src/generate/harnesses.ts
+var CLAUDE_LAYOUT = {
+  id: "claude",
+  adapter: claudeCodeAdapter,
+  dir: ".claude/skills"
+};
+var AGENTS_LAYOUT = {
+  id: "agents",
+  adapter: agentSkillsAdapter,
+  dir: ".agents/skills"
+};
+var LAYOUTS = [CLAUDE_LAYOUT, AGENTS_LAYOUT];
+var HARNESSES = [
+  {
+    name: "claude",
+    title: "Claude Code",
+    layout: CLAUDE_LAYOUT,
+    rule: "claude-file",
+    markers: [".claude", "CLAUDE.md"]
+  },
+  {
+    name: "antigravity",
+    title: "Antigravity",
+    layout: AGENTS_LAYOUT,
+    rule: "agents-file",
+    markers: [".agents/rules", ".agent", "GEMINI.md"]
+  },
+  { name: "codex", title: "Codex", layout: AGENTS_LAYOUT, rule: "block", markers: [".codex"] },
+  { name: "cursor", title: "Cursor", layout: AGENTS_LAYOUT, rule: "block", markers: [".cursor"] },
+  {
+    name: "opencode",
+    title: "OpenCode",
+    layout: AGENTS_LAYOUT,
+    rule: "block",
+    markers: [".opencode", "opencode.json", "opencode.jsonc"]
+  },
+  { name: "pi", title: "Pi", layout: AGENTS_LAYOUT, rule: "block", markers: [".pi"] }
+];
+var GENERIC_MARKERS = ["AGENTS.md", ".agents/skills"];
+var HARNESS_NAMES = HARNESSES.map((harness) => harness.name);
+function findHarness(name) {
+  return HARNESSES.find((harness) => harness.name === name);
+}
+function detectHarnesses(ctx, root) {
+  const found = (marker) => ctx.fs.lexists(join13(root, marker));
+  const detected = [];
+  for (const harness of HARNESSES) {
+    const marker = harness.markers.find(found);
+    if (marker !== void 0) detected.push({ harness, marker });
+  }
+  const generic = GENERIC_MARKERS.find(found);
+  const agentsLayoutFound = detected.some(({ harness }) => harness.layout === AGENTS_LAYOUT);
+  const codex = findHarness("codex");
+  if (generic !== void 0 && !agentsLayoutFound && codex !== void 0) {
+    detected.push({ harness: codex, marker: generic });
+    detected.sort((a, b) => HARNESSES.indexOf(a.harness) - HARNESSES.indexOf(b.harness));
+  }
+  return detected;
+}
+function targetsFor(harnesses) {
+  return {
+    layouts: new Set(harnesses.map((harness) => harness.layout)),
+    rules: new Set(harnesses.map((harness) => harness.rule))
+  };
+}
+
+// src/generate/install.ts
+import { dirname as dirname4, join as join16 } from "node:path";
+
+// src/generate/generate.ts
+import { dirname as dirname2, join as join14 } from "node:path";
+var MANIFEST = "SKILL.md";
+var normalMode = (mode) => mode & 73 ? 493 : 420;
+function listFiles(ctx, dir, other = () => {
+}, prefix = "") {
+  if (!ctx.fs.isDirectory(dir)) return [];
+  const found = [];
+  for (const entry of ctx.fs.readDir(dir).sort((a, b) => a.name < b.name ? -1 : 1)) {
+    if (entry.name.startsWith(".")) continue;
+    const rel = `${prefix}${entry.name}`;
+    if (entry.isDirectory) {
+      found.push(...listFiles(ctx, join14(dir, entry.name), other, `${rel}/`));
+    } else {
+      if (!entry.isFile) other(rel);
+      found.push(rel);
+    }
+  }
+  return found;
+}
+var utf8 = new TextDecoder("utf-8", { fatal: true });
+function readSupportingFile(ctx, path, source) {
+  try {
+    return utf8.decode(ctx.fs.readBytes(path));
+  } catch (error) {
+    if (error instanceof TypeError) throw new DldError(`${source}: not UTF-8 text`);
+    throw error;
+  }
+}
+function manifest(template, adapter, { body, usesDld }, version2) {
+  const fields = adapter.fields.flatMap((field) => template.lines[field] ?? []);
+  return [
+    "---",
+    ...fields,
+    ...adapter.extraFrontmatter,
+    ...usesDld ? adapter.dldFrontmatter : [],
+    "metadata:",
+    `  dld-kit-version: "${version2}"`,
+    "---",
+    `<!-- Generated by dld-kit from ${template.source}. Do not edit: updating the skills overwrites this file. -->`,
+    body
+  ].join("\n");
+}
+function generateSkills(ctx, templatesDir, adapter, version2, { sourceDir = "templates/skills", extraFiles = /* @__PURE__ */ new Map() } = {}) {
+  const skills = ctx.fs.readDir(templatesDir).filter((entry) => entry.isDirectory && !entry.name.startsWith(".")).map((entry) => entry.name).sort();
+  const provided = /* @__PURE__ */ new Set();
+  const support = /* @__PURE__ */ new Map();
+  for (const skill of skills) {
+    const files = listFiles(ctx, join14(templatesDir, skill), (rel) => {
+      throw new DldError(`${sourceDir}/${skill}/${rel}: templates must be regular files`);
+    }).filter((file) => file !== MANIFEST);
+    support.set(skill, files);
+    for (const file of files) provided.add(`${skill}/${file}`);
+  }
+  for (const path of extraFiles.keys()) {
+    if (provided.has(path)) throw new DldError(`${sourceDir}/${path}: also generated; remove it`);
+    provided.add(path);
+  }
+  const output = /* @__PURE__ */ new Map();
+  for (const skill of skills) {
+    const path = join14(templatesDir, skill, MANIFEST);
+    const source = `${sourceDir}/${skill}/${MANIFEST}`;
+    const template = parseTemplate(ctx.fs.readFile(path), skill, source);
+    const rendered = renderBody(template, {
+      exists: (ref) => provided.has(`${ref.skill}/${ref.path}`),
+      script: (ref) => adapter.scriptRef(skill, ref),
+      dld: () => adapter.dld(skill),
+      dldSetup: () => adapter.dldSetup(skill)
+    });
+    if (!template.internal || adapter.internalManifest) {
+      output.set(`${skill}/${MANIFEST}`, {
+        content: manifest(template, adapter, rendered, version2),
+        mode: 420
+      });
+    }
+    for (const file of support.get(skill) ?? []) {
+      const full = join14(templatesDir, skill, file);
+      output.set(`${skill}/${file}`, {
+        content: readSupportingFile(ctx, full, `${sourceDir}/${skill}/${file}`),
+        mode: normalMode(ctx.fs.fileMode(full))
+      });
+    }
+  }
+  for (const [path, file] of extraFiles) output.set(path, { ...file, mode: normalMode(file.mode) });
+  return new Map([...output].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+}
+function ownedSkill(path, files, generated) {
+  const skill = path.split("/", 1)[0] ?? "";
+  return generated.has(skill) || skill.startsWith("dld-") || files.has(path);
+}
+function diffOutput(ctx, dir, files) {
+  const generated = new Set([...files.keys()].map((path) => path.split("/", 1)[0] ?? ""));
+  const existing = new Set(
+    listFiles(ctx, dir).filter((path) => ownedSkill(path, files, generated))
+  );
+  const diff = { changed: [], missing: [], extra: [] };
+  for (const [path, file] of files) {
+    const full = join14(dir, path);
+    if (!existing.has(path) || !ctx.fs.isRegularFile(full)) diff.missing.push(path);
+    else if (ctx.fs.readFile(full) !== file.content || normalMode(ctx.fs.fileMode(full)) !== file.mode) {
+      diff.changed.push(path);
+    }
+  }
+  diff.extra = [...existing].filter((path) => !files.has(path)).sort();
+  return diff;
+}
+function writeOutput(ctx, dir, files) {
+  const diff = diffOutput(ctx, dir, files);
+  for (const path of diff.extra) ctx.fs.remove(join14(dir, path));
+  for (const path of [...diff.missing, ...diff.changed]) {
+    const file = files.get(path);
+    if (file === void 0) continue;
+    const full = join14(dir, path);
+    ctx.fs.mkdir(join14(full, ".."));
+    if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
+    writeFileAtomic(ctx, full, file.content, file.mode);
+  }
+  removeEmptyParents(ctx, dir, diff.extra);
+  return diff;
+}
+function removeEmptyParents(ctx, dir, paths) {
+  const parents = /* @__PURE__ */ new Set();
+  for (const path of paths) {
+    for (let parent = dirname2(path); parent !== "."; parent = dirname2(parent)) parents.add(parent);
+  }
+  const deepestFirst = [...parents].sort((a, b) => b.split("/").length - a.split("/").length);
+  for (const parent of deepestFirst) {
+    const full = join14(dir, parent);
+    if (ctx.fs.isDirectory(full) && ctx.fs.readDir(full).length === 0) ctx.fs.removeDir(full);
+  }
+}
+
+// src/generate/rule.ts
+import { dirname as dirname3, join as join15 } from "node:path";
+
+// templates/rules/dld-workflow.md
+var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch (and open PRs) before rebasing\n";
+
+// src/generate/rule.ts
+var RULE_TEXT = dld_workflow_default;
+var RULE_SOURCE = "templates/rules/dld-workflow.md";
+var CLAUDE_RULE_FILE = ".claude/rules/dld-workflow.md";
+var AGENTS_RULE_FILE = ".agents/rules/dld-workflow.md";
+var BLOCK_START = "<!-- dld-kit:start -->";
+var BLOCK_END = "<!-- dld-kit:end -->";
+var AGENTS_MD = "AGENTS.md";
+var CLAUDE_MD = "CLAUDE.md";
+var RULE_FILES = {
+  "claude-file": CLAUDE_RULE_FILE,
+  "agents-file": AGENTS_RULE_FILE
+};
+function notice(version2, what) {
+  return `<!-- Generated by dld-kit ${version2} from ${RULE_SOURCE}. Do not edit: updating the rule overwrites this ${what}. -->`;
+}
+var STAMP = /<!-- Generated by dld-kit (\S+) from /;
+function ruleVersion(content) {
+  return STAMP.exec(content)?.[1];
+}
+function renderRuleFile(channel, text, version2) {
+  const frontmatter = channel === "agents-file" ? "---\ntrigger: always_on\n---\n" : "";
+  return `${frontmatter}${notice(version2, "file")}
+
+${text}`;
+}
+function renderBlock(text, version2) {
+  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
+  return [BLOCK_START, notice(version2, "block"), "", ...body.split("\n"), BLOCK_END];
+}
+function findBlock(content, file) {
+  const starts = [];
+  const ends = [];
+  let offset = 0;
+  for (const line of content.split("\n")) {
+    const text = line.endsWith("\r") ? line.slice(0, -1) : line;
+    if (text === BLOCK_START) starts.push(offset);
+    if (text === BLOCK_END) ends.push(offset);
+    offset += line.length + 1;
+  }
+  if (starts.length === 0 && ends.length === 0) return void 0;
+  const [from] = starts;
+  const [end] = ends;
+  if (starts.length !== 1 || ends.length !== 1 || from === void 0 || end === void 0) {
+    throw malformed(file);
+  }
+  if (end < from) throw malformed(file);
+  return { from, to: end + BLOCK_END.length };
+}
+function malformed(file) {
+  return new DldError(
+    `${file}: expected one '${BLOCK_START}' line followed by one '${BLOCK_END}' line; fix the dld-kit markers by hand`
+  );
+}
+function upsertBlock(content, block, file) {
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const rendered = block.join(eol);
+  const span = findBlock(content, file);
+  if (span !== void 0) return content.slice(0, span.from) + rendered + content.slice(span.to);
+  if (content === "") return rendered + eol;
+  const separator = content.endsWith("\n") ? eol : eol + eol;
+  return content + separator + rendered + eol;
+}
+function planRule(ctx, root, channels, version2, { codex = false } = {}, text = RULE_TEXT) {
+  const plan = { writes: [], removals: [], warnings: [] };
+  const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
+  const read = (file) => regular(file) ? ctx.fs.readFile(join15(root, file)) : "";
+  const resolved = (file) => {
+    const full = join15(root, file);
+    return ctx.fs.exists(full) ? ctx.fs.realPath(full) : full;
+  };
+  let blockFiles = [AGENTS_MD, CLAUDE_MD].filter(
+    (file) => regular(file) && findBlock(read(file), file) !== void 0
+  );
+  if (blockFiles.length === 0 && channels.has("block")) blockFiles = [blockPlacement(ctx, root)];
+  for (const file of blockFiles) {
+    const content = read(file);
+    const updated = upsertBlock(content, renderBlock(text, version2), file);
+    if (updated !== content) plan.writes.push({ path: file, content: updated });
+  }
+  const withBlock = new Set(blockFiles.map(resolved));
+  const loads = (file) => withBlock.has(resolved(file));
+  const claudeReads = ctx.fs.exists(join15(root, CLAUDE_MD)) ? CLAUDE_MD : AGENTS_MD;
+  const loadsBlock = {
+    "claude-file": loads(claudeReads),
+    "agents-file": loads(AGENTS_MD)
+  };
+  if (codex && blockFiles.length > 0 && !loads(AGENTS_MD)) {
+    plan.warnings.push(
+      "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. To cover Codex, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule. Pi and OpenCode read AGENTS.md instead of CLAUDE.md once it exists."
+    );
+  }
+  for (const channel of ["claude-file", "agents-file"]) {
+    const path = RULE_FILES[channel];
+    if (loadsBlock[channel]) {
+      if (ctx.fs.lexists(join15(root, path))) plan.removals.push(path);
+    } else if (channels.has(channel)) {
+      refuseSymlinkedDir(ctx, root, dirname3(path));
+      const content = renderRuleFile(channel, text, version2);
+      if (read(path) !== content) plan.writes.push({ path, content });
+    }
+  }
+  const ruleInstalled = blockFiles.length > 0 || channels.size > 0;
+  plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
+  return plan;
+}
+function blockPlacement(ctx, root) {
+  for (const file of [AGENTS_MD, CLAUDE_MD]) {
+    if (ctx.fs.isRegularFile(join15(root, file))) return file;
+  }
+  if (ctx.fs.lexists(join15(root, AGENTS_MD))) {
+    throw new DldError(
+      `${AGENTS_MD} is not a regular file (a symlink?); dld-kit does not edit through it. Point it at a regular file or add the dld-kit block by hand.`
+    );
+  }
+  return AGENTS_MD;
+}
+var LEGACY_HEADING = /^## DLD \(Decision-Linked Development\)\s*$/;
+function legacyBlockWarnings(claudeMd, ruleInstalled) {
+  const span = findBlock(claudeMd, CLAUDE_MD);
+  const outside = span === void 0 ? claudeMd : claudeMd.slice(0, span.from) + claudeMd.slice(span.to);
+  if (!outside.split(/\r?\n/).some((line) => LEGACY_HEADING.test(line))) return [];
+  const section = "CLAUDE.md has a '## DLD (Decision-Linked Development)' section from an older dld-init.";
+  return [
+    ruleInstalled ? `${section} dld-kit now installs the rule separately, so that section can be removed.` : `${section} Install the rule with dld install-rule --agent <name> before removing it.`
+  ];
+}
+function refuseSymlinkedDir(ctx, root, dir) {
+  let current = "";
+  for (const part of dir.split("/")) {
+    current = current === "" ? part : `${current}/${part}`;
+    const full = join15(root, current);
+    if (!ctx.fs.lexists(full)) return;
+    if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join15(ctx.fs.realPath(root), current)) {
+      throw new DldError(
+        `${current} is a symlink; dld-kit does not install through symlinks. Replace it with a directory (dld-kit keeps each agent's copy separate).`
+      );
+    }
+  }
+}
+function installedRuleChannels(ctx, root) {
+  const channels = /* @__PURE__ */ new Set();
+  for (const channel of ["claude-file", "agents-file"]) {
+    if (ctx.fs.lexists(join15(root, RULE_FILES[channel]))) channels.add(channel);
+  }
+  for (const file of [AGENTS_MD, CLAUDE_MD]) {
+    const path = join15(root, file);
+    if (ctx.fs.isRegularFile(path) && findBlock(ctx.fs.readFile(path), file) !== void 0) {
+      channels.add("block");
+    }
+  }
+  return channels;
+}
+function installedRuleStamps(ctx, root) {
+  const stamps = [];
+  const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
+  for (const file of [CLAUDE_RULE_FILE, AGENTS_RULE_FILE].filter(regular)) {
+    stamps.push({ path: file, version: ruleVersion(ctx.fs.readFile(join15(root, file))) });
+  }
+  for (const file of [AGENTS_MD, CLAUDE_MD].filter(regular)) {
+    const content = ctx.fs.readFile(join15(root, file));
+    const span = findBlock(content, file);
+    if (span !== void 0) {
+      stamps.push({ path: file, version: ruleVersion(content.slice(span.from, span.to)) });
+    }
+  }
+  return stamps;
+}
+function applyRulePlan(ctx, root, plan) {
+  for (const { path, content } of plan.writes) {
+    const full = join15(root, path);
+    ctx.fs.mkdir(dirname3(full));
+    if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
+    writeFileAtomic(ctx, full, content);
+  }
+  for (const path of plan.removals) {
+    const full = join15(root, path);
+    ctx.fs.remove(full);
+    if (ctx.fs.isDirectory(dirname3(full)) && ctx.fs.readDir(dirname3(full)).length === 0) {
+      ctx.fs.removeDir(dirname3(full));
+    }
+  }
+}
+
+// src/generate/install.ts
+function packageSource(ctx, cliPath2, command) {
+  const templatesDir = join16(dirname4(cliPath2), "..", "templates", "skills");
+  if (!ctx.fs.isDirectory(templatesDir)) {
+    throw new DldError(
+      `dld ${command} installs skills from the dld-kit npm package, but this copy of dld (${cliPath2}) has no templates beside it. Run it from the package instead: npx dld-kit@latest ${command}`
+    );
+  }
+  return { templatesDir, cli: ctx.fs.readFile(cliPath2) };
+}
+var isOwned = (name) => name.startsWith("dld-");
+function ownedSkills(ctx, root, layout) {
+  const dir = join16(root, layout.dir);
+  if (!ctx.fs.isDirectory(dir)) return [];
+  return ctx.fs.readDir(dir).filter((entry) => entry.isDirectory && isOwned(entry.name)).map((entry) => entry.name).sort();
+}
+function installedLayouts(ctx, root) {
+  return LAYOUTS.filter((layout) => ownedSkills(ctx, root, layout).length > 0);
+}
+function installedTargets(ctx, root) {
+  const layouts = new Set(installedLayouts(ctx, root));
+  const rules = installedRuleChannels(ctx, root);
+  if (layouts.has(CLAUDE_LAYOUT)) rules.add("claude-file");
+  return { layouts, rules };
+}
+function missingAgentsRuleWarning({ layouts, rules }) {
+  if (!layouts.has(AGENTS_LAYOUT) || rules.has("block") || rules.has("agents-file")) return [];
+  return [
+    `${AGENTS_LAYOUT.dir} has the DLD skills, but no agent reading it has the always-on rule. Run dld install-rule --agent <name> (antigravity, codex, cursor, opencode or pi).`
+  ];
+}
+var SKILL_STAMP = /^ {2}dld-kit-version: "?([^"\n]+)"?$/m;
+function installedStamps(ctx, root) {
+  const stamps = [];
+  for (const layout of LAYOUTS) {
+    for (const skill of ownedSkills(ctx, root, layout)) {
+      const path = `${layout.dir}/${skill}/SKILL.md`;
+      if (!ctx.fs.isRegularFile(join16(root, path))) continue;
+      stamps.push({ path, version: SKILL_STAMP.exec(ctx.fs.readFile(join16(root, path)))?.[1] });
+    }
+  }
+  return [...stamps, ...installedRuleStamps(ctx, root)];
+}
+var SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+function compareVersions(a, b) {
+  const pa = SEMVER.exec(a);
+  const pb = SEMVER.exec(b);
+  if (pa === null || pb === null) return void 0;
+  for (let i = 1; i <= 3; i++) {
+    const diff = Number(pa[i]) - Number(pb[i]);
+    if (diff !== 0) return Math.sign(diff);
+  }
+  const [preA, preB] = [pa[4], pb[4]];
+  if (preA === preB) return 0;
+  if (preA === void 0) return 1;
+  if (preB === void 0) return -1;
+  return comparePrerelease(preA.split("."), preB.split("."));
+}
+function comparePrerelease(a, b) {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const [x, y] = [a[i] ?? "", b[i] ?? ""];
+    if (x === y) continue;
+    const [nx, ny] = [/^\d+$/.test(x), /^\d+$/.test(y)];
+    if (nx && ny) return Math.sign(Number(x) - Number(y));
+    if (nx !== ny) return nx ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return Math.sign(a.length - b.length);
+}
+function checkDowngrade(stamps, version2) {
+  const newer = stamps.filter(
+    (stamp) => stamp.version !== void 0 && (compareVersions(stamp.version, version2) ?? 0) > 0
+  );
+  if (newer.length === 0) return;
+  const list = newer.map((stamp) => `  ${stamp.path} (${stamp.version})`).join("\n");
+  throw new DldError(
+    `these files were installed by a newer dld-kit than this one (${version2}):
+${list}
+Upgrade dld-kit, or pass --force to replace them with ${version2}.`
+  );
+}
+function planInstall(ctx, root, request) {
+  if (!request.force) checkDowngrade(installedStamps(ctx, root), request.version);
+  const skills = LAYOUTS.filter((layout) => request.layouts.has(layout)).map((layout) => {
+    const { source } = request;
+    if (source === void 0) throw new DldError("installing skills needs the skill templates");
+    refuseSymlinkedDir(ctx, root, layout.dir);
+    const cli = /* @__PURE__ */ new Map([
+      [`${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`, { content: source.cli, mode: 493 }]
+    ]);
+    const files = generateSkills(ctx, source.templatesDir, layout.adapter, request.version, {
+      extraFiles: cli
+    });
+    return { layout, files };
+  });
+  const rule = planRule(ctx, root, request.rules, request.version, { codex: request.codex });
+  return { skills, rule };
+}
+function applyInstall(ctx, root, plan) {
+  const skills = plan.skills.map(({ layout, files }) => {
+    const diff = writeOutput(ctx, join16(root, layout.dir), files);
+    const written = diff.changed.length + diff.missing.length;
+    return {
+      dir: layout.dir,
+      written,
+      removed: diff.extra.length,
+      unchanged: files.size - written
+    };
+  });
+  applyRulePlan(ctx, root, plan.rule);
+  return {
+    skills,
+    ruleWritten: plan.rule.writes.map((write) => write.path),
+    ruleRemoved: plan.rule.removals,
+    warnings: plan.rule.warnings
+  };
+}
+
+// src/cli/install.ts
+var AGENT_HELP = `Agents: ${HARNESS_NAMES.join(", ")}. --agent takes a comma-separated list and can be repeated.`;
+function parseAgents(values) {
+  const names = (values ?? []).flatMap((value) => value.split(",")).map((name) => name.trim());
+  const harnesses = /* @__PURE__ */ new Set();
+  for (const name of names) {
+    if (name === "") continue;
+    const harness = findHarness(name);
+    if (harness === void 0) {
+      throw new UsageError(`unknown agent '${name}'; expected one of: ${HARNESS_NAMES.join(", ")}`);
+    }
+    harnesses.add(harness);
+  }
+  return HARNESSES.filter((harness) => harnesses.has(harness));
+}
+async function selectHarnesses(io, detected, requested, yes) {
+  const selected = /* @__PURE__ */ new Set([...detected.map((d) => d.harness), ...requested]);
+  const ordered = () => HARNESSES.filter((harness) => selected.has(harness));
+  if (io.prompt === void 0 || yes) {
+    if (selected.size === 0) {
+      throw new UsageError(
+        `no agent detected in this project; name them with --agent (${HARNESS_NAMES.join(", ")})`
+      );
+    }
+    return ordered();
+  }
+  const found = new Map(detected.map((d) => [d.harness, d.marker]));
+  const width = Math.max(...HARNESS_NAMES.map((name) => name.length));
+  for (; ; ) {
+    const lines = HARNESSES.map((harness, i) => {
+      const box = selected.has(harness) ? "[x]" : "[ ]";
+      const marker = found.get(harness);
+      const note = marker === void 0 ? "" : ` (found ${marker})`;
+      return `  ${i + 1}. ${box} ${harness.name.padEnd(width)}  ${harness.title}${note}
+`;
+    });
+    io.stdout(`Install DLD for these agents:
+${lines.join("")}`);
+    const answer = (await io.prompt("Numbers to toggle, or Enter to continue: ")).trim();
+    if (answer === "") {
+      if (selected.size > 0) return ordered();
+      io.stdout("Select at least one agent.\n");
+      continue;
+    }
+    const picks = answer.split(/[\s,]+/).map((pick) => HARNESSES[Number(pick) - 1]);
+    if (picks.some((harness) => harness === void 0)) {
+      io.stdout(`Enter numbers from 1 to ${HARNESSES.length}.
+`);
+      continue;
+    }
+    for (const harness of picks) {
+      if (harness === void 0) continue;
+      if (selected.has(harness)) selected.delete(harness);
+      else selected.add(harness);
+    }
+  }
+}
+function cliPath(io) {
+  if (io.cliPath === void 0) throw new DldError("cannot locate the running dld file");
+  return io.cliPath;
+}
+function printReport(io, report2) {
+  for (const { dir, written, removed, unchanged } of report2.skills) {
+    io.stdout(`${dir}: ${written} written, ${removed} removed, ${unchanged} unchanged
+`);
+  }
+  for (const path of report2.ruleWritten) io.stdout(`Wrote the DLD rule to ${path}
+`);
+  for (const path of report2.ruleRemoved) io.stdout(`Removed ${path} (the rule is in the block)
+`);
+  for (const warning of report2.warnings) io.stderr(`Warning: ${warning}
+`);
+}
+
+// src/cli/commands/init.ts
+var initCommand = {
+  name: "init",
+  summary: "Set up DLD, its skills and the always-on rule in this repository",
+  usage: `Usage: dld init [--namespaces <a,b,...>] [--agent <names>] [--yes] [--force]
+
+Create dld.config.yaml, the decisions directory and INDEX.md, then install the DLD skills and
+the always-on rule for the agents used in this project.
+
+Agents are detected from the project; --agent adds more. On an interactive terminal, init asks
+you to confirm the selection unless --yes is given.
+
+Options:
+  --namespaces <a,b>  Organise decisions by these namespaces (default: one flat log)
+  --agent <names>     Agents to install for, besides the detected ones
+  --yes               Do not ask; use the detected agents and --agent
+  --force             Replace DLD skills installed by a newer dld-kit
+
+${AGENT_HELP}
+`,
+  async run(args, io, ctx) {
+    const { values } = parseCommandArgs({
+      args: [...args],
+      options: {
+        namespaces: { type: "string" },
+        agent: { type: "string", multiple: true },
+        yes: { type: "boolean" },
+        force: { type: "boolean" }
+      }
+    });
+    const requested = parseAgents(values.agent);
+    const namespaces = (values.namespaces ?? "").split(",").map((name) => name.trim()).filter((name) => name !== "");
+    if (values.namespaces !== void 0 && namespaces.length === 0) {
+      throw new UsageError("--namespaces needs at least one namespace");
+    }
+    const root = findProjectRoot(ctx);
+    if (ctx.fs.lexists(join17(root, CONFIG_FILE))) {
+      throw new DldError(
+        `DLD is already set up here (${CONFIG_FILE} exists). Run dld update to refresh the skills and rule, or dld update --agent <name> to add an agent.`
+      );
+    }
+    const source = packageSource(ctx, cliPath(io), "init");
+    const harnesses = await selectHarnesses(
+      io,
+      detectHarnesses(ctx, root),
+      requested,
+      values.yes === true
+    );
+    const targets = targetsFor(harnesses);
+    const plan = planInstall(ctx, root, {
+      source,
+      layouts: targets.layouts,
+      rules: targets.rules,
+      version,
+      force: values.force === true,
+      codex: harnesses.some((harness) => harness.name === "codex")
+    });
+    createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
+    const project = loadProject(ctx);
+    createDirectories(ctx, project);
+    writeIndex(ctx, project.paths, renderIndex([], project.config.mode));
+    const report2 = applyInstall(ctx, root, plan);
+    const index = relative8(root, indexPath(project.paths));
+    io.stdout(`Created ${CONFIG_FILE} and ${index}
+`);
+    printReport(io, report2);
+    io.stdout(
+      `
+DLD is set up for: ${harnesses.map((harness) => harness.name).join(", ")}. Commit these files so everyone gets the same skills and rule.
+Next, in your agent: the dld-retrofit skill records decisions from existing code, and dld-decide records a new one.
+`
+    );
+    return EXIT_OK;
+  }
+};
+
+// src/cli/commands/install-rule.ts
+var installRuleCommand = {
+  name: "install-rule",
+  summary: "Install the always-on DLD rule for the named agents",
+  usage: `Usage: dld install-rule --agent <names> [--force]
+
+Install the always-on DLD rule for the named agents, and refresh any rule already installed.
+Skills are not touched; use dld init or dld update for those.
+
+Options:
+  --agent <names>  Agents to install the rule for
+  --force          Replace a rule installed by a newer dld-kit
+
+${AGENT_HELP}
+`,
+  run(args, io, ctx) {
+    const { values } = parseCommandArgs({
+      args: [...args],
+      options: { agent: { type: "string", multiple: true }, force: { type: "boolean" } }
+    });
+    const requested = parseAgents(values.agent);
+    const root = findProjectRoot(ctx);
+    const rules = /* @__PURE__ */ new Set([...installedTargets(ctx, root).rules, ...targetsFor(requested).rules]);
+    if (rules.size === 0) {
+      throw new UsageError(`name the agents with --agent (${HARNESS_NAMES.join(", ")})`);
+    }
+    const plan = planInstall(ctx, root, {
+      layouts: /* @__PURE__ */ new Set(),
+      rules,
+      version,
+      force: values.force === true,
+      codex: requested.some((harness) => harness.name === "codex")
+    });
+    const report2 = applyInstall(ctx, root, plan);
+    printReport(io, report2);
+    if (report2.ruleWritten.length === 0 && report2.ruleRemoved.length === 0) {
+      io.stdout("The DLD rule is up to date.\n");
+    }
+    return EXIT_OK;
+  }
+};
+
 // src/cli/commands/list-taken-ids.ts
 var listTakenIdsCommand = {
   name: "list-taken-ids",
@@ -9016,6 +9868,57 @@ origin/main.
   }
 };
 
+// src/cli/commands/update.ts
+import { join as join18 } from "node:path";
+var updateCommand = {
+  name: "update",
+  summary: "Refresh the installed DLD skills and rule to this version",
+  usage: `Usage: dld update [--agent <names>] [--force]
+
+Rewrite the DLD skills and always-on rule already installed in this project with this version
+of dld-kit, and install them for any agents named with --agent. Decision records and
+dld.config.yaml are never changed.
+
+Options:
+  --agent <names>  Also install for these agents
+  --force          Replace files installed by a newer dld-kit
+
+${AGENT_HELP}
+`,
+  run(args, io, ctx) {
+    const { values } = parseCommandArgs({
+      args: [...args],
+      options: { agent: { type: "string", multiple: true }, force: { type: "boolean" } }
+    });
+    const requested = parseAgents(values.agent);
+    const root = findProjectRoot(ctx);
+    if (!ctx.fs.lexists(join18(root, CONFIG_FILE))) {
+      throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
+    }
+    const installed = installedTargets(ctx, root);
+    const added = targetsFor(requested);
+    const layouts = /* @__PURE__ */ new Set([...installed.layouts, ...added.layouts]);
+    const rules = /* @__PURE__ */ new Set([...installed.rules, ...added.rules]);
+    if (layouts.size === 0 && rules.size === 0) {
+      throw new UsageError(
+        `no DLD skills or rule are installed yet; name the agents with --agent (${HARNESS_NAMES.join(", ")})`
+      );
+    }
+    const plan = planInstall(ctx, root, {
+      source: layouts.size > 0 ? packageSource(ctx, cliPath(io), "update") : void 0,
+      layouts,
+      rules,
+      version,
+      force: values.force === true,
+      codex: requested.some((harness) => harness.name === "codex")
+    });
+    const report2 = applyInstall(ctx, root, plan);
+    report2.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));
+    printReport(io, report2);
+    return EXIT_OK;
+  }
+};
+
 // src/cli/commands/update-audit-state.ts
 var updateAuditStateCommand = {
   name: "update-audit-state",
@@ -9114,6 +10017,9 @@ var verifyAnnotationsCommand = {
 
 // src/cli/index.ts
 var COMMANDS = [
+  initCommand,
+  updateCommand,
+  installRuleCommand,
   createConfigCommand,
   createDirectoriesCommand,
   createEmptyIndexCommand,
@@ -9170,28 +10076,33 @@ ${usage(commands)}`);
     return EXIT_USAGE;
   }
   try {
-    return command.run(rest, io, ctx);
+    const result = command.run(rest, io, ctx);
+    if (typeof result === "number") return result;
+    return result.catch((error) => report(error, command, io));
   } catch (error) {
-    if (error instanceof HelpRequested) {
-      io.stdout(command.usage);
-      return EXIT_OK;
-    }
-    if (error instanceof UsageError) {
-      io.stderr(`dld ${command.name}: ${error.message}
+    return report(error, command, io);
+  }
+}
+function report(error, command, io) {
+  if (error instanceof HelpRequested) {
+    io.stdout(command.usage);
+    return EXIT_OK;
+  }
+  if (error instanceof UsageError) {
+    io.stderr(`dld ${command.name}: ${error.message}
 
 ${command.usage}`);
-      return error.exitCode;
-    }
-    if (error instanceof DldError) {
-      io.stderr(`Error: ${error.message}
+    return error.exitCode;
+  }
+  if (error instanceof DldError) {
+    io.stderr(`Error: ${error.message}
 `);
-      return error.exitCode;
-    }
-    io.stderr(`dld: unexpected error (this is a bug)
+    return error.exitCode;
+  }
+  io.stderr(`dld: unexpected error (this is a bug)
 ${describe2(error)}
 `);
-    return 1;
-  }
+  return 1;
 }
 function describe2(error) {
   return error instanceof Error ? error.stack ?? String(error) : String(error);
@@ -9207,7 +10118,9 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   writeFileSync
@@ -9234,7 +10147,9 @@ var nodeFileSystem = {
   mkdir: (path) => fsCall("create directory", path, () => void mkdirSync(path, { recursive: true })),
   rename: (from, to) => fsCall("rename", from, () => renameSync(from, to)),
   link: (existing, newPath) => fsCall("create", newPath, () => linkSync(existing, newPath)),
-  remove: (path) => fsCall("remove", path, () => rmSync(path, { force: true }))
+  remove: (path) => fsCall("remove", path, () => rmSync(path, { force: true })),
+  removeDir: (path) => fsCall("remove directory", path, () => rmdirSync(path)),
+  realPath: (path) => fsCall("resolve", path, () => realpathSync(path))
 };
 function fsCall(operation, path, run2) {
   try {
@@ -9316,11 +10231,28 @@ for (const stream of [process.stdout, process.stderr]) {
     throw error;
   });
 }
-process.exitCode = run(
+async function ask(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return await new Promise((resolve, reject) => {
+      const cancel = () => reject(new DldError("cancelled", 130));
+      rl.once("SIGINT", cancel);
+      rl.once("close", cancel);
+      rl.question(question).then(resolve, reject);
+    });
+  } finally {
+    rl.close();
+  }
+}
+var interactive = process.stdin.isTTY === true && process.stdout.isTTY === true;
+process.exitCode = await run(
   process.argv.slice(2),
   {
     stdout: (text) => process.stdout.write(text),
-    stderr: (text) => process.stderr.write(text)
+    stderr: (text) => process.stderr.write(text),
+    // @decision(DL-042)
+    cliPath: fileURLToPath(import.meta.url),
+    ...interactive ? { prompt: ask } : {}
   },
   createNodeContext(process.cwd(), process.env)
 );

@@ -1,7 +1,8 @@
 // Runs each ported command through the dispatcher against a temporary project.
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+import { version } from "../../package.json";
 import {
   branchedProject,
   captureIo,
@@ -309,5 +310,216 @@ describe("reindex commands", () => {
     const commitIo = captureIo();
     expect(run(["commit-reindex", "--base", "main"], commitIo, withStdin(p, plan))).toBe(EXIT_OK);
     expect(commitIo.out).toMatch(/^Created reindex commit [0-9a-f]+ on top of [0-9a-f]+\n$/);
+  });
+});
+
+/** A fake npm package: the running CLI in dist/, with the real templates beside it. */
+function fakePackage(p: TempProject): string {
+  const pkg = join(p.root, "..", `${basename(p.root)}-pkg`);
+  mkdirSync(join(pkg, "dist"), { recursive: true });
+  writeFileSync(join(pkg, "dist/dld.mjs"), "// dld\n");
+  cpSync(join(import.meta.dirname, "../../templates"), join(pkg, "templates"), {
+    recursive: true,
+  });
+  const cleanup = p.cleanup;
+  p.cleanup = () => {
+    cleanup();
+    rmSync(pkg, { recursive: true, force: true });
+  };
+  return join(pkg, "dist/dld.mjs");
+}
+
+async function dldInstall(p: TempProject, cli: string | undefined, ...argv: string[]) {
+  const io = Object.assign(captureIo(), { cliPath: cli });
+  const code = await run(argv, io, p.ctx);
+  return { code, out: io.out, err: io.err };
+}
+
+describe("init", () => {
+  test("sets up the log, the Claude Code skills and rule for a detected Claude project", async () => {
+    project = tempProject(null);
+    project.write("CLAUDE.md", "# Project\n");
+    const result = await dldInstall(project, fakePackage(project), "init");
+    expect(result.err).toBe("");
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.out).toStartWith(
+      "Created dld.config.yaml and decisions/INDEX.md\n.claude/skills: ",
+    );
+    expect(result.out).toContain("Wrote the DLD rule to .claude/rules/dld-workflow.md\n");
+    expect(result.out).toContain("DLD is set up for: claude.");
+    const read = (path: string) => readFileSync(join(project?.root ?? "", path), "utf8");
+    expect(read("dld.config.yaml")).toContain("mode: flat\n");
+    expect(read(".claude/skills/dld-common/scripts/dld.mjs")).toBe("// dld\n");
+    expect(read(".claude/skills/dld-audit/SKILL.md")).toContain(`dld-kit-version: "${version}"`);
+    expect(read(".claude/rules/dld-workflow.md")).toContain("the dld-lookup skill");
+    expect(read("CLAUDE.md")).toBe("# Project\n");
+    expect(existsSync(join(project.root, ".agents"))).toBe(false);
+  });
+
+  test("namespaced, for AGENTS.md readers named with --agent", async () => {
+    project = tempProject(null);
+    const cli = fakePackage(project);
+    const result = await dldInstall(
+      project,
+      cli,
+      "init",
+      "--namespaces",
+      "billing, auth",
+      "--agent",
+      "pi,opencode",
+    );
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.out).toContain("Wrote the DLD rule to AGENTS.md\n");
+    expect(existsSync(join(project.root, "decisions/records/auth/.gitkeep"))).toBe(true);
+    expect(existsSync(join(project.root, ".agents/skills/dld-common/SKILL.md"))).toBe(true);
+    expect(readFileSync(join(project.root, "AGENTS.md"), "utf8")).toStartWith(
+      "<!-- dld-kit:start -->\n",
+    );
+  });
+
+  test("refuses an initialised project, and needs an agent when none is detected", async () => {
+    project = tempProject();
+    const cli = fakePackage(project);
+    expect(await dldInstall(project, cli, "init", "--agent", "claude")).toMatchObject({
+      code: 1,
+      err: expect.stringContaining("DLD is already set up here (dld.config.yaml exists)"),
+    });
+    rmSync(join(project.root, "dld.config.yaml"));
+    const none = await dldInstall(project, cli, "init");
+    expect(none.code).toBe(EXIT_USAGE);
+    expect(none.err).toContain("no agent detected in this project; name them with --agent");
+    expect(existsSync(join(project.root, "dld.config.yaml"))).toBe(false);
+  });
+
+  test("validates its options before touching the project", async () => {
+    project = tempProject(null);
+    const cli = fakePackage(project);
+    expect((await dldInstall(project, cli, "init", "--namespaces", " , ")).err).toContain(
+      "--namespaces needs at least one namespace",
+    );
+    expect((await dldInstall(project, cli, "init", "--agent", "gemini")).err).toContain(
+      "unknown agent 'gemini'; expected one of: claude, antigravity, codex, cursor, opencode, pi",
+    );
+    const bundled = await dldInstall(project, join(project.root, "dld.mjs"), "init");
+    expect(bundled.err).toContain("npx dld-kit@latest init");
+    expect(existsSync(join(project.root, "dld.config.yaml"))).toBe(false);
+  });
+
+  test("asks which agents to install for on an interactive terminal", async () => {
+    project = tempProject(null);
+    project.write(".cursor/rules/x.mdc", "");
+    const answers = ["9", "4", "", "1, 3", ""];
+    const io = Object.assign(captureIo(), {
+      cliPath: fakePackage(project),
+      prompt: async () => answers.shift() ?? "",
+    });
+    expect(await run(["init"], io, project.ctx)).toBe(EXIT_OK);
+    expect(io.out).toContain("  4. [x] cursor       Cursor (found .cursor)\n");
+    expect(io.out).toContain("Enter numbers from 1 to 6.\n");
+    expect(io.out).toContain("Select at least one agent.\n");
+    expect(io.out).toContain("DLD is set up for: claude, codex.");
+    expect(answers).toEqual([]);
+  });
+});
+
+describe("update", () => {
+  async function initialised() {
+    const p = tempProject(null);
+    p.write("CLAUDE.md", "# Project\n");
+    const cli = fakePackage(p);
+    await dldInstall(p, cli, "init");
+    return { p, cli };
+  }
+
+  test("rewrites edited skills, prunes stale files and adds agents", async () => {
+    const { p, cli } = await initialised();
+    project = p;
+    p.write(".claude/skills/dld-audit/SKILL.md", "edited\n");
+    p.write(".claude/skills/dld-old/SKILL.md", "stale\n");
+    const result = await dldInstall(p, cli, "update", "--agent", "opencode");
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.out).toMatch(/^\.claude\/skills: 1 written, 1 removed, \d+ unchanged\n/);
+    expect(result.out).toContain(".agents/skills: ");
+    expect(result.out).toContain("Wrote the DLD rule to CLAUDE.md\n");
+    expect(result.out).toContain(
+      "Removed .claude/rules/dld-workflow.md (the rule is in the block)\n",
+    );
+    expect(existsSync(join(p.root, ".claude/skills/dld-old"))).toBe(false);
+    const again = await dldInstall(p, cli, "update");
+    expect(again.out).toMatch(/^\.claude\/skills: 0 written, 0 removed, \d+ unchanged\n/);
+  });
+
+  test("refuses to replace files from a newer dld-kit unless forced", async () => {
+    const { p, cli } = await initialised();
+    project = p;
+    const skill = join(p.root, ".claude/skills/dld-audit/SKILL.md");
+    writeFileSync(skill, readFileSync(skill, "utf8").replace(`"${version}"`, '"99.0.0"'));
+    const refused = await dldInstall(p, cli, "update");
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain(".claude/skills/dld-audit/SKILL.md (99.0.0)");
+    expect((await dldInstall(p, cli, "update", "--force")).code).toBe(EXIT_OK);
+    expect(readFileSync(skill, "utf8")).toContain(`"${version}"`);
+  });
+
+  test("migrates a pre-1.0 Claude Code copy: installs the rule it never had", async () => {
+    project = tempProject();
+    const cli = fakePackage(project);
+    project.write("CLAUDE.md", "# Project\n\n## DLD (Decision-Linked Development)\n\nOld rules\n");
+    project.write(".claude/skills/dld-audit/SKILL.md", "---\nname: dld-audit\n---\nold\n");
+    project.write(".claude/skills/dld-common/scripts/find-annotations.sh", "#!/bin/bash\n");
+    project.write(".agents/skills/dld-audit/SKILL.md", "---\nname: dld-audit\n---\nold\n");
+    const result = await dldInstall(project, cli, "update");
+    expect(result.code).toBe(EXIT_OK);
+    expect(result.out).toContain("Wrote the DLD rule to .claude/rules/dld-workflow.md\n");
+    expect(result.err).toContain("so that section can be removed");
+    expect(result.err).toContain(".agents/skills has the DLD skills, but no agent reading it");
+    expect(
+      existsSync(join(project.root, ".claude/skills/dld-common/scripts/find-annotations.sh")),
+    ).toBe(false);
+  });
+
+  test("init replaces newer skills only with --force", async () => {
+    project = tempProject(null);
+    const cli = fakePackage(project);
+    project.write(".claude/skills/dld-audit/SKILL.md", 'metadata:\n  dld-kit-version: "99.0.0"\n');
+    expect((await dldInstall(project, cli, "init", "--yes")).err).toContain("(99.0.0)");
+    expect(existsSync(join(project.root, "dld.config.yaml"))).toBe(false);
+    expect((await dldInstall(project, cli, "init", "--yes", "--force")).code).toBe(EXIT_OK);
+  });
+
+  test("needs an initialised project with something installed", async () => {
+    project = tempProject(null);
+    const cli = fakePackage(project);
+    expect((await dldInstall(project, cli, "update")).err).toContain(
+      "DLD is not set up here (dld.config.yaml not found). Run dld init first.",
+    );
+    project.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\n");
+    const nothing = await dldInstall(project, cli, "update");
+    expect(nothing.code).toBe(EXIT_USAGE);
+    expect(nothing.err).toContain("no DLD skills or rule are installed yet");
+  });
+});
+
+describe("install-rule", () => {
+  test("installs the rule without skills or templates, then reports it up to date", async () => {
+    project = tempProject();
+    const first = await dldInstall(project, undefined, "install-rule", "--agent", "antigravity");
+    expect(first.out).toBe("Wrote the DLD rule to .agents/rules/dld-workflow.md\n");
+    expect(readFileSync(join(project.root, ".agents/rules/dld-workflow.md"), "utf8")).toStartWith(
+      "---\ntrigger: always_on\n---\n",
+    );
+    expect((await dldInstall(project, undefined, "install-rule")).out).toBe(
+      "The DLD rule is up to date.\n",
+    );
+    expect(existsSync(join(project.root, ".agents/skills"))).toBe(false);
+  });
+
+  test("warns when Codex cannot see the block, and needs an agent when nothing is installed", async () => {
+    project = tempProject();
+    expect((await dldInstall(project, undefined, "install-rule")).code).toBe(EXIT_USAGE);
+    project.write("CLAUDE.md", "# C\n");
+    const result = await dldInstall(project, undefined, "install-rule", "--agent", "codex");
+    expect(result.out).toBe("Wrote the DLD rule to CLAUDE.md\n");
+    expect(result.err).toContain("Warning: The dld-kit rule block is in CLAUDE.md");
   });
 });

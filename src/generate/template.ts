@@ -67,6 +67,15 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
     const line = lines.findIndex((l, i) => i > 0 && i < end && l.startsWith("name:")) + 1;
     throw fail(line, `name '${String(name)}' must match the directory '${skill}'`);
   }
+  for (let i = end + 1; i < lines.length; i++) {
+    const rewritten = HARNESS_TEMPLATING.exec(lines[i] ?? "")?.[0];
+    if (rewritten !== undefined) {
+      throw fail(
+        i + 1,
+        `'${rewritten}' is rewritten by some harnesses' skill loaders; rephrase it`,
+      );
+    }
+  }
   return {
     skill,
     source,
@@ -76,6 +85,10 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
     bodyLine: end + 2,
   };
 }
+
+// @decision(DL-046)
+/** Text OpenCode's command templating replaces in a skill body: arguments and shell output. */
+const HARNESS_TEMPLATING = /\$ARGUMENTS|\$\d|!`/;
 
 /** A `{{script <skill>/<path>}}` reference. */
 export interface ScriptRef {

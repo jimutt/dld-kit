@@ -20,18 +20,24 @@ import { findAnnotationsCommand } from "./commands/find-annotations.ts";
 import { findCollisionsCommand } from "./commands/find-collisions.ts";
 import { findMissingAmendsCommand } from "./commands/find-missing-amends.ts";
 import { findStaleMentionsCommand } from "./commands/find-stale-mentions.ts";
+import { initCommand } from "./commands/init.ts";
+import { installRuleCommand } from "./commands/install-rule.ts";
 import { listTakenIdsCommand } from "./commands/list-taken-ids.ts";
 import { nextIdCommand } from "./commands/next-id.ts";
 import { planRenamesCommand } from "./commands/plan-renames.ts";
 import { regenerateIndexCommand } from "./commands/regenerate-index.ts";
 import { renameDecisionCommand } from "./commands/rename-decision.ts";
 import { resolveBaseCommand } from "./commands/resolve-base.ts";
+import { updateCommand } from "./commands/update.ts";
 import { updateAuditStateCommand } from "./commands/update-audit-state.ts";
 import { updateSnapshotStateCommand } from "./commands/update-snapshot-state.ts";
 import { updateStatusCommand } from "./commands/update-status.ts";
 import { verifyAnnotationsCommand } from "./commands/verify-annotations.ts";
 
 export const COMMANDS: readonly Command[] = [
+  initCommand,
+  updateCommand,
+  installRuleCommand,
   createConfigCommand,
   createDirectoriesCommand,
   createEmptyIndexCommand,
@@ -73,7 +79,7 @@ export function run(
   io: Io,
   ctx: Context,
   commands: readonly Command[] = COMMANDS,
-): number {
+): number | Promise<number> {
   const [first, ...rest] = argv;
   if (first === undefined) {
     io.stderr(usage(commands));
@@ -95,23 +101,30 @@ export function run(
   }
 
   try {
-    return command.run(rest, io, ctx);
+    const result = command.run(rest, io, ctx);
+    if (typeof result === "number") return result;
+    return result.catch((error: unknown) => report(error, command, io));
   } catch (error) {
-    if (error instanceof HelpRequested) {
-      io.stdout(command.usage);
-      return EXIT_OK;
-    }
-    if (error instanceof UsageError) {
-      io.stderr(`dld ${command.name}: ${error.message}\n\n${command.usage}`);
-      return error.exitCode;
-    }
-    if (error instanceof DldError) {
-      io.stderr(`Error: ${error.message}\n`);
-      return error.exitCode;
-    }
-    io.stderr(`dld: unexpected error (this is a bug)\n${describe(error)}\n`);
-    return 1;
+    return report(error, command, io);
   }
+}
+
+/** Prints a command's failure and returns its exit code (DL-012). */
+function report(error: unknown, command: Command, io: Io): number {
+  if (error instanceof HelpRequested) {
+    io.stdout(command.usage);
+    return EXIT_OK;
+  }
+  if (error instanceof UsageError) {
+    io.stderr(`dld ${command.name}: ${error.message}\n\n${command.usage}`);
+    return error.exitCode;
+  }
+  if (error instanceof DldError) {
+    io.stderr(`Error: ${error.message}\n`);
+    return error.exitCode;
+  }
+  io.stderr(`dld: unexpected error (this is a bug)\n${describe(error)}\n`);
+  return 1;
 }
 
 function describe(error: unknown): string {

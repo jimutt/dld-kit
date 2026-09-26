@@ -44,7 +44,7 @@ export const agentSkillsAdapter: Adapter = {
 
 const CLAUDE_CLI = `\${CLAUDE_SKILL_DIR}/../${BUNDLED_CLI.skill}/${BUNDLED_CLI.path}`;
 
-// @decision(DL-032) @decision(DL-036) @decision(DL-039)
+// @decision(DL-032) @decision(DL-036) @decision(DL-039) @decision(DL-046)
 /** Claude Code skills, written to `.claude/skills/` in a project. */
 export const claudeCodeAdapter: Adapter = {
   id: "claude-code",
@@ -55,7 +55,7 @@ export const claudeCodeAdapter: Adapter = {
   scriptRef: (_fromSkill, { skill, path }) => `\${CLAUDE_SKILL_DIR}/../${skill}/${path}`,
   dld: () => `node "${CLAUDE_CLI}"`,
   dldSetup: () =>
-    `${SETUP} If \`${CLAUDE_CLI}\` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.`,
+    `\`\${CLAUDE_SKILL_DIR}\` is the absolute path of this skill's directory. ${SETUP} If \`${CLAUDE_CLI}\` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.`,
   internalManifest: false,
 };
 

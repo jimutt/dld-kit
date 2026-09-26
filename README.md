@@ -23,7 +23,7 @@ Other agents can copy the portable skills from `skills/` into their skills direc
 
 The skills need Node.js 20+ and git. Copy `dld-common` along with the others: it contains the `dld` CLI the skills run.
 
-Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
+Then run `/dld-init` to set up the decision log and install the always-on rule, or [add the rule manually](#manual-rule-setup).
 
 ### New feature or change
 
@@ -287,24 +287,11 @@ See the [concept paper](docs/concept/dld-concept.md) for a detailed discussion o
 
 DLD is under active development. Feature requests and ideas are welcome — [open an issue](https://github.com/jimutt/dld-kit/issues).
 
-## Manual CLAUDE.md setup
+## Manual rule setup
 
-If you installed manually and prefer not to use `/dld-init`, add this to your project's `CLAUDE.md`:
+The always-on rule tells the agent to read a decision before changing code annotated with it. `/dld-init` installs it with `dld install-rule --agent <harness>`, which picks the file the harness loads: `.claude/rules/dld-workflow.md` for Claude Code, `.agents/rules/dld-workflow.md` for Antigravity, or a marked block in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi.
 
-```markdown
-## DLD (Decision-Linked Development)
-
-This project uses Decision-Linked Development. Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in `decisions/`.
-
-### Rules
-
-- When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
-- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
-- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (via `/dld-decide`) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.
-- Use `/dld-decide` to record new decisions
-- Use `/dld-implement` to implement proposed decisions
-- Use `/dld-lookup` to query decisions by ID, tag, or code path
-```
+To add it by hand instead, copy [`templates/rules/dld-workflow.md`](templates/rules/dld-workflow.md) into one of those files.
 
 ## License
 
