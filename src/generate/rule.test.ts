@@ -313,6 +313,51 @@ describe("installed rules", () => {
   });
 });
 
+describe("instruction files each harness reads (DL-054)", () => {
+  const planWith = (files: Record<string, string>, channels: RuleChannel[], names: string[]) =>
+    plan(files, channels, names).result;
+
+  test("neither file exists: the new AGENTS.md block covers Claude Code and OpenCode", () => {
+    const result = planWith({}, ["claude-file", "block"], ["claude", "opencode"]);
+    expect(result.writes.map((w) => w.path)).toEqual(["AGENTS.md"]);
+    expect(result.warnings).toEqual([
+      expect.stringContaining("Claude Code reads the DLD rule from the AGENTS.md block"),
+    ]);
+  });
+
+  test("the note appears only when the AGENTS.md block is written", () => {
+    const written = planWith({}, ["claude-file", "block"], ["claude", "opencode"]);
+    const agents = written.writes[0]?.content ?? "";
+    expect(
+      planWith({ "/p/AGENTS.md": agents }, ["claude-file", "block"], ["claude"]).warnings,
+    ).toEqual([]);
+    expect(planWith({}, ["claude-file", "block"], ["opencode"]).warnings).toEqual([]);
+  });
+
+  test("CLAUDE.local.md or .claude/CLAUDE.md stops Claude Code reading AGENTS.md", () => {
+    for (const file of ["/p/CLAUDE.local.md", "/p/.claude/CLAUDE.md"]) {
+      const result = planWith({ [file]: "# Local\n" }, ["claude-file", "block"], ["claude", "pi"]);
+      expect(result.writes.map((w) => w.path)).toEqual(["AGENTS.md", CLAUDE_RULE_FILE]);
+      expect(result.warnings).toEqual([]);
+      expect(
+        loadsRule(
+          fakeContext({ fs: memoryFs({ [file]: "", "/p/AGENTS.md": BLOCK.join("\n") }) }),
+          "/p",
+          harness("claude"),
+        ),
+      ).toBe(false);
+    }
+  });
+
+  test("the warning names the file a blind harness reads", () => {
+    const inClaude = upsertBlock("# C\n", BLOCK, "");
+    const files = { "/p/AGENTS.md": "# A\n", "/p/CLAUDE.md": inClaude };
+    expect(planWith(files, ["block"], ["opencode"]).warnings).toEqual([
+      "The dld-kit rule block is in CLAUDE.md, but OpenCode reads AGENTS.md. To cover it, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule.",
+    ]);
+  });
+});
+
 describe("loadsRule and sessionContext", () => {
   const loads = (name: string, files: Record<string, string>) =>
     loadsRule(fakeContext({ fs: memoryFs(files) }), "/p", harness(name));

@@ -47,7 +47,8 @@ export const HARNESSES: readonly Harness[] = [
     layout: CLAUDE_LAYOUT,
     rule: "claude-file",
     markers: [".claude", "CLAUDE.md"],
-    instructions: ["CLAUDE.md", "AGENTS.md"],
+    // @decision(DL-054) Any of the first three stops Claude Code from reading AGENTS.md.
+    instructions: ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"],
   },
   {
     name: "antigravity",

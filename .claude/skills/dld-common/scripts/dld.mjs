@@ -9048,7 +9048,8 @@ var HARNESSES = [
     layout: CLAUDE_LAYOUT,
     rule: "claude-file",
     markers: [".claude", "CLAUDE.md"],
-    instructions: ["CLAUDE.md", "AGENTS.md"]
+    // @decision(DL-054) Any of the first three stops Claude Code from reading AGENTS.md.
+    instructions: ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"]
   },
   {
     name: "antigravity",
@@ -9342,18 +9343,30 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   }
   const withBlock = new Set(blockFiles.map(resolved));
   const loads = (file) => withBlock.has(resolved(file));
-  const readsBlock = (harness) => loads(instructionFile(ctx, root, harness));
+  const planned = new Set(blockFiles);
+  const reads = (harness) => instructionFile(ctx, root, harness, planned);
+  const readsBlock = (harness) => {
+    const file = reads(harness);
+    return file !== void 0 && loads(file);
+  };
   const ownerOf = (channel) => HARNESSES.find((h) => h.rule === channel);
   const loadsBlock = (channel) => {
     const owner = ownerOf(channel);
     return owner !== void 0 && readsBlock(owner);
   };
-  const blind = harnesses.filter((h) => h.rule === "block" && !readsBlock(h));
-  if (blockFiles.length > 0 && blind.length > 0) {
-    const names = blind.map((h) => h.title).join(" and ");
+  if (blockFiles.length > 0) {
     plan.warnings.push(
-      `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${blind.length === 1 ? "reads" : "read"} ${AGENTS_MD}. To cover ${blind.length === 1 ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${AGENTS_MD}, then run dld install-rule.`
+      ...blindWarnings(
+        blockFiles,
+        harnesses.filter((h) => h.rule === "block" && !readsBlock(h)),
+        reads
+      )
     );
+    const claude = harnesses.find((h) => h.rule === "claude-file");
+    const blockWritten = plan.writes.some((write) => write.path === AGENTS_MD);
+    if (claude !== void 0 && reads(claude) === AGENTS_MD && readsBlock(claude) && blockWritten) {
+      plan.warnings.push(CLAUDE_READS_AGENTS_NOTE);
+    }
   }
   for (const channel of ["claude-file", "agents-file"]) {
     const path = RULE_FILES[channel];
@@ -9369,10 +9382,22 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
   return plan;
 }
-function instructionFile(ctx, root, harness) {
-  const { instructions } = harness;
-  return instructions.find((file) => ctx.fs.exists(join15(root, file))) ?? instructions.at(-1) ?? AGENTS_MD;
+function instructionFile(ctx, root, harness, planned = /* @__PURE__ */ new Set()) {
+  return harness.instructions.find((file) => planned.has(file) || ctx.fs.exists(join15(root, file)));
 }
+function blindWarnings(blockFiles, blind, reads) {
+  const byFile = /* @__PURE__ */ new Map();
+  for (const harness of blind) {
+    const file = reads(harness) ?? harness.instructions[0] ?? AGENTS_MD;
+    byFile.set(file, [...byFile.get(file) ?? [], harness]);
+  }
+  return [...byFile].map(([file, harnesses]) => {
+    const names = harnesses.map((h) => h.title).join(" and ");
+    const one = harnesses.length === 1;
+    return `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${one ? "reads" : "read"} ${file}. To cover ${one ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${file}, then run dld install-rule.`;
+  });
+}
+var CLAUDE_READS_AGENTS_NOTE = "Claude Code reads the DLD rule from the AGENTS.md block, because the project has no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md. Adding one of those later stops Claude Code from reading AGENTS.md; run dld update then, which installs .claude/rules/dld-workflow.md.";
 function blockPlacement(ctx, root) {
   for (const file of [AGENTS_MD, CLAUDE_MD]) {
     if (ctx.fs.isRegularFile(join15(root, file))) return file;
@@ -9399,7 +9424,7 @@ function loadsRule(ctx, root, harness) {
     return true;
   }
   const file = instructionFile(ctx, root, harness);
-  if (!ctx.fs.exists(join15(root, file))) return false;
+  if (file === void 0) return false;
   return ctx.fs.readFile(join15(root, file)).split(/\r?\n/).some((line) => line === BLOCK_START || LEGACY_HEADING.test(line));
 }
 function sessionContext(ctx, root, harness, text = RULE_TEXT) {

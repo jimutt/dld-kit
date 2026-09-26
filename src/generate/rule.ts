@@ -148,18 +148,31 @@ export function planRule(
 
   const withBlock = new Set(blockFiles.map(resolved));
   const loads = (file: string) => withBlock.has(resolved(file));
-  const readsBlock = (harness: Harness) => loads(instructionFile(ctx, root, harness));
+  // @decision(DL-054) A file about to receive the block counts as existing.
+  const planned = new Set(blockFiles);
+  const reads = (harness: Harness) => instructionFile(ctx, root, harness, planned);
+  const readsBlock = (harness: Harness) => {
+    const file = reads(harness);
+    return file !== undefined && loads(file);
+  };
   const ownerOf = (channel: RuleFileChannel) => HARNESSES.find((h) => h.rule === channel);
   const loadsBlock = (channel: RuleFileChannel) => {
     const owner = ownerOf(channel);
     return owner !== undefined && readsBlock(owner);
   };
-  const blind = harnesses.filter((h) => h.rule === "block" && !readsBlock(h));
-  if (blockFiles.length > 0 && blind.length > 0) {
-    const names = blind.map((h) => h.title).join(" and ");
+  if (blockFiles.length > 0) {
     plan.warnings.push(
-      `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${blind.length === 1 ? "reads" : "read"} ${AGENTS_MD}. To cover ${blind.length === 1 ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${AGENTS_MD}, then run dld install-rule.`,
+      ...blindWarnings(
+        blockFiles,
+        harnesses.filter((h) => h.rule === "block" && !readsBlock(h)),
+        reads,
+      ),
     );
+    const claude = harnesses.find((h) => h.rule === "claude-file");
+    const blockWritten = plan.writes.some((write) => write.path === AGENTS_MD);
+    if (claude !== undefined && reads(claude) === AGENTS_MD && readsBlock(claude) && blockWritten) {
+      plan.warnings.push(CLAUDE_READS_AGENTS_NOTE);
+    }
   }
   for (const channel of ["claude-file", "agents-file"] as const) {
     const path = RULE_FILES[channel];
@@ -176,14 +189,41 @@ export function planRule(
   return plan;
 }
 
-// @decision(DL-045) @decision(DL-049)
-/** The instruction file `harness` reads under `root`: the first of its list that exists, else the last. */
-function instructionFile(ctx: Context, root: string, harness: Harness): string {
-  const { instructions } = harness;
-  return (
-    instructions.find((file) => ctx.fs.exists(join(root, file))) ?? instructions.at(-1) ?? AGENTS_MD
-  );
+// @decision(DL-045) @decision(DL-049) @decision(DL-054)
+/**
+ * The instruction file `harness` reads under `root`: the first of its list that exists, or is
+ * in `planned`. Undefined when it reads none.
+ */
+function instructionFile(
+  ctx: Context,
+  root: string,
+  harness: Harness,
+  planned: ReadonlySet<string> = new Set(),
+): string | undefined {
+  return harness.instructions.find((file) => planned.has(file) || ctx.fs.exists(join(root, file)));
 }
+
+// @decision(DL-054)
+/** One warning per instruction file that block readers read instead of the block's file. */
+function blindWarnings(
+  blockFiles: readonly string[],
+  blind: readonly Harness[],
+  reads: (harness: Harness) => string | undefined,
+): string[] {
+  const byFile = new Map<string, Harness[]>();
+  for (const harness of blind) {
+    const file = reads(harness) ?? harness.instructions[0] ?? AGENTS_MD;
+    byFile.set(file, [...(byFile.get(file) ?? []), harness]);
+  }
+  return [...byFile].map(([file, harnesses]) => {
+    const names = harnesses.map((h) => h.title).join(" and ");
+    const one = harnesses.length === 1;
+    return `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${one ? "reads" : "read"} ${file}. To cover ${one ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${file}, then run dld install-rule.`;
+  });
+}
+
+const CLAUDE_READS_AGENTS_NOTE =
+  "Claude Code reads the DLD rule from the AGENTS.md block, because the project has no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md. Adding one of those later stops Claude Code from reading AGENTS.md; run dld update then, which installs .claude/rules/dld-workflow.md.";
 
 /** The instruction file a new block goes into. Only regular files are edited or created. */
 function blockPlacement(ctx: Context, root: string): string {
@@ -226,7 +266,7 @@ export function loadsRule(ctx: Context, root: string, harness: Harness): boolean
     return true;
   }
   const file = instructionFile(ctx, root, harness);
-  if (!ctx.fs.exists(join(root, file))) return false;
+  if (file === undefined) return false;
   return ctx.fs
     .readFile(join(root, file))
     .split(/\r?\n/)
