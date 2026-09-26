@@ -32,6 +32,7 @@ export interface Harness {
   rule: RuleChannel;
   /** Paths at the project root whose presence suggests the harness is in use. */
   markers: readonly string[];
+  // @decision(DL-049)
   /** Instruction files at the project root it reads; it loads the first that exists. */
   instructions: readonly string[];
 }

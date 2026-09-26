@@ -292,6 +292,19 @@ describe("init and update (built, under node)", () => {
       /^\.claude\/skills: 0 written, 0 removed, \d+ unchanged\n\.agents\/skills: 0 written/,
     );
   });
+
+  // @decision(DL-049)
+  test("session-context prints the rule until Claude Code loads it", () => {
+    const silent = dldIn(project, "session-context", "--agent", "claude");
+    expect(silent).toMatchObject({ status: 0, stdout: "", stderr: "" });
+    const fresh = join(WORKDIR, "hook");
+    mkdirSync(fresh);
+    execFileSync("git", ["init", "--quiet"], { cwd: fresh, env: ENV });
+    writeFileSync(join(fresh, "dld.config.yaml"), "decisions_dir: decisions\nmode: flat\n");
+    const result = dldIn(fresh, "session-context", "--agent", "claude");
+    expect(result).toMatchObject({ status: 0, stderr: "" });
+    expect(result.stdout).toStartWith("# DLD (Decision-Linked Development)\n");
+  });
 });
 
 describe("output to a closed pipe", () => {
