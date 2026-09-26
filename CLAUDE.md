@@ -40,10 +40,10 @@ dld.config.yaml            # DLD config for this repo itself
 ## Skills are generated
 
 <!-- @decision(DL-038) -->
-Skill content lives only in `templates/skills/<skill>/` (DL-031). `npm run generate` renders it into `skills/` and `.claude/skills/` through the adapters in `src/generate/adapters.ts` (DL-032), and both outputs are committed. Never edit the generated copies; `npm run check:generated` fails when they differ from the templates (DL-033).
+Skill content lives only in `templates/skills/<skill>/` (DL-031). `npm run generate` renders it into `skills/`, `.claude/skills/` and `claude-plugin/skills/` through the adapters in `src/generate/adapters.ts` (DL-032), and every output is committed. Never edit the generated copies; `npm run check:generated` fails when they differ from the templates (DL-033).
 
 - Skills run operations only through the bundled CLI (DL-035): write `{{dld}} <command> ...` (e.g. `{{dld}} next-id`), and put `{{dld-setup}}` once before the first command. Each adapter renders the invocation its harness needs (DL-036). Other `{{...}}` text is left as written; `{{script <skill>/<path>}}` references any other supporting file.
-- `npm run generate` builds `dist/dld.mjs` first and copies it to `dld-common/scripts/dld.mjs` in both outputs, so any change under `src/` needs a regenerate.
+- `npm run generate` builds `dist/dld.mjs` first and copies it to `dld-common/scripts/dld.mjs` in every output, so any change under `src/` needs a regenerate.
 - `npm run generate` also writes `.claude/rules/dld-workflow.md` from `templates/rules/dld-workflow.md`; edit the template, not the copy.
 - It also writes `claude-plugin/` (with the claude-code adapter) and the plugin and marketplace manifests, whose version and metadata come from `package.json` (DL-048, DL-050, DL-052). `.gitattributes` marks every generated path `linguist-generated`.
 - Template frontmatter holds `name` (matching the directory), `description`, optional `compatibility`, and `internal: true` for skills that only provide shared files (`dld-common`).
@@ -59,7 +59,7 @@ npm run typecheck    # tsc, including a Node-only pass over src/ that rejects Bu
 npm run test:unit    # bun test, colocated src/**/*.test.ts
 npm run test:coverage  # unit tests with coverage; fails below 90% lines/functions per file (DL-020)
 npm run test:cli     # builds dist/dld.mjs, then runs tests/cli under node
-npm run generate     # regenerate skills/ and .claude/skills/ from templates/
+npm run generate     # regenerate the skills, claude-plugin/ and the manifests
 npm run check:generated  # fail if the generated skills are out of date
 npm test             # all test layers
 npm run check:pack   # npm pack dry-run against the files allowlist

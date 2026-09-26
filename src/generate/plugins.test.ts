@@ -7,6 +7,7 @@ import {
   renderPluginFiles,
   repositoryUrl,
   SESSION_START_COMMAND,
+  SESSION_START_MATCHER,
 } from "./plugins.ts";
 
 const META: PackageMeta = {
@@ -77,7 +78,10 @@ describe("renderPluginFiles", () => {
   test("runs session-context from the plugin's SessionStart hook", () => {
     const { hooks } = parse(`${CLAUDE_PLUGIN_DIR}/hooks/hooks.json`);
     expect(hooks.SessionStart).toEqual([
-      { hooks: [{ type: "command", command: SESSION_START_COMMAND }] },
+      {
+        matcher: SESSION_START_MATCHER,
+        hooks: [{ type: "command", command: SESSION_START_COMMAND }],
+      },
     ]);
     expect(SESSION_START_COMMAND).toContain(
       `\${CLAUDE_PLUGIN_ROOT}/skills/dld-common/scripts/dld.mjs`,

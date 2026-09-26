@@ -3,10 +3,11 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/dld-common/scripts/dld.mjs\" session-context --agent claude"
+            "command": "command -v node >/dev/null 2>&1 || exit 0; node \"${CLAUDE_PLUGIN_ROOT}/skills/dld-common/scripts/dld.mjs\" session-context --agent claude"
           }
         ]
       }

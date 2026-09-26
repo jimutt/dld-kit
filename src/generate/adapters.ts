@@ -58,5 +58,3 @@ export const claudeCodeAdapter: Adapter = {
     `\`\${CLAUDE_SKILL_DIR}\` is the absolute path of this skill's directory. ${SETUP} If \`${CLAUDE_CLI}\` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.`,
   internalManifest: false,
 };
-
-export const ADAPTERS: readonly Adapter[] = [agentSkillsAdapter, claudeCodeAdapter];

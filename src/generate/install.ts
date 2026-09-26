@@ -5,6 +5,7 @@ import { type GeneratedFiles, generateSkills, writeOutput } from "./generate.ts"
 import {
   AGENTS_LAYOUT,
   CLAUDE_LAYOUT,
+  type Harness,
   LAYOUTS,
   type RuleChannel,
   type SkillLayout,
@@ -68,7 +69,7 @@ function refuseSymlinkedSkills(ctx: Context, root: string, layout: SkillLayout):
     .sort();
   if (linked.length === 0) return;
   throw new DldError(
-    `${linked.join(", ")} ${linked.length === 1 ? "is a symlink" : "are symlinks"}, so another installer, such as npx skills, manages these skills. Update them with npx skills update, or remove them and run this command again.`,
+    `${linked.join(", ")} ${linked.length === 1 ? "is a symlink" : "are symlinks"}, so another installer, such as npx skills, manages these skills. Update them with npx skills update, or remove them and run this command again. To set up DLD without touching them, run the dld-init skill or dld install-rule.`,
   );
 }
 
@@ -193,8 +194,8 @@ export interface InstallRequest {
   rules: ReadonlySet<RuleChannel>;
   version: string;
   force?: boolean;
-  /** Codex is among the selected harnesses (DL-045 warns when it cannot see the block). */
-  codex?: boolean;
+  /** The harnesses being installed for (DL-045 warns when a block reader cannot see the block). */
+  harnesses?: readonly Harness[];
 }
 
 export interface InstallPlan {
@@ -226,7 +227,9 @@ export function planInstall(ctx: Context, root: string, request: InstallRequest)
     });
     return { layout, files };
   });
-  const rule = planRule(ctx, root, request.rules, request.version, { codex: request.codex });
+  const rule = planRule(ctx, root, request.rules, request.version, {
+    harnesses: request.harnesses,
+  });
   const warnings = layouts.length > 0 ? skillsLockWarning(ctx, root) : [];
   return { skills, rule, warnings };
 }

@@ -4,7 +4,7 @@ import { CONFIG_FILE } from "../core/config.ts";
 import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
 import { writeFileAtomic } from "../core/files.ts";
-import type { Harness, RuleChannel } from "./harnesses.ts";
+import { HARNESSES, type Harness, type RuleChannel } from "./harnesses.ts";
 
 // @decision(DL-042)
 /** The always-on rule, embedded in the bundle so every copy of the CLI can install it. */
@@ -109,8 +109,8 @@ export interface RulePlan {
 }
 
 export interface RuleOptions {
-  /** Codex is among the selected harnesses; it reads only AGENTS.md. */
-  codex?: boolean;
+  /** The harnesses being installed for; a block reader that cannot see the block gets a warning. */
+  harnesses?: readonly Harness[];
 }
 
 // @decision(DL-045)
@@ -124,7 +124,7 @@ export function planRule(
   root: string,
   channels: ReadonlySet<RuleChannel>,
   version: string,
-  { codex = false }: RuleOptions = {},
+  { harnesses = [] }: RuleOptions = {},
   text: string = RULE_TEXT,
 ): RulePlan {
   const plan: RulePlan = { writes: [], removals: [], warnings: [] };
@@ -148,20 +148,22 @@ export function planRule(
 
   const withBlock = new Set(blockFiles.map(resolved));
   const loads = (file: string) => withBlock.has(resolved(file));
-  // Claude Code reads CLAUDE.md, or AGENTS.md when there is none; Antigravity and Codex read AGENTS.md.
-  const claudeReads = ctx.fs.exists(join(root, CLAUDE_MD)) ? CLAUDE_MD : AGENTS_MD;
-  const loadsBlock: Record<RuleFileChannel, boolean> = {
-    "claude-file": loads(claudeReads),
-    "agents-file": loads(AGENTS_MD),
+  const readsBlock = (harness: Harness) => loads(instructionFile(ctx, root, harness));
+  const ownerOf = (channel: RuleFileChannel) => HARNESSES.find((h) => h.rule === channel);
+  const loadsBlock = (channel: RuleFileChannel) => {
+    const owner = ownerOf(channel);
+    return owner !== undefined && readsBlock(owner);
   };
-  if (codex && blockFiles.length > 0 && !loads(AGENTS_MD)) {
+  const blind = harnesses.filter((h) => h.rule === "block" && !readsBlock(h));
+  if (blockFiles.length > 0 && blind.length > 0) {
+    const names = blind.map((h) => h.title).join(" and ");
     plan.warnings.push(
-      "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. To cover Codex, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule. Pi and OpenCode read AGENTS.md instead of CLAUDE.md once it exists.",
+      `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${blind.length === 1 ? "reads" : "read"} ${AGENTS_MD}. To cover ${blind.length === 1 ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${AGENTS_MD}, then run dld install-rule.`,
     );
   }
   for (const channel of ["claude-file", "agents-file"] as const) {
     const path = RULE_FILES[channel];
-    if (loadsBlock[channel]) {
+    if (loadsBlock(channel)) {
       if (ctx.fs.lexists(join(root, path))) plan.removals.push(path);
     } else if (channels.has(channel)) {
       refuseSymlinkedDir(ctx, root, dirname(path));
@@ -172,6 +174,15 @@ export function planRule(
   const ruleInstalled = blockFiles.length > 0 || channels.size > 0;
   plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
   return plan;
+}
+
+// @decision(DL-045) @decision(DL-049)
+/** The instruction file `harness` reads under `root`: the first of its list that exists, else the last. */
+function instructionFile(ctx: Context, root: string, harness: Harness): string {
+  const { instructions } = harness;
+  return (
+    instructions.find((file) => ctx.fs.exists(join(root, file))) ?? instructions.at(-1) ?? AGENTS_MD
+  );
 }
 
 /** The instruction file a new block goes into. Only regular files are edited or created. */
@@ -214,8 +225,8 @@ export function loadsRule(ctx: Context, root: string, harness: Harness): boolean
   if (harness.rule !== "block" && ctx.fs.exists(join(root, RULE_FILES[harness.rule]))) {
     return true;
   }
-  const file = harness.instructions.find((name) => ctx.fs.exists(join(root, name)));
-  if (file === undefined) return false;
+  const file = instructionFile(ctx, root, harness);
+  if (!ctx.fs.exists(join(root, file))) return false;
   return ctx.fs
     .readFile(join(root, file))
     .split(/\r?\n/)

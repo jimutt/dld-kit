@@ -119,7 +119,6 @@ describe("planInstall and applyInstall", () => {
       layouts: new Set(),
       rules: new Set(["block"]),
       version: "1.0.0",
-      codex: true,
     });
     expect(plan.skills).toEqual([]);
     expect(applyInstall(ctx, "/p", plan).ruleWritten).toEqual(["AGENTS.md"]);

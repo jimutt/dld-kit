@@ -91,6 +91,14 @@ try {
     JSON.stringify(only) === JSON.stringify(["dld-plan"]),
     `partial install: expected only dld-plan, found ${only.join(", ")}`,
   );
+
+  // dld update reads skills-lock.json and warns that npx skills manages the skill.
+  writeFileSync(join(partial, "dld.config.yaml"), "decisions_dir: decisions\nmode: flat\n");
+  const locked = node(partial, join(repo, "dist/dld.mjs"), "update", "--agent", "codex");
+  check(
+    locked.status === 0 && locked.stderr.includes("skills-lock.json lists dld-plan"),
+    `dld update after a partial install: expected the skills-lock.json warning, got exit ${locked.status}: ${locked.stderr.trim()}`,
+  );
 } finally {
   for (const dir of projects) rmSync(dir, { recursive: true, force: true });
 }

@@ -18,8 +18,8 @@ Each channel below installs the same skills. They differ in which agents they re
 | Channel | Agents | Installs into | Always-on rule | Update with |
 |---|---|---|---|---|
 | [`npx dld-kit init`](#npx-dld-kit-init) | Claude Code, Antigravity, Codex, Cursor, OpenCode, Pi | The project, committed | Written by `init` | `npx dld-kit@latest update` |
-| [Claude Code plugin](#claude-code-plugin) | Claude Code, Copilot CLI | Your user profile | SessionStart hook in Claude Code; dld-init skill in Copilot CLI | `claude plugin update dld@dld-kit` |
-| [Codex plugin](#codex-plugin) | Codex | Your user profile | dld-init skill | Codex's plugin manager |
+| [Claude Code plugin](#claude-code-plugin) | Claude Code | Your user profile | SessionStart hook | `claude plugin marketplace update dld-kit`, then `claude plugin update dld@dld-kit` |
+| [Codex and Copilot CLI plugins](#codex-and-copilot-cli-plugins) | Codex, Copilot CLI | Your user profile | dld-init skill | Codex's plugin manager; `copilot plugin update` |
 | [Pi package](#pi-package) | Pi | Your user profile, or the project with `-l` | dld-init skill | `pi update npm:dld-kit` |
 | [`npx skills` / `gh skill`](#npx-skills-or-gh-skill) | Any agent those tools support | The project, or your user profile with `-g` | dld-init skill | `npx skills update` / `gh skill update` |
 | [Manual copy](#manual-copy) | Any Agent Skills harness | Wherever you copy them | dld-init skill | Copy again |
@@ -66,15 +66,17 @@ claude plugin marketplace update dld-kit
 claude plugin update dld@dld-kit
 ```
 
-Copilot CLI reads the same repository: `copilot plugin marketplace add jimutt/dld-kit`, then `copilot plugin install dld@dld-kit`. Copilot CLI gets the portable skills and no hook: run the dld-init skill in each project, which puts the rule in `AGENTS.md`.
+### Codex and Copilot CLI plugins
 
-### Codex plugin
+Both install the portable skills from the repository root, with no hook.
 
 ```bash
-codex plugin marketplace add jimutt/dld-kit
+codex plugin marketplace add jimutt/dld-kit       # then install dld from /plugins in Codex
+copilot plugin marketplace add jimutt/dld-kit
+copilot plugin install dld@dld-kit
 ```
 
-Then install **dld** from `/plugins` in Codex, and run the dld-init skill in each project for the config and the rule.
+Then run the dld-init skill in each project for the config and the rule. For Copilot CLI it installs the rule as for Codex.
 
 ### Pi package
 
@@ -118,7 +120,9 @@ Channels can be combined. These combinations need care:
 | Cursor | `.agents/skills/` | Block in `AGENTS.md` | Ask for the dld-plan skill |
 | OpenCode | `.agents/skills/` | Block in `AGENTS.md`, or `CLAUDE.md` if there is no `AGENTS.md` | Ask for the dld-plan skill |
 | Pi | `.agents/skills/` | Block in `AGENTS.md`, or `CLAUDE.md` if there is no `AGENTS.md` | `/skill:dld-plan` |
-| Copilot CLI | Plugin only | Block in `AGENTS.md` | Ask for the dld-plan skill |
+| Copilot CLI | Plugin only | Block in `AGENTS.md` (installed as for Codex) | Ask for the dld-plan skill |
+
+A new block goes into `AGENTS.md` if it exists, else into `CLAUDE.md` if that exists, else into a new `AGENTS.md`. Codex and Cursor read only `AGENTS.md`: when the block ends up in `CLAUDE.md`, `dld install-rule` warns and says how to move it.
 
 The examples below use Claude Code's `/dld-plan` form. In other agents, name the skill instead, e.g. "use the dld-plan skill to plan the retry feature".
 

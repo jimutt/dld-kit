@@ -9323,7 +9323,7 @@ function upsertBlock(content, block, file) {
   const separator = content.endsWith("\n") ? eol : eol + eol;
   return content + separator + rendered + eol;
 }
-function planRule(ctx, root, channels, version2, { codex = false } = {}, text = RULE_TEXT) {
+function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text = RULE_TEXT) {
   const plan = { writes: [], removals: [], warnings: [] };
   const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
   const read = (file) => regular(file) ? ctx.fs.readFile(join15(root, file)) : "";
@@ -9342,19 +9342,22 @@ function planRule(ctx, root, channels, version2, { codex = false } = {}, text = 
   }
   const withBlock = new Set(blockFiles.map(resolved));
   const loads = (file) => withBlock.has(resolved(file));
-  const claudeReads = ctx.fs.exists(join15(root, CLAUDE_MD)) ? CLAUDE_MD : AGENTS_MD;
-  const loadsBlock = {
-    "claude-file": loads(claudeReads),
-    "agents-file": loads(AGENTS_MD)
+  const readsBlock = (harness) => loads(instructionFile(ctx, root, harness));
+  const ownerOf = (channel) => HARNESSES.find((h) => h.rule === channel);
+  const loadsBlock = (channel) => {
+    const owner = ownerOf(channel);
+    return owner !== void 0 && readsBlock(owner);
   };
-  if (codex && blockFiles.length > 0 && !loads(AGENTS_MD)) {
+  const blind = harnesses.filter((h) => h.rule === "block" && !readsBlock(h));
+  if (blockFiles.length > 0 && blind.length > 0) {
+    const names = blind.map((h) => h.title).join(" and ");
     plan.warnings.push(
-      "The dld-kit rule block is in CLAUDE.md, but Codex reads only AGENTS.md. To cover Codex, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule. Pi and OpenCode read AGENTS.md instead of CLAUDE.md once it exists."
+      `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${blind.length === 1 ? "reads" : "read"} ${AGENTS_MD}. To cover ${blind.length === 1 ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${AGENTS_MD}, then run dld install-rule.`
     );
   }
   for (const channel of ["claude-file", "agents-file"]) {
     const path = RULE_FILES[channel];
-    if (loadsBlock[channel]) {
+    if (loadsBlock(channel)) {
       if (ctx.fs.lexists(join15(root, path))) plan.removals.push(path);
     } else if (channels.has(channel)) {
       refuseSymlinkedDir(ctx, root, dirname3(path));
@@ -9365,6 +9368,10 @@ function planRule(ctx, root, channels, version2, { codex = false } = {}, text = 
   const ruleInstalled = blockFiles.length > 0 || channels.size > 0;
   plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
   return plan;
+}
+function instructionFile(ctx, root, harness) {
+  const { instructions } = harness;
+  return instructions.find((file) => ctx.fs.exists(join15(root, file))) ?? instructions.at(-1) ?? AGENTS_MD;
 }
 function blockPlacement(ctx, root) {
   for (const file of [AGENTS_MD, CLAUDE_MD]) {
@@ -9391,8 +9398,8 @@ function loadsRule(ctx, root, harness) {
   if (harness.rule !== "block" && ctx.fs.exists(join15(root, RULE_FILES[harness.rule]))) {
     return true;
   }
-  const file = harness.instructions.find((name) => ctx.fs.exists(join15(root, name)));
-  if (file === void 0) return false;
+  const file = instructionFile(ctx, root, harness);
+  if (!ctx.fs.exists(join15(root, file))) return false;
   return ctx.fs.readFile(join15(root, file)).split(/\r?\n/).some((line) => line === BLOCK_START || LEGACY_HEADING.test(line));
 }
 function sessionContext(ctx, root, harness, text = RULE_TEXT) {
@@ -9478,7 +9485,7 @@ function refuseSymlinkedSkills(ctx, root, layout) {
   const linked = ctx.fs.readDir(dir).filter((entry) => isOwned(entry.name) && !entry.isDirectory && !entry.isFile).map((entry) => `${layout.dir}/${entry.name}`).sort();
   if (linked.length === 0) return;
   throw new DldError(
-    `${linked.join(", ")} ${linked.length === 1 ? "is a symlink" : "are symlinks"}, so another installer, such as npx skills, manages these skills. Update them with npx skills update, or remove them and run this command again.`
+    `${linked.join(", ")} ${linked.length === 1 ? "is a symlink" : "are symlinks"}, so another installer, such as npx skills, manages these skills. Update them with npx skills update, or remove them and run this command again. To set up DLD without touching them, run the dld-init skill or dld install-rule.`
   );
 }
 var SKILLS_LOCK = "skills-lock.json";
@@ -9581,7 +9588,9 @@ function planInstall(ctx, root, request) {
     });
     return { layout, files };
   });
-  const rule = planRule(ctx, root, request.rules, request.version, { codex: request.codex });
+  const rule = planRule(ctx, root, request.rules, request.version, {
+    harnesses: request.harnesses
+  });
   const warnings = layouts.length > 0 ? skillsLockWarning(ctx, root) : [];
   return { skills, rule, warnings };
 }
@@ -9734,7 +9743,7 @@ ${AGENT_HELP}
       rules: targets.rules,
       version,
       force: values.force === true,
-      codex: harnesses.some((harness) => harness.name === "codex")
+      harnesses
     });
     createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
     const project = loadProject(ctx);
@@ -9786,7 +9795,7 @@ ${AGENT_HELP}
       rules,
       version,
       force: values.force === true,
-      codex: requested.some((harness) => harness.name === "codex")
+      harnesses: requested
     });
     const report2 = applyInstall(ctx, root, plan);
     printReport(io, report2);
@@ -10021,7 +10030,7 @@ ${AGENT_HELP}
       rules,
       version,
       force: values.force === true,
-      codex: requested.some((harness) => harness.name === "codex")
+      harnesses: requested
     });
     const report2 = applyInstall(ctx, root, plan);
     report2.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));

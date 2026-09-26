@@ -4,14 +4,18 @@
 // manifests from package.json; with --check it reports drift instead.
 // Runs with Bun (a development tool); the generator itself is Node-compatible library code.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import pkg from "../package.json";
 import { DldError } from "../src/core/errors.ts";
 import { writeFileAtomic } from "../src/core/files.ts";
 import { agentSkillsAdapter, claudeCodeAdapter } from "../src/generate/adapters.ts";
 import { diffOutput, generateSkills, writeOutput } from "../src/generate/generate.ts";
-import { CLAUDE_PLUGIN_SKILLS, renderPluginFiles } from "../src/generate/plugins.ts";
+import {
+  CLAUDE_PLUGIN_DIR,
+  CLAUDE_PLUGIN_SKILLS,
+  renderPluginFiles,
+} from "../src/generate/plugins.ts";
 import { CLAUDE_RULE_FILE, RULE_TEXT, renderRuleFile } from "../src/generate/rule.ts";
 import { createNodeContext } from "../src/node-context.ts";
 
@@ -21,10 +25,10 @@ const ctx = createNodeContext(root, process.env);
 const { version } = pkg;
 
 // @decision(DL-048)
+/** Each adapter's output directories; the Claude Code plugin reuses the claude-code rendering. */
 const OUTPUTS = [
-  { adapter: agentSkillsAdapter, dir: agentSkillsAdapter.outputDir },
-  { adapter: claudeCodeAdapter, dir: claudeCodeAdapter.outputDir },
-  { adapter: claudeCodeAdapter, dir: CLAUDE_PLUGIN_SKILLS },
+  { adapter: agentSkillsAdapter, dirs: [agentSkillsAdapter.outputDir] },
+  { adapter: claudeCodeAdapter, dirs: [claudeCodeAdapter.outputDir, CLAUDE_PLUGIN_SKILLS] },
 ];
 
 // @decision(DL-035)
@@ -47,23 +51,27 @@ const extraFiles = new Map([
 
 let drift = 0;
 try {
-  for (const { adapter, dir } of OUTPUTS) {
+  for (const { adapter, dirs } of OUTPUTS) {
     const files = generateSkills(ctx, join(root, "templates/skills"), adapter, version, {
       extraFiles,
     });
-    const outDir = join(root, dir);
-    const diff = check ? diffOutput(ctx, outDir, files) : writeOutput(ctx, outDir, files);
-    const report = [
-      ...diff.changed.map((p) => `changed: ${dir}/${p}`),
-      ...diff.missing.map((p) => `missing: ${dir}/${p}`),
-      ...diff.extra.map((p) => `extra:   ${dir}/${p}`),
-    ];
-    drift += report.length;
-    if (check) {
-      for (const line of report) console.error(line);
-    } else {
-      const written = diff.changed.length + diff.missing.length;
-      console.log(`${dir}: ${files.size} files, ${written} written, ${diff.extra.length} removed`);
+    for (const dir of dirs) {
+      const outDir = join(root, dir);
+      const diff = check ? diffOutput(ctx, outDir, files) : writeOutput(ctx, outDir, files);
+      const report = [
+        ...diff.changed.map((p) => `changed: ${dir}/${p}`),
+        ...diff.missing.map((p) => `missing: ${dir}/${p}`),
+        ...diff.extra.map((p) => `extra:   ${dir}/${p}`),
+      ];
+      drift += report.length;
+      if (check) {
+        for (const line of report) console.error(line);
+      } else {
+        const written = diff.changed.length + diff.missing.length;
+        console.log(
+          `${dir}: ${files.size} files, ${written} written, ${diff.extra.length} removed`,
+        );
+      }
     }
   }
 
@@ -82,6 +90,25 @@ try {
       ctx.fs.mkdir(dirname(full));
       writeFileAtomic(ctx, full, content);
       console.log(`${path}: written`);
+    }
+  }
+
+  // @decision(DL-048)
+  // Everything in the plugin directory is generated: report or remove files nothing renders.
+  const pluginDir = join(root, CLAUDE_PLUGIN_DIR);
+  const stray = existsSync(pluginDir)
+    ? readdirSync(pluginDir, { recursive: true, encoding: "utf8" })
+        .map((rel) => `${CLAUDE_PLUGIN_DIR}/${rel.split("\\").join("/")}`)
+        .filter((path) => !path.startsWith(`${CLAUDE_PLUGIN_SKILLS}/`) && !single.has(path))
+        .filter((path) => !statSync(join(root, path)).isDirectory())
+        .sort()
+    : [];
+  for (const path of stray) {
+    drift += 1;
+    if (check) console.error(`extra:   ${path}`);
+    else {
+      ctx.fs.remove(join(root, path));
+      console.log(`${path}: removed`);
     }
   }
 } catch (error) {

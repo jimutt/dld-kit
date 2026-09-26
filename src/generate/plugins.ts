@@ -44,8 +44,13 @@ function pluginInfo(meta: PackageMeta) {
 }
 
 // @decision(DL-049)
-/** The command the Claude Code plugin's SessionStart hook runs. */
-export const SESSION_START_COMMAND = `node "\${CLAUDE_PLUGIN_ROOT}/skills/dld-common/scripts/dld.mjs" session-context --agent claude`;
+/**
+ * The command the Claude Code plugin's SessionStart hook runs. Without `node` on PATH it exits
+ * quietly, since the hook runs in every session of every project.
+ */
+export const SESSION_START_COMMAND = `command -v node >/dev/null 2>&1 || exit 0; node "\${CLAUDE_PLUGIN_ROOT}/skills/dld-common/scripts/dld.mjs" session-context --agent claude`;
+/** Sessions that start without the rule in context; a resumed one still has it. */
+export const SESSION_START_MATCHER = "startup|clear|compact";
 
 // @decision(DL-048) @decision(DL-050) @decision(DL-052)
 /**
@@ -83,7 +88,12 @@ export function renderPluginFiles(meta: PackageMeta): Map<string, string> {
         description:
           "Adds the DLD rule to the session context in projects that use DLD and do not load it already.",
         hooks: {
-          SessionStart: [{ hooks: [{ type: "command", command: SESSION_START_COMMAND }] }],
+          SessionStart: [
+            {
+              matcher: SESSION_START_MATCHER,
+              hooks: [{ type: "command", command: SESSION_START_COMMAND }],
+            },
+          ],
         },
       }),
     ],
