@@ -452,10 +452,10 @@ describe("update", () => {
     expect(result.code).toBe(EXIT_OK);
     expect(result.out).toMatch(/^\.claude\/skills: 1 written, 1 removed, \d+ unchanged\n/);
     expect(result.out).toContain(".agents/skills: ");
-    expect(result.out).toContain("Wrote the DLD rule to CLAUDE.md\n");
-    expect(result.out).toContain(
-      "Removed .claude/rules/dld-workflow.md (the rule is in the block)\n",
-    );
+    // OpenCode reads only AGENTS.md; Claude Code keeps its rule file beside CLAUDE.md (DL-061).
+    expect(result.out).toContain("Wrote the DLD rule to AGENTS.md\n");
+    expect(result.out).not.toContain("Removed");
+    expect(existsSync(join(p.root, ".claude/rules/dld-workflow.md"))).toBe(true);
     expect(existsSync(join(p.root, ".claude/skills/dld-old"))).toBe(false);
     const again = await dldInstall(p, cli, "update");
     expect(again.out).toMatch(/^\.claude\/skills: 0 written, 0 removed, \d+ unchanged\n/);
@@ -526,13 +526,23 @@ describe("install-rule", () => {
     expect(existsSync(join(project.root, ".agents/skills"))).toBe(false);
   });
 
-  test("warns when Codex cannot see the block, and needs an agent when nothing is installed", async () => {
+  test("puts Codex's block in a new AGENTS.md beside CLAUDE.md, and needs an agent when nothing is installed", async () => {
     project = tempProject();
     expect((await dldInstall(project, undefined, "install-rule")).code).toBe(EXIT_USAGE);
     project.write("CLAUDE.md", "# C\n");
     const result = await dldInstall(project, undefined, "install-rule", "--agent", "codex");
-    expect(result.out).toBe("Wrote the DLD rule to CLAUDE.md\n");
-    expect(result.err).toContain("Warning: The dld-kit rule block is in CLAUDE.md");
+    expect(result).toMatchObject({ out: "Wrote the DLD rule to AGENTS.md\n", err: "" });
+    expect(readFileSync(join(project.root, "CLAUDE.md"), "utf8")).toBe("# C\n");
+  });
+
+  test("warns about a block Codex cannot see in CLAUDE.md", async () => {
+    project = tempProject();
+    project.write("CLAUDE.md", "# C\n");
+    await dldInstall(project, undefined, "install-rule", "--agent", "pi");
+    const result = await dldInstall(project, undefined, "install-rule", "--agent", "codex");
+    expect(result.err).toContain(
+      "Warning: The dld-kit rule block is in CLAUDE.md, but Codex reads AGENTS.md.",
+    );
   });
 });
 

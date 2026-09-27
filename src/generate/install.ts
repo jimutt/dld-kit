@@ -194,7 +194,7 @@ export interface InstallRequest {
   rules: ReadonlySet<RuleChannel>;
   version: string;
   force?: boolean;
-  /** The harnesses being installed for (DL-045 warns when a block reader cannot see the block). */
+  /** The harnesses being installed for: they decide where a new rule block goes (DL-061). */
   harnesses?: readonly Harness[];
 }
 

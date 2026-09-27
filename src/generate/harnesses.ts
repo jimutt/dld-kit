@@ -34,13 +34,14 @@ export interface Harness {
   markers: readonly string[];
   // @decision(DL-049)
   /**
-   * Instruction files at the project root it reads; it loads the first that exists. Claude Code
-   * differs: rule.ts models what it reads (DL-055).
+   * Instruction files at the project root it reads; it loads the first that exists, or every one
+   * with `readsAll`. Claude Code differs: rule.ts models what it reads (DL-055).
    */
   instructions: readonly string[];
+  // @decision(DL-061)
+  /** Reads every file of `instructions` that exists, rather than the first. */
+  readsAll?: boolean;
 }
-
-const AGENTS_FIRST = ["AGENTS.md", "CLAUDE.md"];
 
 // @decision(DL-041)
 export const HARNESSES: readonly Harness[] = [
@@ -75,7 +76,9 @@ export const HARNESSES: readonly Harness[] = [
     layout: AGENTS_LAYOUT,
     rule: "block",
     markers: [".cursor"],
-    instructions: ["AGENTS.md"],
+    // @decision(DL-061)
+    instructions: ["AGENTS.md", "CLAUDE.md"],
+    readsAll: true,
   },
   {
     name: "opencode",
@@ -83,7 +86,8 @@ export const HARNESSES: readonly Harness[] = [
     layout: AGENTS_LAYOUT,
     rule: "block",
     markers: [".opencode", "opencode.json", "opencode.jsonc"],
-    instructions: AGENTS_FIRST,
+    // @decision(DL-061) OpenCode 2.x; 1.x also fell back to CLAUDE.md.
+    instructions: ["AGENTS.md"],
   },
   {
     name: "pi",
@@ -91,7 +95,7 @@ export const HARNESSES: readonly Harness[] = [
     layout: AGENTS_LAYOUT,
     rule: "block",
     markers: [".pi"],
-    instructions: AGENTS_FIRST,
+    instructions: ["AGENTS.md", "CLAUDE.md"],
   },
 ];
 

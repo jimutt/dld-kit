@@ -128,15 +128,18 @@ export interface RulePlan {
 }
 
 export interface RuleOptions {
-  /** The harnesses being installed for; a block reader that cannot see the block gets a warning. */
+  /**
+   * The harnesses being installed for. They decide where a new block goes (DL-061), and a block
+   * reader that cannot see the block gets a warning.
+   */
   harnesses?: readonly Harness[];
 }
 
-// @decision(DL-045)
+// @decision(DL-045) @decision(DL-061)
 /**
  * What installing the rule for `channels` changes under `root`. A block already present in
- * AGENTS.md or CLAUDE.md is refreshed where it is; otherwise a new one goes into AGENTS.md, else
- * CLAUDE.md, else a new AGENTS.md. A harness that loads the block's file gets no owned rule file.
+ * AGENTS.md or CLAUDE.md is refreshed where it is; otherwise a new one goes where `blockPlacement`
+ * says. A harness that loads the block's file gets no owned rule file.
  */
 export function planRule(
   ctx: Context,
@@ -158,7 +161,12 @@ export function planRule(
   let blockFiles = [AGENTS_MD, CLAUDE_MD].filter(
     (file) => regular(file) && findBlock(read(file), file) !== undefined,
   );
-  if (blockFiles.length === 0 && channels.has("block")) blockFiles = [blockPlacement(ctx, root)];
+  if (blockFiles.length === 0 && channels.has("block")) {
+    const targets = harnesses.filter((h) => h.rule === "block");
+    const file = blockPlacement(ctx, root, targets);
+    blockFiles = [file];
+    plan.warnings.push(...switchWarnings(ctx, root, file, targets));
+  }
   // @decision(DL-054) A file about to receive the block counts as existing.
   const pending = new Map<string, string>();
   for (const file of blockFiles) {
@@ -252,6 +260,8 @@ function projectView(ctx: Context, root: string): FileView {
  */
 function instructionFiles(harness: Harness, view: FileView): string[] {
   if (harness.name !== "claude") {
+    // @decision(DL-061)
+    if (harness.readsAll) return harness.instructions.filter((f) => view.exists(f));
     const file = harness.instructions.find((f) => view.exists(f));
     return file === undefined ? [] : [file];
   }
@@ -310,17 +320,46 @@ function blindWarnings(
   });
 }
 
-/** The instruction file a new block goes into. Only regular files are edited or created. */
-function blockPlacement(ctx: Context, root: string): string {
-  for (const file of [AGENTS_MD, CLAUDE_MD]) {
-    if (ctx.fs.isRegularFile(join(root, file))) return file;
+// @decision(DL-045) @decision(DL-061)
+/**
+ * The instruction file a new block goes into: AGENTS.md if it exists; else CLAUDE.md if it
+ * exists and every target reads it without an AGENTS.md (or AGENTS.md links elsewhere); else a
+ * new AGENTS.md. Only regular files are edited or created.
+ */
+function blockPlacement(ctx: Context, root: string, targets: readonly Harness[]): string {
+  if (ctx.fs.isRegularFile(join(root, AGENTS_MD))) return AGENTS_MD;
+  const agentsLinked = ctx.fs.lexists(join(root, AGENTS_MD));
+  if (
+    ctx.fs.isRegularFile(join(root, CLAUDE_MD)) &&
+    (agentsLinked || targets.every((h) => h.instructions.includes(CLAUDE_MD)))
+  ) {
+    return CLAUDE_MD;
   }
-  if (ctx.fs.lexists(join(root, AGENTS_MD))) {
+  if (agentsLinked) {
     throw new DldError(
       `${AGENTS_MD} is not a regular file (a symlink?); dld-kit does not edit through it. Point it at a regular file or add the dld-kit block by hand.`,
     );
   }
   return AGENTS_MD;
+}
+
+// @decision(DL-061)
+/** A warning when a new AGENTS.md makes targets that fell back to CLAUDE.md read it instead. */
+function switchWarnings(
+  ctx: Context,
+  root: string,
+  file: string,
+  targets: readonly Harness[],
+): string[] {
+  if (file !== AGENTS_MD || ctx.fs.lexists(join(root, AGENTS_MD))) return [];
+  const claudeMd = join(root, CLAUDE_MD);
+  if (!ctx.fs.exists(claudeMd) || ctx.fs.isDirectory(claudeMd)) return [];
+  const switching = targets.filter((h) => !h.readsAll && h.instructions.includes(CLAUDE_MD));
+  if (switching.length === 0) return [];
+  const names = switching.map((h) => h.title).join(" and ");
+  return [
+    `dld-kit puts the rule block in a new AGENTS.md. ${names} will read AGENTS.md instead of CLAUDE.md from now on, so move anything ${switching.length === 1 ? "it needs" : "they need"} from CLAUDE.md into AGENTS.md.`,
+  ];
 }
 
 const LEGACY_HEADING = /^## DLD \(Decision-Linked Development\)\s*$/;
