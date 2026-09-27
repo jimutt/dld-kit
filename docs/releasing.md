@@ -48,8 +48,51 @@ Claude Code plugin users get the new version once the release is on the default 
 
 ## Checks by hand before a release
 
-- `gh skill install jimutt/dld-kit --all` in a scratch project: every `dld-*` skill arrives once, `dld-common/scripts/dld.mjs` is present, and nothing comes from `claude-plugin/`. CI does not cover `gh skill`, because it needs an authenticated `gh` and a release tag.
-- `npm run check:installers` runs the pinned `npx skills` check CI runs (DL-051).
+CI covers the CLI, the generated files and the `npx skills` install (`npm run check:installers`, DL-051). It never starts an agent, so a candidate is only as tested as the agents someone has run it in. The checks below are how a candidate is judged clean (DL-058). Run them for as many agents as you can, and write the results (agent, agent version, pass or fail per step) in the candidate's GitHub release notes.
+
+### The same steps in every agent
+
+In a scratch git repository, for the agent under test:
+
+1. **Install.** Use the agent's channel from the list below. Check that the listed files exist, and that nothing else changed.
+2. **Rule in context.** Start a new session and ask: "Without reading files or running commands: what are you told to do before modifying code annotated with `@decision`?" A pass quotes the DLD rule: look the decision up with dld-lookup first. A vague answer or a file read is a fail.
+3. **Run a skill.** Ask the agent to use dld-decide to record a small decision. A pass leaves `decisions/records/DL-001.md` and an updated `decisions/INDEX.md`. The skill must run the bundled CLI (`dld-common/scripts/dld.mjs`) without errors.
+4. **Look it up.** Add `// @decision(DL-001)` to a source file, then ask the agent to change that file. A pass reads DL-001 (through dld-lookup) before editing.
+5. **Update.** Run `npx dld-kit@next update`. A pass reports `0 written` for every skills directory and prints no warnings.
+
+### What differs per agent
+
+- **Claude Code** (`npx dld-kit@next init --yes --agent claude`)
+  - Expect `.claude/skills/dld-*` and `.claude/rules/dld-workflow.md`. With `--agent claude,codex` in a project without `CLAUDE.md`, the block goes into `AGENTS.md`. Expect `.claude/CLAUDE.md` holding `@../AGENTS.md` instead of the rule file.
+  - Run skills as `/dld-decide`. `dld-common` must not appear in the `/` menu.
+  - Step 3 must not prompt for permission to run `node ".../dld-common/scripts/dld.mjs"`: the skills' `allowed-tools` pre-approves it. This is unverified, since headless `claude -p` does not apply it.
+- **Claude Code plugin** (`claude plugin marketplace add jimutt/dld-kit#v1`, then `claude plugin install dld@dld-kit`)
+  - Run `/dld-init` in a project without DLD, then the common steps.
+  - In a project with `dld.config.yaml` and no rule file, step 2 passes through the plugin's SessionStart hook. Once `/dld-init` has installed `.claude/rules/dld-workflow.md`, the hook prints nothing (`dld session-context --agent claude` is empty).
+- **Codex** (`npx dld-kit@next init --yes --agent codex`)
+  - Expect `.agents/skills/dld-*` and the block in `AGENTS.md`.
+  - In a project that has only a `CLAUDE.md`, `init` must create `AGENTS.md` for the block (DL-061).
+- **Cursor** (`npx dld-kit@next init --yes --agent cursor`)
+  - Expect `.agents/skills/dld-*` and the block in `AGENTS.md`.
+  - In a project that has only a `CLAUDE.md`, the block goes into `CLAUDE.md`, and step 2 must still pass (DL-061).
+  - With `--agent claude,cursor`, Cursor sees each skill in `.claude/skills/` and `.agents/skills/`. Note which copy step 3 runs; either copy must work (DL-046).
+- **OpenCode 2.x** (`npx dld-kit@next init --yes --agent opencode`)
+  - Expect `.agents/skills/dld-*` and the block in `AGENTS.md`.
+  - With `--agent claude,opencode`, OpenCode must load the `.agents/skills/` copy of each skill.
+- **Pi** (`pi install -l npm:dld-kit`, then `/skill:dld-init`)
+  - This installs the `latest` dist-tag. Point it at the candidate first (`npm dist-tag add dld-kit@<version> latest`).
+  - `dld-init` should install the block in `AGENTS.md`, or in `CLAUDE.md` when that is the only instruction file.
+  - Run skills as `/skill:dld-decide`.
+  - Repeat with `npx dld-kit@next init --yes --agent pi,codex` in a project that has only a `CLAUDE.md`: it must warn that Pi now reads `AGENTS.md`.
+- **Antigravity** (`npx dld-kit@next init --yes --agent antigravity`)
+  - Expect `.agents/skills/dld-*` and `.agents/rules/dld-workflow.md`, whose frontmatter is `trigger: always_on`.
+  - Step 2 checks that the rule loads in every conversation.
+- **Codex and Copilot CLI plugins** (`codex plugin marketplace add jimutt/dld-kit`, `copilot plugin marketplace add jimutt/dld-kit`)
+  - These marketplaces read `main`, which holds the pre-1.0 skills until 1.0.0. Check them on the 1.0.0 release, unless the tool accepts a `#v1` ref.
+  - The dld-init skill installs the rule with `--agent codex` for Copilot CLI.
+- **`gh skill`** (`gh skill install jimutt/dld-kit --all`)
+  - Every `dld-*` skill arrives once, `dld-common/scripts/dld.mjs` is present, and nothing comes from `claude-plugin/`.
+  - CI does not cover `gh skill`, because it needs an authenticated `gh` and a release tag.
 
 ## One-time npm setup
 
