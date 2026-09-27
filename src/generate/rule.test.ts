@@ -173,8 +173,11 @@ describe("planRule", () => {
     test("warns Pi, and only Pi, when a new AGENTS.md takes over from CLAUDE.md", () => {
       const warnings = (names: string[]) => plan(claudeOnly, ["block"], names).result.warnings;
       expect(warnings(["pi", "codex"])).toEqual([
-        "dld-kit creates AGENTS.md for the rule block, because not every selected agent reads CLAUDE.md. Pi will read AGENTS.md instead of CLAUDE.md from now on, so move anything it needs from CLAUDE.md into AGENTS.md.",
+        "dld-kit puts the rule block in a new AGENTS.md. Pi will read AGENTS.md instead of CLAUDE.md from now on, so move anything it needs from CLAUDE.md into AGENTS.md.",
       ]);
+      expect(warnings(["pi"])).toEqual([]);
+      const withAgents = { "/p/AGENTS.md": "", "/p/CLAUDE.md": "# C\n" };
+      expect(plan(withAgents, ["block"], ["pi", "codex"]).result.warnings).toEqual([]);
       expect(warnings(["cursor", "codex"])).toEqual([]);
       expect(warnings(["opencode"])).toEqual([]);
       expect(plan({}, ["block"], ["pi", "codex"]).result.warnings).toEqual([]);

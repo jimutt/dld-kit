@@ -122,7 +122,7 @@ Channels can be combined. These combinations need care:
 | Pi | `.agents/skills/` | Block in `AGENTS.md`, or `CLAUDE.md` if there is no `AGENTS.md` | `/skill:dld-plan` |
 | Copilot CLI | Plugin only | Block in `AGENTS.md` (installed as for Codex) | Ask for the dld-plan skill |
 
-A new block goes into `AGENTS.md` if it exists. Otherwise it goes into an existing `CLAUDE.md` only when every selected agent reads that file (Cursor and Pi), and into a new `AGENTS.md` in all other cases. Pi reads `CLAUDE.md` only while there is no `AGENTS.md`, so when `dld` creates `AGENTS.md` next to a `CLAUDE.md` for Pi, it warns you to move anything Pi needs. A block already in `CLAUDE.md` stays there; `dld install-rule` warns about agents that cannot see it (Codex, OpenCode) and says how to move it.
+A new block goes into `AGENTS.md` if it exists. Otherwise it goes into an existing `CLAUDE.md` only when every selected agent that takes the block (Codex, Cursor, OpenCode, Pi) reads that file, which Cursor and Pi do, and into a new `AGENTS.md` in all other cases. Pi reads `CLAUDE.md` only while there is no `AGENTS.md`, so when `dld` creates `AGENTS.md` next to a `CLAUDE.md` for Pi, it warns you to move anything Pi needs. A block already in `CLAUDE.md` stays there; `dld install-rule` warns about agents that cannot see it (Codex, OpenCode) and says how to move it.
 
 Each agent gets the rule once. Claude Code reads `AGENTS.md` by itself only when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, so adding one of those (even an uncommitted `CLAUDE.local.md`) would stop it. When the block is in `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, `init` writes `.claude/CLAUDE.md` with the line `@../AGENTS.md`. Claude Code then loads `AGENTS.md` through that import, once, whichever CLAUDE files are added later. If a `CLAUDE.md` of yours already imports `@AGENTS.md`, the block there is Claude Code's rule and no other file is written.
 
@@ -136,7 +136,7 @@ Before 1.0, the skills were copied by hand or installed with Tessl, each skill c
 - **Skills copied into `.claude/skills/` or `.agents/skills/`:** in the project, run `npx dld-kit@latest update --agent <names>` (e.g. `--agent claude,codex`). It rewrites the `dld-*` skills, deletes their old `scripts/*.sh`, and installs the always-on rule. Commit the result.
 - **Skills copied anywhere else** (e.g. `.cursor/skills/`, `.codex/skills/`): delete those `dld-*` directories, then run the same `update`.
 - **Tessl installs:** remove the `dld-kit/dld` tile with Tessl, and delete any DLD rule text Tessl added. Then run `update`. The Tessl tile gets no new versions.
-- **The old `CLAUDE.md` section:** once the rule is installed, delete the `## DLD (Decision-Linked Development)` section yourself. Until then Claude Code reads the rule twice. `update` warns while the section is there, and never edits it.
+- **The old `CLAUDE.md` section:** once the rule is installed, delete the `## DLD (Decision-Linked Development)` section yourself. Until then Claude Code and Cursor read the rule twice. `update` warns while the section is there, and never edits it.
 - **To use the plugin or `npx skills` instead:** delete the copied `dld-*` directories and the old `CLAUDE.md` section first, then install through that channel.
 
 ## Get started

@@ -128,15 +128,18 @@ export interface RulePlan {
 }
 
 export interface RuleOptions {
-  /** The harnesses being installed for; a block reader that cannot see the block gets a warning. */
+  /**
+   * The harnesses being installed for. They decide where a new block goes (DL-061), and a block
+   * reader that cannot see the block gets a warning.
+   */
   harnesses?: readonly Harness[];
 }
 
-// @decision(DL-045)
+// @decision(DL-045) @decision(DL-061)
 /**
  * What installing the rule for `channels` changes under `root`. A block already present in
- * AGENTS.md or CLAUDE.md is refreshed where it is; otherwise a new one goes into AGENTS.md, else
- * CLAUDE.md, else a new AGENTS.md. A harness that loads the block's file gets no owned rule file.
+ * AGENTS.md or CLAUDE.md is refreshed where it is; otherwise a new one goes where `blockPlacement`
+ * says. A harness that loads the block's file gets no owned rule file.
  */
 export function planRule(
   ctx: Context,
@@ -349,12 +352,13 @@ function switchWarnings(
   targets: readonly Harness[],
 ): string[] {
   if (file !== AGENTS_MD || ctx.fs.lexists(join(root, AGENTS_MD))) return [];
-  if (!ctx.fs.lexists(join(root, CLAUDE_MD))) return [];
+  const claudeMd = join(root, CLAUDE_MD);
+  if (!ctx.fs.exists(claudeMd) || ctx.fs.isDirectory(claudeMd)) return [];
   const switching = targets.filter((h) => !h.readsAll && h.instructions.includes(CLAUDE_MD));
   if (switching.length === 0) return [];
   const names = switching.map((h) => h.title).join(" and ");
   return [
-    `dld-kit creates AGENTS.md for the rule block, because not every selected agent reads CLAUDE.md. ${names} will read AGENTS.md instead of CLAUDE.md from now on, so move anything ${switching.length === 1 ? "it needs" : "they need"} from CLAUDE.md into AGENTS.md.`,
+    `dld-kit puts the rule block in a new AGENTS.md. ${names} will read AGENTS.md instead of CLAUDE.md from now on, so move anything ${switching.length === 1 ? "it needs" : "they need"} from CLAUDE.md into AGENTS.md.`,
   ];
 }
 

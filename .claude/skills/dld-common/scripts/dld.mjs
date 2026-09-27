@@ -9498,12 +9498,13 @@ function blockPlacement(ctx, root, targets) {
 }
 function switchWarnings(ctx, root, file, targets) {
   if (file !== AGENTS_MD || ctx.fs.lexists(join15(root, AGENTS_MD))) return [];
-  if (!ctx.fs.lexists(join15(root, CLAUDE_MD))) return [];
+  const claudeMd = join15(root, CLAUDE_MD);
+  if (!ctx.fs.exists(claudeMd) || ctx.fs.isDirectory(claudeMd)) return [];
   const switching = targets.filter((h) => !h.readsAll && h.instructions.includes(CLAUDE_MD));
   if (switching.length === 0) return [];
   const names = switching.map((h) => h.title).join(" and ");
   return [
-    `dld-kit creates AGENTS.md for the rule block, because not every selected agent reads CLAUDE.md. ${names} will read AGENTS.md instead of CLAUDE.md from now on, so move anything ${switching.length === 1 ? "it needs" : "they need"} from CLAUDE.md into AGENTS.md.`
+    `dld-kit puts the rule block in a new AGENTS.md. ${names} will read AGENTS.md instead of CLAUDE.md from now on, so move anything ${switching.length === 1 ? "it needs" : "they need"} from CLAUDE.md into AGENTS.md.`
   ];
 }
 var LEGACY_HEADING = /^## DLD \(Decision-Linked Development\)\s*$/;

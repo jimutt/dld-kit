@@ -34,8 +34,8 @@ export interface Harness {
   markers: readonly string[];
   // @decision(DL-049)
   /**
-   * Instruction files at the project root it reads; it loads the first that exists. Claude Code
-   * differs: rule.ts models what it reads (DL-055).
+   * Instruction files at the project root it reads; it loads the first that exists, or every one
+   * with `readsAll`. Claude Code differs: rule.ts models what it reads (DL-055).
    */
   instructions: readonly string[];
   // @decision(DL-061)
