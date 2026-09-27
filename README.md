@@ -3,7 +3,7 @@
 Stop AI agents from breaking code they don't understand.
 
 > [!NOTE]
-> Early development — APIs, file formats, and skill interfaces may change.
+> **Release candidate.** dld-kit 1.0 is in release candidates (`1.0.0-rc.N`), and the install steps below get the latest one. It replaces the 0.x skills and their scripts; see [Upgrading from 0.x](#upgrading-from-0x). Commands, file formats and skills may still change before 1.0.0. The last 0.x release is [v0.9.0](https://github.com/jimutt/dld-kit/releases/tag/v0.9.0).
 
 ---
 

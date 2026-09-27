@@ -50,5 +50,5 @@ dld-kit's skills run their mechanical operations through a TypeScript CLI and li
 
 ## Git
 
-- `v1` is the integration branch for 1.0. Work happens on stacked branches whose PRs target `v1` or the branch below them.
+- `main` is the release branch (DL-062). Work happens on branches whose PRs target `main`, or the branch below them when stacked.
 - Commit messages are concise and factual. No buzzwords, no padding.

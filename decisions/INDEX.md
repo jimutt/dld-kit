@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-062 | Merge v1 into main during the release candidates and make each candidate the default install | accepted | v1-release, release |
 | DL-061 | Correct the instruction files Cursor and OpenCode read, and place a new rule block where every target harness reads it | accepted | v1-release, rule, harnesses |
 | DL-060 | Skip the agent configuration directories that hold installed skills when scanning for annotations | accepted | v1-release, annotations, audit |
 | DL-059 | Move the pinned GitHub Actions to their Node 24 majors, still pinned by commit SHA | accepted | v1-release, ci, github-actions |
