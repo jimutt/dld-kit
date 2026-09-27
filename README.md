@@ -2,7 +2,7 @@
 
 **Stop AI agents from breaking code they don't understand.**
 
-Code is full of choices that look odd without their reason: a retry tuned to one API's rate limits, a check for a bug that only shows up in production. The reasons live in tickets, chat threads and people's heads, where an agent can't find them. Decision-Linked Development (DLD) writes each choice down as a short decision record and links it to the code with an `@decision(DL-012)` comment. When an agent sees that comment, it reads the decision before it changes the code.
+Code is full of choices that look odd without their reason: a retry tuned to one API's rate limits, a check for a bug that only shows up in production. The reasons live in tickets, chat threads and people's heads, where an agent can't find them. With Decision-Linked Development (DLD), you write each choice down as a short decision record and link it to the code with an `@decision(DL-012)` comment. When an agent sees that comment, it reads the decision before it changes the code.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/dld-workflow-dark.svg">
@@ -10,7 +10,7 @@ Code is full of choices that look odd without their reason: a retry tuned to one
 </picture>
 
 > [!NOTE]
-> **1.0 is in release candidates.** The install steps below get the latest one. It replaces the 0.x skills and their scripts, and commands, file formats and skills may still change before 1.0.0. Coming from 0.x? See [Upgrading from 0.x](#upgrading-from-0x), or stay on [v0.9.0](https://github.com/jimutt/dld-kit/releases/tag/v0.9.0).
+> **1.0 is in release candidates (`1.0.0-rc.N`).** The install steps below get the latest candidate, which replaces the 0.x skills and scripts. Commands, file formats and skills may still change before 1.0.0. Coming from 0.x? See [Upgrading from 0.x](#upgrading-from-0x). The last 0.x release is [v0.9.0](https://github.com/jimutt/dld-kit/releases/tag/v0.9.0).
 
 DLD Kit is a set of [Agent Skills](https://agentskills.io) for Claude Code, Codex, Cursor, OpenCode, Pi, Antigravity and Copilot CLI, plus a small CLI that installs them.
 
@@ -24,19 +24,21 @@ You need Node.js 20+ and git. In the root of your repository, run:
 npx dld-kit init
 ```
 
-`init` asks which agents your team uses, suggesting the ones it finds. It then writes `dld.config.yaml`, a `decisions/` folder, the DLD skills and a short always-on rule that tells the agent to look decisions up. Commit the files, and your teammates need nothing installed.
+`init` asks which agents your team uses, suggesting the ones it finds. It then writes `dld.config.yaml`, a `decisions/` folder, the DLD skills and a short always-on rule that tells the agent to look decisions up. Commit the files; teammates don't need to install dld-kit.
 
 Then, in your agent:
 
 ```
-/dld-plan add retries to the payment client   # talk it through, get proposed decisions
-/dld-implement                                 # write and review the code, add @decision comments
-/dld-snapshot                                  # regenerate OVERVIEW.md and SNAPSHOT.md
+/dld-plan add retries to the payment client
+/dld-implement
+/dld-snapshot
 ```
+
+`/dld-plan` talks the feature through with you and records proposed decisions. `/dld-implement` writes the code, has it reviewed, and adds the `@decision` comments. `/dld-snapshot` regenerates `OVERVIEW.md` and `SNAPSHOT.md` from the decisions.
 
 These are Claude Code's slash commands. In Pi, use `/skill:dld-plan`. In other agents, ask for the skill by name: "use the dld-plan skill to plan retries for the payment client".
 
-For a small, one-off choice, `/dld-decide` records a single decision. For an existing codebase, start with `/dld-retrofit`. To install once for all your repositories instead, see [Install](#install).
+For a small, one-off choice, `/dld-decide` records a single decision. For an existing codebase, start with `/dld-retrofit`. To install DLD in your own agent setup rather than in the repository, see [Install](#install).
 
 ## How it works
 
@@ -46,6 +48,7 @@ A **decision** is a markdown file in `decisions/records/`:
 ---
 id: DL-012
 title: "Use exponential backoff for payment gateway retries"
+timestamp: 2026-02-15T09:20:00Z
 status: accepted
 tags: [payments]
 references:
@@ -68,13 +71,11 @@ An **annotation** links code to the decision:
 function retryWithBackoff(fn: () => Promise<Response>): Promise<Response> {
 ```
 
-The **always-on rule**, installed for each agent, tells it to read the decision behind an annotation before changing that code. If a change would contradict the decision, the agent checks with you, and a new decision records the change.
+The **always-on rule** is a short instruction installed for each agent: read the decision behind an annotation before changing that code. If a change would contradict it, the agent checks with you, and a new decision records the change.
 
-A few things follow from this:
-
-- **Decisions are never rewritten.** Once `accepted`, a decision's text stays as it is. To change course, you record a new decision that supersedes or amends it, so the history stays complete. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
+- **Accepted decisions aren't rewritten.** Once a decision is `accepted` and shared, you don't edit its reasoning. To change course, record a new decision that supersedes or amends it, so the history stays complete. Only metadata such as `status` and `references` gets updated. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
 - **The docs are generated.** `/dld-snapshot` builds `OVERVIEW.md` and `SNAPSHOT.md` from the decisions. You never edit a spec by hand.
-- **Drift gets caught.** `/dld-audit` finds annotations without a decision, references to code that moved, and annotated code that changed.
+- **Drift gets caught.** `/dld-audit` finds annotations without a decision, references to files that no longer exist, and annotated code that changed.
 - **Conventions live in one file.** An optional `decisions/PRACTICES.md` holds your testing, style and architecture conventions, and `/dld-implement` follows it.
 
 DLD gives agents context, not guarantees. Keep your tests.
@@ -84,8 +85,8 @@ DLD gives agents context, not guarantees. Keep your tests.
 - **New feature:** `/dld-plan`, then `/dld-implement`, then `/dld-snapshot`. `/dld-adjust` refines a decision before it's implemented.
 - **Small change:** `/dld-decide` records one decision, then `/dld-implement`.
 - **Existing codebase:** `/dld-retrofit` writes decisions and annotations for code you already have. Follow it with `/dld-snapshot`.
-- **Hands-off:** after a one-time `/dld-retrofit`, run `/dld-audit-auto` and `/dld-snapshot` on a schedule or in CI. The audit finds undocumented changes, records decisions for them and opens a PR, so nobody has to change how they work.
-- **Teams:** two branches can pick the same `DL-NNN`. Run `/dld-reindex` before you rebase. It renames your drafts to free IDs and updates everything that refers to them.
+- **Hands-off:** after a one-time `/dld-retrofit`, run `/dld-audit-auto` and `/dld-snapshot` on a schedule or in CI. The audit finds changes to annotated code that no decision covers, records decisions for them and opens a PR, so nobody has to change how they work.
+- **Teams:** two branches can pick the same `DL-NNN`. Run `/dld-reindex` before you rebase. It renames your drafts to free IDs, updates everything that refers to them, and squashes your branch into one commit.
 
 More detail, with diagrams: [workflows](docs/workflows.md).
 
@@ -103,37 +104,37 @@ More detail, with diagrams: [workflows](docs/workflows.md).
 | `/dld-audit` | Find drift between decisions and code |
 | `/dld-audit-auto` | Audit, fix and open a PR, for scheduled runs |
 | `/dld-snapshot` | Generate `OVERVIEW.md` and `SNAPSHOT.md` from the decisions |
-| `/dld-retrofit` | Write decisions for existing code |
+| `/dld-retrofit` | Write decisions for existing code, broadly or in detail |
 | `/dld-reindex` | Fix decision ID clashes before a rebase |
 
 ## Install
 
-Every option installs the same skills. You need Node.js 20+ and git; `gh` is optional (`/dld-reindex` uses it to check open PRs).
+Every option installs the same skills. You need Node.js 20+ and git. `gh` is optional: `/dld-reindex` uses it to check open PRs.
 
 ### Which one to use
 
-**Not sure? Run `npx dld-kit init` in the repository and commit the result.** It works for every supported agent, and teammates need nothing installed.
+**Not sure? Run `npx dld-kit init` in the repository and commit the result.** It works for every supported agent except Copilot CLI, which uses the plugin, and teammates don't need to install dld-kit.
 
 - **Use `npx dld-kit init` if** DLD is for a shared repository, the team uses more than one agent, or you want the setup reviewed and versioned with the code. This fits most projects, new or existing.
 - **Use the Claude Code plugin if** you use Claude Code and want DLD in your own setup across many repositories, without committing skills to each one. Run `/dld-init` once per repository for the config and the rule.
-- **Use the Pi package, or the Codex or Copilot CLI plugin, if** the same applies to you in those agents.
+- **Use the Pi package, or the Codex or Copilot CLI plugin,** for the same setup in those agents.
 - **Use `npx skills` or `gh skill` if** you already manage your agents' skills with that tool. Then update with it, not with `dld update`.
 
-For each agent, pick one per repository: skills committed with `init`, or a user-level plugin or package. Having both makes the agent see every skill twice.
+Use one option per agent in each repository. If you commit skills with `init` and also install a plugin, the agent sees every skill twice.
 
 | Option | Agents | Install | Update |
 |---|---|---|---|
 | [`npx dld-kit init`](docs/install.md#npx-dld-kit-init) | Claude Code, Antigravity, Codex, Cursor, OpenCode, Pi | `npx dld-kit init` | `npx dld-kit@latest update` |
 | [Claude Code plugin](docs/install.md#claude-code-plugin) | Claude Code | `/plugin marketplace add jimutt/dld-kit`, then `/plugin install dld@dld-kit` | `claude plugin marketplace update dld-kit`, then `claude plugin update dld@dld-kit` |
-| [Codex and Copilot CLI plugins](docs/install.md#codex-and-copilot-cli-plugins) | Codex, Copilot CLI | `codex plugin marketplace add jimutt/dld-kit`; `copilot plugin marketplace add jimutt/dld-kit`, then `copilot plugin install dld@dld-kit` | Codex's plugin manager; `copilot plugin update` |
+| [Codex and Copilot CLI plugins](docs/install.md#codex-and-copilot-cli-plugins) | Codex, Copilot CLI | `codex plugin marketplace add jimutt/dld-kit`, then install `dld` from `/plugins`; `copilot plugin marketplace add jimutt/dld-kit`, then `copilot plugin install dld@dld-kit` | Codex's plugin manager; `copilot plugin update` |
 | [Pi package](docs/install.md#pi-package) | Pi | `pi install npm:dld-kit` | `pi update npm:dld-kit` |
 | [`npx skills` / `gh skill`](docs/install.md#npx-skills-or-gh-skill) | Any agent those tools support | `npx skills add jimutt/dld-kit`; `gh skill install jimutt/dld-kit --all` | `npx skills update`; `gh skill update` |
 | [Manual copy](docs/install.md#manual-copy) | Any Agent Skills agent | Copy the `dld-*` folders from [`skills/`](skills/) | Copy again |
 
-Apart from `init`, run the dld-init skill once per repository for the config and the always-on rule.
+With any option except `init`, run the dld-init skill once in each repository to create the config and install the rule.
 
-<a name="combining-channels"></a><a name="agents"></a><a name="manual-rule-setup"></a>
-Where each agent keeps its skills and rule, how the options combine, and how to add the rule by hand: [install details](docs/install.md).
+<a name="combining-channels"></a><a name="agents"></a><a name="manual-rule-setup"></a><a name="npx-dld-kit-init"></a><a name="claude-code-plugin"></a>
+See [install details](docs/install.md) for where each agent keeps its skills and rule, how to combine options, and how to add the rule by hand.
 
 ### Upgrading from 0.x
 
@@ -171,11 +172,11 @@ Run `npx dld-kit <command>`, or `npm install --global dld-kit` for a `dld` comma
 | `dld init` | Set up DLD, the skills and the always-on rule |
 | `dld update` | Update the installed skills and rule; `--agent` adds agents |
 | `dld install-rule --agent <names>` | Install or refresh only the always-on rule |
-| `dld session-context --agent <name>` | Print the rule for a session hook, unless the agent loads it already |
+| `dld session-context --agent <name>` | Print the rule for a session hook, unless the agent loads it already (used by the Claude Code plugin) |
 
 `init` and `update` won't overwrite files from a newer dld-kit unless you pass `--force`.
 
-Semantic versioning covers these four commands (their flags, exit codes and documented output), `--help` and `--version`. The other commands in `dld --help` are internal: the skills run them, and they can change in a minor release.
+These four commands, with their flags, exit codes and documented output, follow semantic versioning, as do `--help` and `--version`. The other commands in `dld --help` (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their bundled copy, and they can change in a minor release. Don't script against them.
 
 ## Learn more
 
@@ -183,6 +184,7 @@ Semantic versioning covers these four commands (their flags, exit codes and docu
 - [TL;DR](docs/concept/dld-tldr.md) and [FAQ](docs/concept/dld-faq.md)
 - [Decision record format](docs/framework/decision-record-format.md) and [project configuration](docs/framework/project-configuration.md)
 - [Install details](docs/install.md), [workflows](docs/workflows.md) and [upgrading from 0.x](docs/upgrading-from-0x.md)
+- [Skill design plan](docs/plan/skill-design.md): what each skill does, in detail
 - [Contributing](CONTRIBUTING.md) and [releasing](docs/releasing.md)
 
 Ideas and bug reports are welcome: [open an issue](https://github.com/jimutt/dld-kit/issues).

@@ -83,6 +83,8 @@ When `implement_review` is `true` (the default), `/dld-implement` launches a rev
 
 **Harness note:** some harnesses tell agents not to spawn subagents unless the user explicitly asked — Claude Code 2.1.220 ships `Do not call the AgentTool unless the user requested it`. The skill answers this by stating that enabling `implement_review` and running the skill *is* the request. If the subagent still doesn't run, the skill falls back to an inline review and requires the agent to say so; treat those runs as a weaker check.
 
+The reviewer checks for correctness, security issues, type safety problems, and consistency with existing patterns, and reports findings grouped by severity (critical, moderate, minor). It works with limited context and may flag false positives; the implementing agent uses its own judgment and asks you when uncertain about a finding.
+
 Set `implement_review: false` to skip the step entirely — appropriate if the project already runs an independent review in CI or on the PR.
 
 ### Snapshot Artifacts
