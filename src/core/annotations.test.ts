@@ -52,6 +52,18 @@ describe("scanAnnotations", () => {
     expect(scanAnnotations(ctx, options).map((a) => a.id)).toEqual(["DL-006"]);
   });
 
+  test("skips skills installed in agent configuration directories", () => {
+    const agentDirs = [".claude", ".agents", ".agent", ".codex", ".cursor", ".opencode", ".pi"];
+    const { ctx, options } = setup({
+      ...Object.fromEntries(
+        agentDirs.map((dir) => [`${dir}/skills/dld-plan/SKILL.md`, "Add `@decision(DL-001)`"]),
+      ),
+      "packages/web/.agents/skills/dld-plan/SKILL.md": "@decision(DL-002)",
+      "src/agents/ok.ts": "// @decision(DL-003)",
+    });
+    expect(scanAnnotations(ctx, options).map((a) => a.id)).toEqual(["DL-003"]);
+  });
+
   test("excludes a nested decisions directory by its full path only", () => {
     const { ctx, options } = setup(
       {

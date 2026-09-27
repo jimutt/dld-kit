@@ -33,7 +33,10 @@ export interface Harness {
   /** Paths at the project root whose presence suggests the harness is in use. */
   markers: readonly string[];
   // @decision(DL-049)
-  /** Instruction files at the project root it reads; it loads the first that exists. */
+  /**
+   * Instruction files at the project root it reads; it loads the first that exists. Claude Code
+   * differs: rule.ts models what it reads (DL-055).
+   */
   instructions: readonly string[];
 }
 
@@ -47,7 +50,7 @@ export const HARNESSES: readonly Harness[] = [
     layout: CLAUDE_LAYOUT,
     rule: "claude-file",
     markers: [".claude", "CLAUDE.md"],
-    // @decision(DL-054) Any of the first three stops Claude Code from reading AGENTS.md.
+    // @decision(DL-054) @decision(DL-055)
     instructions: ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"],
   },
   {

@@ -5,6 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const createEmptyIndexCommand: Command = {
   name: "create-empty-index",
   summary: "Write an INDEX.md with no decisions",
+  internal: true,
   usage:
     "Usage: dld create-empty-index\n\nWrite INDEX.md in the decisions directory with only the table header.\n",
   run(args, io, ctx) {

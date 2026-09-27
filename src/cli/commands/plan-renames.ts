@@ -6,6 +6,7 @@ import { baseOption, skippedNotice } from "./base-option.ts";
 export const planRenamesCommand: Command = {
   name: "plan-renames",
   summary: "Plan renames that resolve decision ID collisions",
+  internal: true,
   usage: `Usage: dld plan-renames [--base <ref>]
 
 Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning the next free

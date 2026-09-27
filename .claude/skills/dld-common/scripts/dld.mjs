@@ -7944,6 +7944,7 @@ function updateSnapshotState(ctx, project, customArtifacts) {
 var collectActiveDecisionsCommand = {
   name: "collect-active-decisions",
   summary: "Print every accepted decision record",
+  internal: true,
   usage: "Usage: dld collect-active-decisions\n\nPrint each accepted record in ID order, separated by ===DLD_DECISION_BOUNDARY=== lines.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
@@ -8326,6 +8327,7 @@ function skippedNotice(reason) {
 var commitReindexCommand = {
   name: "commit-reindex",
   summary: "Squash the branch into one reindex commit",
+  internal: true,
   usage: `Usage: dld commit-reindex --base <ref> < plan
 
 Read a rename plan on standard input and squash the branch's commits since the merge-base
@@ -8386,6 +8388,7 @@ function createDirectories(ctx, { config, paths }) {
 var createConfigCommand = {
   name: "create-config",
   summary: "Create dld.config.yaml at the project root",
+  internal: true,
   usage: "Usage: dld create-config <flat|namespaced> [namespace ...]\n\nCreate dld.config.yaml. Namespaced mode needs at least one namespace.\n",
   run(args, io, ctx) {
     const { positionals } = parseCommandArgs({
@@ -8443,6 +8446,7 @@ function isSafeDirName(name) {
 var createDecisionCommand = {
   name: "create-decision",
   summary: "Create a proposed decision record",
+  internal: true,
   usage: `Usage: dld create-decision --id <DL-NNN> --title <title> [options]
 
 Create a decision record with status proposed and print its path.
@@ -8494,6 +8498,7 @@ Options:
 var createDirectoriesCommand = {
   name: "create-directories",
   summary: "Create the decisions directory structure from the config",
+  internal: true,
   usage: "Usage: dld create-directories\n\nCreate the decisions and records directories, and one per namespace.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
@@ -8562,6 +8567,7 @@ function writeIndex(ctx, paths, content) {
 var createEmptyIndexCommand = {
   name: "create-empty-index",
   summary: "Write an INDEX.md with no decisions",
+  internal: true,
   usage: "Usage: dld create-empty-index\n\nWrite INDEX.md in the decisions directory with only the table header.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
@@ -8577,6 +8583,7 @@ var createEmptyIndexCommand = {
 var detectSnapshotChangesCommand = {
   name: "detect-snapshot-changes",
   summary: "Report what changed since the last snapshot",
+  internal: true,
   usage: "Usage: dld detect-snapshot-changes\n\nPrint mode (full or incremental), new_decisions, modified_decisions and commit_range.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
@@ -8589,7 +8596,14 @@ var detectSnapshotChangesCommand = {
 import { join as join11, relative as relative6, sep as sep3 } from "node:path";
 var EXCLUDED_DIRS = /* @__PURE__ */ new Set([
   ".git",
+  // Agent configuration directories, which hold installed skills.
   ".claude",
+  ".agents",
+  ".agent",
+  ".codex",
+  ".cursor",
+  ".opencode",
+  ".pi",
   ".tessl",
   "node_modules",
   "vendor",
@@ -8668,6 +8682,7 @@ function formatAnnotation({ file, line, id }) {
 var findAnnotationsCommand = {
   name: "find-annotations",
   summary: "List every annotation in the codebase",
+  internal: true,
   usage: "Usage: dld find-annotations\n\nPrint <file>:<line>:<DL-NNN> for every annotation, one per line.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
@@ -8683,6 +8698,7 @@ var findAnnotationsCommand = {
 var findCollisionsCommand = {
   name: "find-collisions",
   summary: "List locally added decisions whose IDs are taken",
+  internal: true,
   usage: `Usage: dld find-collisions [--base <ref>]
 
 Print <path>\\t<DL-NNN> for each decision added on this branch whose ID is taken on the base
@@ -8749,6 +8765,7 @@ function updateAuditState(ctx, { paths }) {
 var findMissingAmendsCommand = {
   name: "find-missing-amends",
   summary: "List decision IDs mentioned in a body but not declared",
+  internal: true,
   usage: `Usage: dld find-missing-amends [--all]
 
 Print <source-id>:<referenced-id> for each decision ID a record's body mentions without
@@ -8859,6 +8876,7 @@ function formatStaleMention({ file, line, oldId, newId, text }) {
 var findStaleMentionsCommand = {
   name: "find-stale-mentions",
   summary: "List remaining mentions of renamed decision IDs",
+  internal: true,
   usage: `Usage: dld find-stale-mentions --base <ref> < plan
 
 Read a rename plan (<path>\\t<DL-OLD>\\t<DL-NEW> per line) on standard input and print
@@ -9048,7 +9066,7 @@ var HARNESSES = [
     layout: CLAUDE_LAYOUT,
     rule: "claude-file",
     markers: [".claude", "CLAUDE.md"],
-    // @decision(DL-054) Any of the first three stops Claude Code from reading AGENTS.md.
+    // @decision(DL-054) @decision(DL-055)
     instructions: ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"]
   },
   {
@@ -9256,7 +9274,7 @@ function removeEmptyParents(ctx, dir, paths) {
 }
 
 // src/generate/rule.ts
-import { dirname as dirname3, join as join15 } from "node:path";
+import { dirname as dirname3, join as join15, posix as posix4 } from "node:path";
 
 // templates/rules/dld-workflow.md
 var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch (and open PRs) before rebasing\n";
@@ -9266,10 +9284,13 @@ var RULE_TEXT = dld_workflow_default;
 var RULE_SOURCE = "templates/rules/dld-workflow.md";
 var CLAUDE_RULE_FILE = ".claude/rules/dld-workflow.md";
 var AGENTS_RULE_FILE = ".agents/rules/dld-workflow.md";
+var CLAUDE_IMPORT_FILE = ".claude/CLAUDE.md";
 var BLOCK_START = "<!-- dld-kit:start -->";
 var BLOCK_END = "<!-- dld-kit:end -->";
 var AGENTS_MD = "AGENTS.md";
 var CLAUDE_MD = "CLAUDE.md";
+var CLAUDE_FILES = [CLAUDE_MD, CLAUDE_IMPORT_FILE, "CLAUDE.local.md"];
+var SHARED_CLAUDE_FILES = [CLAUDE_MD, CLAUDE_IMPORT_FILE];
 var RULE_FILES = {
   "claude-file": CLAUDE_RULE_FILE,
   "agents-file": AGENTS_RULE_FILE
@@ -9286,6 +9307,16 @@ function renderRuleFile(channel, text, version2) {
   return `${frontmatter}${notice(version2, "file")}
 
 ${text}`;
+}
+function renderImportFile(version2) {
+  return `<!-- Generated by dld-kit ${version2} for Claude Code: it loads AGENTS.md, which holds the DLD rule, through the import below. Do not edit: updating the rule overwrites this file. -->
+
+@../AGENTS.md
+`;
+}
+var IMPORT_STAMP = /^<!-- Generated by dld-kit (\S+) for Claude Code:/;
+function importFileVersion(content) {
+  return IMPORT_STAMP.exec(content)?.[1];
 }
 function renderBlock(text, version2) {
   const body = text.endsWith("\n") ? text.slice(0, -1) : text;
@@ -9336,19 +9367,35 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
     (file) => regular(file) && findBlock(read(file), file) !== void 0
   );
   if (blockFiles.length === 0 && channels.has("block")) blockFiles = [blockPlacement(ctx, root)];
+  const pending = /* @__PURE__ */ new Map();
   for (const file of blockFiles) {
     const content = read(file);
     const updated = upsertBlock(content, renderBlock(text, version2), file);
+    pending.set(file, updated);
     if (updated !== content) plan.writes.push({ path: file, content: updated });
   }
+  const linkedDir = symlinkedPart(ctx, root, dirname3(CLAUDE_IMPORT_FILE));
+  const ownsImport = linkedDir === void 0 && importFileVersion(read(CLAUDE_IMPORT_FILE)) !== void 0;
+  const wantsImport = channels.has("claude-file") && blockFiles.includes(AGENTS_MD) && !SHARED_CLAUDE_FILES.some((file) => ctx.fs.lexists(join15(root, file)));
+  if (ownsImport || wantsImport && linkedDir === void 0) {
+    const content = renderImportFile(version2);
+    pending.set(CLAUDE_IMPORT_FILE, content);
+    if (read(CLAUDE_IMPORT_FILE) !== content) {
+      plan.writes.push({ path: CLAUDE_IMPORT_FILE, content });
+    }
+  } else if (wantsImport) {
+    plan.warnings.push(
+      `${linkedDir} is a symlink, so dld-kit does not write ${CLAUDE_IMPORT_FILE}, which would import AGENTS.md for Claude Code. Claude Code reads the rule block in AGENTS.md by itself only while the project has no CLAUDE.md, ${CLAUDE_IMPORT_FILE} or CLAUDE.local.md.`
+    );
+  }
   const withBlock = new Set(blockFiles.map(resolved));
-  const loads = (file) => withBlock.has(resolved(file));
-  const planned = new Set(blockFiles);
-  const reads = (harness) => instructionFile(ctx, root, harness, planned);
-  const readsBlock = (harness) => {
-    const file = reads(harness);
-    return file !== void 0 && loads(file);
+  const current = projectView(ctx, root);
+  const view = {
+    exists: (file) => pending.has(file) || current.exists(file),
+    read: (file) => pending.get(file) ?? current.read(file)
   };
+  const reads = (harness) => instructionFiles(harness, view)[0];
+  const readsBlock = (harness) => instructionFiles(harness, view).some((file) => withBlock.has(resolved(file)));
   const ownerOf = (channel) => HARNESSES.find((h) => h.rule === channel);
   const loadsBlock = (channel) => {
     const owner = ownerOf(channel);
@@ -9362,11 +9409,6 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
         reads
       )
     );
-    const claude = harnesses.find((h) => h.rule === "claude-file");
-    const blockWritten = plan.writes.some((write) => write.path === AGENTS_MD);
-    if (claude !== void 0 && reads(claude) === AGENTS_MD && readsBlock(claude) && blockWritten) {
-      plan.warnings.push(CLAUDE_READS_AGENTS_NOTE);
-    }
   }
   for (const channel of ["claude-file", "agents-file"]) {
     const path = RULE_FILES[channel];
@@ -9382,8 +9424,44 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   plan.warnings.push(...legacyBlockWarnings(read(CLAUDE_MD), ruleInstalled));
   return plan;
 }
-function instructionFile(ctx, root, harness, planned = /* @__PURE__ */ new Set()) {
-  return harness.instructions.find((file) => planned.has(file) || ctx.fs.exists(join15(root, file)));
+function projectView(ctx, root) {
+  const exists = (file) => ctx.fs.exists(join15(root, file));
+  return {
+    exists,
+    read: (file) => exists(file) && !ctx.fs.isDirectory(join15(root, file)) ? ctx.fs.readFile(join15(root, file)) : ""
+  };
+}
+function instructionFiles(harness, view) {
+  if (harness.name !== "claude") {
+    const file = harness.instructions.find((f) => view.exists(f));
+    return file === void 0 ? [] : [file];
+  }
+  const files = CLAUDE_FILES.filter((file) => view.exists(file));
+  if (files.length === 0) return view.exists(AGENTS_MD) ? [AGENTS_MD] : [];
+  const imported = files.some((file) => importsAgentsMd(view.read(file), file));
+  return imported && view.exists(AGENTS_MD) ? [...files, AGENTS_MD] : files;
+}
+var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+function importsAgentsMd(content, file) {
+  const dir = posix4.dirname(file);
+  let fence;
+  for (const line of content.split(/\r?\n/)) {
+    const marker = FENCE.exec(line)?.[1];
+    if (marker !== void 0) {
+      if (fence === void 0) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = void 0;
+      continue;
+    }
+    if (fence !== void 0) continue;
+    const prose = line.replace(/`[^`]*`/g, "");
+    for (const match of prose.matchAll(/(?:^|\s)@(\S+)/g)) {
+      const target = match[1];
+      if (target !== void 0 && posix4.normalize(posix4.join(dir, target)) === AGENTS_MD) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 function blindWarnings(blockFiles, blind, reads) {
   const byFile = /* @__PURE__ */ new Map();
@@ -9397,7 +9475,6 @@ function blindWarnings(blockFiles, blind, reads) {
     return `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${one ? "reads" : "read"} ${file}. To cover ${one ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${file}, then run dld install-rule.`;
   });
 }
-var CLAUDE_READS_AGENTS_NOTE = "Claude Code reads the DLD rule from the AGENTS.md block, because the project has no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md. Adding one of those later stops Claude Code from reading AGENTS.md; run dld update then, which installs .claude/rules/dld-workflow.md.";
 function blockPlacement(ctx, root) {
   for (const file of [AGENTS_MD, CLAUDE_MD]) {
     if (ctx.fs.isRegularFile(join15(root, file))) return file;
@@ -9423,31 +9500,42 @@ function loadsRule(ctx, root, harness) {
   if (harness.rule !== "block" && ctx.fs.exists(join15(root, RULE_FILES[harness.rule]))) {
     return true;
   }
-  const file = instructionFile(ctx, root, harness);
-  if (file === void 0) return false;
-  return ctx.fs.readFile(join15(root, file)).split(/\r?\n/).some((line) => line === BLOCK_START || LEGACY_HEADING.test(line));
+  const view = projectView(ctx, root);
+  return instructionFiles(harness, view).some(
+    (file) => view.read(file).split(/\r?\n/).some((line) => line === BLOCK_START || LEGACY_HEADING.test(line))
+  );
 }
 function sessionContext(ctx, root, harness, text = RULE_TEXT) {
   if (!ctx.fs.exists(join15(root, CONFIG_FILE))) return void 0;
   return loadsRule(ctx, root, harness) ? void 0 : text;
 }
-function refuseSymlinkedDir(ctx, root, dir) {
+function symlinkedPart(ctx, root, dir) {
   let current = "";
   for (const part of dir.split("/")) {
     current = current === "" ? part : `${current}/${part}`;
     const full = join15(root, current);
-    if (!ctx.fs.lexists(full)) return;
+    if (!ctx.fs.lexists(full)) return void 0;
     if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join15(ctx.fs.realPath(root), current)) {
-      throw new DldError(
-        `${current} is a symlink; dld-kit does not install through symlinks. Replace it with a directory (dld-kit keeps each agent's copy separate).`
-      );
+      return current;
     }
+  }
+  return void 0;
+}
+function refuseSymlinkedDir(ctx, root, dir) {
+  const linked = symlinkedPart(ctx, root, dir);
+  if (linked !== void 0) {
+    throw new DldError(
+      `${linked} is a symlink; dld-kit does not install through symlinks. Replace it with a directory (dld-kit keeps each agent's copy separate).`
+    );
   }
 }
 function installedRuleChannels(ctx, root) {
   const channels = /* @__PURE__ */ new Set();
   for (const channel of ["claude-file", "agents-file"]) {
     if (ctx.fs.lexists(join15(root, RULE_FILES[channel]))) channels.add(channel);
+  }
+  if (importFileVersion(projectView(ctx, root).read(CLAUDE_IMPORT_FILE)) !== void 0) {
+    channels.add("claude-file");
   }
   for (const file of [AGENTS_MD, CLAUDE_MD]) {
     const path = join15(root, file);
@@ -9463,6 +9551,8 @@ function installedRuleStamps(ctx, root) {
   for (const file of [CLAUDE_RULE_FILE, AGENTS_RULE_FILE].filter(regular)) {
     stamps.push({ path: file, version: ruleVersion(ctx.fs.readFile(join15(root, file))) });
   }
+  const imported = importFileVersion(projectView(ctx, root).read(CLAUDE_IMPORT_FILE));
+  if (imported !== void 0) stamps.push({ path: CLAUDE_IMPORT_FILE, version: imported });
   for (const file of [AGENTS_MD, CLAUDE_MD].filter(regular)) {
     const content = ctx.fs.readFile(join15(root, file));
     const span = findBlock(content, file);
@@ -9705,8 +9795,13 @@ function printReport(io, report2) {
     io.stdout(`${dir}: ${written} written, ${removed} removed, ${unchanged} unchanged
 `);
   }
-  for (const path of report2.ruleWritten) io.stdout(`Wrote the DLD rule to ${path}
-`);
+  for (const path of report2.ruleWritten) {
+    io.stdout(
+      path === CLAUDE_IMPORT_FILE ? `Wrote ${path} (imports AGENTS.md for Claude Code)
+` : `Wrote the DLD rule to ${path}
+`
+    );
+  }
   for (const path of report2.ruleRemoved) io.stdout(`Removed ${path} (the rule is in the block)
 `);
   for (const warning of report2.warnings) io.stderr(`Warning: ${warning}
@@ -9835,6 +9930,7 @@ ${AGENT_HELP}
 var listTakenIdsCommand = {
   name: "list-taken-ids",
   summary: "List decision IDs taken on the base branch and in open PRs",
+  internal: true,
   usage: `Usage: dld list-taken-ids [--base <ref>]
 
 Print the decision IDs on the base branch and in records touched by open pull requests
@@ -9858,6 +9954,7 @@ Options:
 var nextIdCommand = {
   name: "next-id",
   summary: "Print the next sequential decision ID",
+  internal: true,
   usage: "Usage: dld next-id\n\nPrint the next decision ID, e.g. DL-004.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
@@ -9872,6 +9969,7 @@ var nextIdCommand = {
 var planRenamesCommand = {
   name: "plan-renames",
   summary: "Plan renames that resolve decision ID collisions",
+  internal: true,
   usage: `Usage: dld plan-renames [--base <ref>]
 
 Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning the next free
@@ -9895,6 +9993,7 @@ Options:
 var regenerateIndexCommand = {
   name: "regenerate-index",
   summary: "Rebuild INDEX.md from the decision records",
+  internal: true,
   usage: `Usage: dld regenerate-index [--include-base <ref>]
 
 Rebuild INDEX.md from every decision record.
@@ -9922,6 +10021,7 @@ Options:
 var renameDecisionCommand = {
   name: "rename-decision",
   summary: "Rename a local decision and rewrite its references",
+  internal: true,
   usage: `Usage: dld rename-decision --old <DL-OLD> --new <DL-NEW> --path <path> [--base <ref>]
 
 Rename a locally added decision with git mv, rewrite its id and references in changed
@@ -9957,6 +10057,7 @@ Options:
 var resolveBaseCommand = {
   name: "resolve-base",
   summary: "Print the base ref to check decision IDs against",
+  internal: true,
   usage: `Usage: dld resolve-base
 
 Print the current branch's upstream when it tracks a differently named branch, otherwise
@@ -10068,6 +10169,7 @@ ${AGENT_HELP}
 var updateAuditStateCommand = {
   name: "update-audit-state",
   summary: "Record the audit run in .dld-state.yaml",
+  internal: true,
   usage: "Usage: dld update-audit-state\n\nRecord the current time and HEAD commit as the last audit.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
@@ -10082,6 +10184,7 @@ var updateAuditStateCommand = {
 var updateSnapshotStateCommand = {
   name: "update-snapshot-state",
   summary: "Record the snapshot run in .dld-state.yaml",
+  internal: true,
   usage: `Usage: dld update-snapshot-state [artifact ...]
 
 Record the snapshot time, HEAD commit and highest accepted decision, with timestamps for
@@ -10104,6 +10207,7 @@ SNAPSHOT.md, OVERVIEW.md and any custom artifacts named.
 var updateStatusCommand = {
   name: "update-status",
   summary: "Set a decision's status",
+  internal: true,
   usage: `Usage: dld update-status <DL-NNN> <${STATUSES.join("|")}>
 
 Change only the status line of a decision record.
@@ -10135,6 +10239,7 @@ var EXIT_MISSING = 1;
 var verifyAnnotationsCommand = {
   name: "verify-annotations",
   summary: "Check that decisions have annotations in the code",
+  internal: true,
   usage: "Usage: dld verify-annotations <DL-NNN> [DL-NNN ...]\n\nExit 0 if every decision has at least one annotation, 1 if any are missing.\n",
   run(args, io, ctx) {
     const { positionals: ids } = parseCommandArgs({
@@ -10188,11 +10293,19 @@ var COMMANDS = [
   findStaleMentionsCommand,
   commitReindexCommand
 ];
+var INTERNAL_HEADING = "Commands the skills run (internal; may change in minor releases)";
+var INTERNAL_NOTE = "Internal: the dld-kit skills run this command. Its name, arguments and output may change in a minor release.\n";
 function usage(commands) {
+  const list = (group) => group.map((c) => `  ${c.name.padEnd(25)} ${c.summary}`).join("\n");
+  const setup = commands.filter((c) => !c.internal);
+  const internal = commands.filter((c) => c.internal);
+  const sections = [`Setup commands:
+${list(setup)}`];
+  if (internal.length > 0) sections.push(`${INTERNAL_HEADING}:
+${list(internal)}`);
   return `Usage: dld <command> [options]
 
-Commands:
-${commands.map((c) => `  ${c.name.padEnd(20)} ${c.summary}`).join("\n")}
+${sections.join("\n\n")}
 
 Options:
   -h, --help     Show this help, or a command's help after its name
@@ -10231,7 +10344,8 @@ ${usage(commands)}`);
 }
 function report(error, command, io) {
   if (error instanceof HelpRequested) {
-    io.stdout(command.usage);
+    io.stdout(command.internal ? `${command.usage}
+${INTERNAL_NOTE}` : command.usage);
     return EXIT_OK;
   }
   if (error instanceof UsageError) {

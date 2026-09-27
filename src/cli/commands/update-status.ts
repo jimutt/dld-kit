@@ -7,6 +7,7 @@ import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.
 export const updateStatusCommand: Command = {
   name: "update-status",
   summary: "Set a decision's status",
+  internal: true,
   usage: `Usage: dld update-status <DL-NNN> <${STATUSES.join("|")}>\n\nChange only the status line of a decision record.\n`,
   run(args, io, ctx) {
     const { positionals } = parseCommandArgs({

@@ -6,6 +6,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const createDecisionCommand: Command = {
   name: "create-decision",
   summary: "Create a proposed decision record",
+  internal: true,
   usage: `Usage: dld create-decision --id <DL-NNN> --title <title> [options]
 
 Create a decision record with status proposed and print its path.

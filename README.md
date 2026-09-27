@@ -36,7 +36,7 @@ This writes:
 
 - `dld.config.yaml`, `decisions/records/` and `decisions/INDEX.md`
 - the `dld-*` skills for each selected agent: `.claude/skills/` for Claude Code, `.agents/skills/` for the others
-- the always-on rule, once per agent: a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi, `.agents/rules/dld-workflow.md` for Antigravity, and `.claude/rules/dld-workflow.md` for Claude Code unless Claude Code already reads the block (see [Agents](#agents))
+- the always-on rule, once per agent: a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi, `.agents/rules/dld-workflow.md` for Antigravity, and `.claude/rules/dld-workflow.md` for Claude Code unless Claude Code already reads the block (see [Agents](#agents)). When the block goes into `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, it writes `.claude/CLAUDE.md` instead, which imports `AGENTS.md` for Claude Code
 
 `init` detects the agents from files in the project (`.claude/`, `.codex/`, `.cursor/`, `opencode.json`, `.pi/`, `AGENTS.md` and so on) and asks you to confirm the list. Options:
 
@@ -114,7 +114,7 @@ Channels can be combined. These combinations need care:
 
 | Agent | Skills (`dld init`) | Always-on rule (`dld init`, `/dld-init`) | Run a skill |
 |---|---|---|---|
-| Claude Code | `.claude/skills/` | `.claude/rules/dld-workflow.md`, or the block in `AGENTS.md` when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` | `/dld-plan` |
+| Claude Code | `.claude/skills/` | `.claude/rules/dld-workflow.md`, or the block in `CLAUDE.md`, or in `AGENTS.md` imported from a CLAUDE file (`@AGENTS.md`) | `/dld-plan` |
 | Antigravity | `.agents/skills/` | `.agents/rules/dld-workflow.md` | Ask for the dld-plan skill |
 | Codex | `.agents/skills/` | Block in `AGENTS.md` | Ask for the dld-plan skill |
 | Cursor | `.agents/skills/` | Block in `AGENTS.md` | Ask for the dld-plan skill |
@@ -124,9 +124,21 @@ Channels can be combined. These combinations need care:
 
 A new block goes into `AGENTS.md` if it exists, else into `CLAUDE.md` if that exists, else into a new `AGENTS.md`. Codex and Cursor read only `AGENTS.md`: when the block ends up in `CLAUDE.md`, `dld install-rule` warns and says how to move it.
 
-Each agent gets the rule once. Claude Code reads `AGENTS.md` only when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`; in that case the block in `AGENTS.md` is its rule, and `init` prints a note. If one of those files is added later, run `npx dld-kit@latest update` (or `dld install-rule`), which then installs `.claude/rules/dld-workflow.md`.
+Each agent gets the rule once. Claude Code reads `AGENTS.md` by itself only when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, so adding one of those (even an uncommitted `CLAUDE.local.md`) would stop it. When the block is in `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, `init` writes `.claude/CLAUDE.md` with the line `@../AGENTS.md`. Claude Code then loads `AGENTS.md` through that import, once, whichever CLAUDE files are added later. If a `CLAUDE.md` of yours already imports `@AGENTS.md`, the block there is Claude Code's rule and no other file is written.
 
 The examples below use Claude Code's `/dld-plan` form. In other agents, name the skill instead, e.g. "use the dld-plan skill to plan the retry feature".
+
+### Upgrading from 0.x
+
+Before 1.0, the skills were copied by hand or installed with Tessl, each skill carried `scripts/*.sh`, and `/dld-init` appended a `## DLD (Decision-Linked Development)` section to `CLAUDE.md`.
+
+- **Your data carries over unchanged:** `dld.config.yaml`, `decisions/records/`, `decisions/INDEX.md` and `decisions/.dld-state.yaml`. 1.0 reads them as 0.x wrote them.
+- **Skills copied into `.claude/skills/` or `.agents/skills/`:** in the project, run `npx dld-kit@latest update --agent <names>` (e.g. `--agent claude,codex`). It rewrites the `dld-*` skills, deletes their old `scripts/*.sh`, and installs the always-on rule. Commit the result.
+  - For Codex or Cursor, first create an empty `AGENTS.md` if the project has none (`touch AGENTS.md`). Otherwise the rule block goes into your existing `CLAUDE.md`, which those agents do not read, and `update` warns about it.
+- **Skills copied anywhere else** (e.g. `.cursor/skills/`, `.codex/skills/`): delete those `dld-*` directories, then run the same `update`.
+- **Tessl installs:** remove the `dld-kit/dld` tile with Tessl, and delete any DLD rule text Tessl added. Then run `update`. The Tessl tile gets no new versions.
+- **The old `CLAUDE.md` section:** once the rule is installed, delete the `## DLD (Decision-Linked Development)` section yourself. Until then Claude Code reads the rule twice. `update` warns while the section is there, and never edits it.
+- **To use the plugin or `npx skills` instead:** delete the copied `dld-*` directories and the old `CLAUDE.md` section first, then install through that channel.
 
 ## Get started
 
@@ -369,9 +381,11 @@ The `dld` command comes with the npm package (`npx dld-kit <command>`, or `npm i
 | `dld update` | Rewrites the installed skills and rule with this version; `--agent` adds agents |
 | `dld install-rule --agent <names>` | Installs or refreshes only the always-on rule |
 | `dld session-context --agent <name>` | Prints the rule for a session hook, unless the agent loads it already (used by the Claude Code plugin) |
-| `dld --help` | Lists every command; the rest are the operations the skills run |
+| `dld --help` | Lists the setup commands above, then the commands the skills run |
 
 `init` and `update` refuse to overwrite files from a newer dld-kit unless given `--force`.
+
+Semantic versioning covers the four commands above, their flags, exit codes and documented output, and `--help` and `--version`. The other commands (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their own bundled copy of the CLI, and their names, arguments and output can change in a minor release. Don't script against them.
 
 ## Development
 
@@ -413,7 +427,7 @@ DLD is under active development. Feature requests and ideas are welcome — [ope
 
 ## Manual rule setup
 
-The always-on rule tells the agent to read a decision before changing code annotated with it. `/dld-init` installs it with `dld install-rule --agent <harness>`, which picks the file the harness loads: `.claude/rules/dld-workflow.md` for Claude Code (unless it already reads the block in `AGENTS.md`), `.agents/rules/dld-workflow.md` for Antigravity, or a marked block in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi.
+The always-on rule tells the agent to read a decision before changing code annotated with it. `/dld-init` installs it with `dld install-rule --agent <harness>`, which picks the file the harness loads: `.claude/rules/dld-workflow.md` for Claude Code (unless it reads the block in `AGENTS.md`, directly or through a `.claude/CLAUDE.md` import), `.agents/rules/dld-workflow.md` for Antigravity, or a marked block in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi.
 
 To add it by hand instead, copy [`templates/rules/dld-workflow.md`](templates/rules/dld-workflow.md) into one of those files.
 

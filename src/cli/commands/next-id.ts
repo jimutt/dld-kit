@@ -5,6 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const nextIdCommand: Command = {
   name: "next-id",
   summary: "Print the next sequential decision ID",
+  internal: true,
   usage: "Usage: dld next-id\n\nPrint the next decision ID, e.g. DL-004.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });

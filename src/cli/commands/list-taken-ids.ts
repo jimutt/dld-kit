@@ -6,6 +6,7 @@ import { baseOption, skippedNotice } from "./base-option.ts";
 export const listTakenIdsCommand: Command = {
   name: "list-taken-ids",
   summary: "List decision IDs taken on the base branch and in open PRs",
+  internal: true,
   usage: `Usage: dld list-taken-ids [--base <ref>]
 
 Print the decision IDs on the base branch and in records touched by open pull requests

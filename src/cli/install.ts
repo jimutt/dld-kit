@@ -7,6 +7,7 @@ import {
   type Harness,
 } from "../generate/harnesses.ts";
 import type { InstallReport } from "../generate/install.ts";
+import { CLAUDE_IMPORT_FILE } from "../generate/rule.ts";
 import { type Io, UsageError } from "./command.ts";
 
 /** Help text shared by the commands that take `--agent`. */
@@ -89,7 +90,14 @@ export function printReport(io: Io, report: InstallReport): void {
   for (const { dir, written, removed, unchanged } of report.skills) {
     io.stdout(`${dir}: ${written} written, ${removed} removed, ${unchanged} unchanged\n`);
   }
-  for (const path of report.ruleWritten) io.stdout(`Wrote the DLD rule to ${path}\n`);
+  for (const path of report.ruleWritten) {
+    // @decision(DL-055)
+    io.stdout(
+      path === CLAUDE_IMPORT_FILE
+        ? `Wrote ${path} (imports AGENTS.md for Claude Code)\n`
+        : `Wrote the DLD rule to ${path}\n`,
+    );
+  }
   for (const path of report.ruleRemoved) io.stdout(`Removed ${path} (the rule is in the block)\n`);
   for (const warning of report.warnings) io.stderr(`Warning: ${warning}\n`);
 }

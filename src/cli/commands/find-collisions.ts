@@ -6,6 +6,7 @@ import { baseOption, skippedNotice } from "./base-option.ts";
 export const findCollisionsCommand: Command = {
   name: "find-collisions",
   summary: "List locally added decisions whose IDs are taken",
+  internal: true,
   usage: `Usage: dld find-collisions [--base <ref>]
 
 Print <path>\\t<DL-NNN> for each decision added on this branch whose ID is taken on the base
