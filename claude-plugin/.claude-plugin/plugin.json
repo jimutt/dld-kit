@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "dld",
+  "version": "1.0.0-rc.3",
+  "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
+  "author": {
+    "name": "Jimmy Utterström",
+    "url": "https://github.com/jimutt"
+  },
+  "homepage": "https://github.com/jimutt/dld-kit#readme",
+  "repository": "https://github.com/jimutt/dld-kit",
+  "license": "MIT",
+  "keywords": [
+    "dld",
+    "decision-records",
+    "agent-skills"
+  ]
+}

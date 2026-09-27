@@ -1,0 +1,130 @@
+---
+name: dld-init
+description: Bootstrap DLD (Decision-Linked Development) in a repository. Creates dld.config.yaml, the decisions/ directory, and INDEX.md. Run once per project.
+compatibility: Requires Node.js 20+ and git.
+---
+
+# /dld-init — Bootstrap DLD
+
+You are initializing Decision-Linked Development (DLD) in this repository. This is an interactive setup process that runs once per project.
+
+## Interaction style
+
+Use the `AskUserQuestion` tool for all questions and prompts. This provides a structured input experience for the user rather than waiting for freeform replies.
+
+## Commands
+
+{{dld-setup}}
+
+This skill uses: `create-config`, `create-directories`, `create-empty-index`, `install-rule`.
+
+## Prerequisites
+
+- This must be a git repository
+- `dld.config.yaml` must NOT already exist at the repo root (if it does, tell the user DLD is already initialized and suggest the dld-status skill instead)
+
+Users who install dld-kit from npm can run `npx dld-kit init` in a terminal instead: it does steps 2–4 and 6 non-interactively and also installs the skills. This skill covers projects whose skills were installed another way.
+
+## Steps
+
+### 1. Ask about project structure
+
+Ask the user:
+
+> Is this a **flat** project (all decisions in one directory) or a **namespaced** project (decisions organized by component/domain, e.g., for a monorepo)?
+
+- **Flat** is the default and right for most projects
+- **Namespaced** is for monorepos or projects with distinct domains (billing, auth, etc.)
+
+If namespaced, ask for the initial namespace list. Suggest they can add more later.
+
+### 2. Create `dld.config.yaml`
+
+Run `create-config`:
+```bash
+{{dld}} create-config <mode> [namespace1 namespace2 ...]
+```
+
+Example flat:
+```bash
+{{dld}} create-config flat
+```
+
+Example namespaced:
+```bash
+{{dld}} create-config namespaced billing auth shared
+```
+
+### 3. Create directory structure
+
+```bash
+{{dld}} create-directories
+```
+
+This reads mode and namespaces from `dld.config.yaml` (created in step 2).
+
+### 4. Create initial INDEX.md
+
+```bash
+{{dld}} create-empty-index
+```
+
+This reads mode from `dld.config.yaml`.
+
+### 5. Offer to create a practices manifest
+
+Ask the user:
+
+> Would you like to create a **development practices manifest**? This is an optional document (`decisions/PRACTICES.md`) that captures your project's development conventions (testing approach, code style, error handling patterns, etc.). The AI agent reads this when making and implementing decisions.
+>
+> You can skip this now and add it later at any time.
+
+If they accept, help them fill it out by asking about:
+- Testing practices (TDD? coverage targets? integration test requirements?)
+- Code style preferences (error handling patterns, validation approach)
+- Architecture conventions (dependency injection, repository pattern, etc.)
+
+If the repository already has application code, scan it first and suggest conventions you observe (e.g., "I see you're using Result types for error handling and Zod for validation — should I include those?"). This saves the user from having to recall everything from scratch.
+
+Write `decisions/PRACTICES.md` with their answers in simple markdown format:
+```markdown
+# Development Practices
+
+## Testing
+- ...
+
+## Code Style
+- ...
+
+## Architecture
+- ...
+```
+
+For namespaced projects, this is the root-level shared practices. Mention they can create namespace-specific practices later at `decisions/records/<namespace>/PRACTICES.md`.
+
+### 6. Install the always-on rule
+
+The rule tells the agent to look up `@decision` annotations before changing annotated code, in every session. Install it for the harness you are running in:
+
+```bash
+{{dld}} install-rule --agent <harness>
+```
+
+`<harness>` is one of `claude` (Claude Code), `antigravity`, `codex`, `cursor`, `opencode` or `pi`; for another harness that reads `AGENTS.md`, such as Copilot CLI, use `codex`. If you are unsure which one you are, or the user says the team uses several agents, ask the user and pass them all, comma-separated (e.g. `--agent claude,codex`). The command decides where the rule goes (a rule file the harness loads, or a marked block in `AGENTS.md` or `CLAUDE.md`) and prints what it wrote; relay that to the user, including any warning.
+
+Do not write the rule into `CLAUDE.md` or `AGENTS.md` yourself.
+
+### 7. Suggest next steps
+
+Tell the user:
+
+> DLD is initialized. Here's what you can do next:
+
+If the repository already has application code:
+> - the dld-retrofit skill — generate initial decisions from your existing codebase
+> - Edit `decisions/PRACTICES.md` to refine your development practices (if created)
+
+If this is a new/empty project:
+> - the dld-decide skill — record your first decision
+> - the dld-plan skill — break down a feature into multiple decisions
+> - Edit `decisions/PRACTICES.md` to refine your development practices (if created)

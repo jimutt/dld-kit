@@ -1,0 +1,23 @@
+// @decision(DL-006)
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    // plugin.json is generated from package.json (DL-050)
+    "includes": ["src/**", "tests/cli/**", "scripts/**", "*.json", "*.jsonc", "!plugin.json"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended"
+    }
+  }
+}

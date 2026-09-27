@@ -3,29 +3,155 @@
 Stop AI agents from breaking code they don't understand.
 
 > [!NOTE]
-> Early development — APIs, file formats, and skill interfaces may change.
+> **Release candidate.** dld-kit 1.0 is in release candidates (`1.0.0-rc.N`), and the install steps below get the latest one. It replaces the 0.x skills and their scripts; see [Upgrading from 0.x](#upgrading-from-0x). Commands, file formats and skills may still change before 1.0.0. The last 0.x release is [v0.9.0](https://github.com/jimutt/dld-kit/releases/tag/v0.9.0).
 
 ---
 
 AI agents write code confidently. They just don't know *why* your code looks the way it does. That retry logic tuned for a specific API's rate limiting? That validation step catching a production-only edge case? Those decisions live in Jira tickets, Slack threads, and departed engineers' heads. DLD aims to fix this with an **append-only decision log** and `@decision(DL-XXX)` annotations that link code directly to the reasoning behind it. When an agent encounters an annotation, it reads the decision *before* modifying anything. DLDs primary focus is to connect context to code in a highly visible and directly accessible way, avoiding guesswork & git or JIRA archeology to retrieve core business context. Ensuring absolute, immediate, correctness of the produced software is however *not* within the core scope of DLD; for that you will need to combine it with sound general test & validation practices.
 
+## Install
+
+Requirements: Node.js 20+ and git. `gh` is optional; `/dld-reindex` uses it to check open PRs.
+
+### Which one to use
+
+**Not sure? Run `npx dld-kit init` in the repository and commit the result.** It works for every supported agent, and teammates need nothing installed.
+
+- **Use `npx dld-kit init` if** DLD is for a shared repository, the team uses more than one agent, or you want the setup reviewed and versioned with the code. This fits most projects, new or existing.
+- **Use the Claude Code plugin if** you use Claude Code and want DLD in your own setup across many repositories, without committing skills to each one. Run `/dld-init` once per repository for the config and the rule.
+- **Use the Pi package, or the Codex or Copilot CLI plugin, if** the same applies to you in those agents.
+- **Use `npx skills` or `gh skill` if** you already manage your agents' skills with that tool. Then update with it, not with `dld update`.
+- **Upgrading from 0.x?** Run `npx dld-kit@latest update` in the repository; see [Upgrading from 0.x](#upgrading-from-0x).
+
+For each agent, pick one per repository: skills committed with `init`, or a user-level plugin or package. Having both makes the agent see every skill twice (see [Combining channels](#combining-channels)).
+
+Each channel below installs the same skills. They differ in which agents they reach, how the always-on rule gets into the agent's context, and how you update.
+
+| Channel | Agents | Installs into | Always-on rule | Update with |
+|---|---|---|---|---|
+| [`npx dld-kit init`](#npx-dld-kit-init) | Claude Code, Antigravity, Codex, Cursor, OpenCode, Pi | The project, committed | Written by `init` | `npx dld-kit@latest update` |
+| [Claude Code plugin](#claude-code-plugin) | Claude Code | Your user profile | SessionStart hook | `claude plugin marketplace update dld-kit`, then `claude plugin update dld@dld-kit` |
+| [Codex and Copilot CLI plugins](#codex-and-copilot-cli-plugins) | Codex, Copilot CLI | Your user profile | dld-init skill | Codex's plugin manager; `copilot plugin update` |
+| [Pi package](#pi-package) | Pi | Your user profile, or the project with `-l` | dld-init skill | `pi update npm:dld-kit` |
+| [`npx skills` / `gh skill`](#npx-skills-or-gh-skill) | Any agent those tools support | The project, or your user profile with `-g` | dld-init skill | `npx skills update` / `gh skill update` |
+| [Manual copy](#manual-copy) | Any Agent Skills harness | Wherever you copy them | dld-init skill | Copy again |
+
+### `npx dld-kit init`
+
+Run in the root of a git repository:
+
+```bash
+npx dld-kit init
+```
+
+This writes:
+
+- `dld.config.yaml`, `decisions/records/` and `decisions/INDEX.md`
+- the `dld-*` skills for each selected agent: `.claude/skills/` for Claude Code, `.agents/skills/` for the others
+- the always-on rule, once per agent: a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi, `.agents/rules/dld-workflow.md` for Antigravity, and `.claude/rules/dld-workflow.md` for Claude Code unless Claude Code already reads the block (see [Agents](#agents)). When the block goes into `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, it writes `.claude/CLAUDE.md` instead, which imports `AGENTS.md` for Claude Code
+
+`init` detects the agents from files in the project (`.claude/`, `.codex/`, `.cursor/`, `opencode.json`, `.pi/`, `AGENTS.md` and so on) and asks you to confirm the list. Options:
+
+- `--agent claude,codex`: add agents to the detected ones
+- `--namespaces billing,auth`: one decision directory per namespace (for monorepos)
+- `--yes`: skip the question and use the detected agents plus `--agent`
+
+Commit the files. Teammates then need nothing installed.
+
+To upgrade, run `npx dld-kit@latest update`. It rewrites the `dld-*` skills and the rule for the agents already installed, and never touches decision records or `dld.config.yaml`. Add `--agent <name>` to install for another agent.
+
+### Claude Code plugin
+
+In Claude Code:
+
+```
+/plugin marketplace add jimutt/dld-kit
+/plugin install dld@dld-kit
+```
+
+Then run `/dld-init` in each project. The plugin's SessionStart hook adds the always-on rule to each session in projects that have `dld.config.yaml` and do not already load the rule. `/dld-init` also installs `.claude/rules/dld-workflow.md`, so teammates without the plugin get the rule too.
+
+Skills run as `/dld-plan`, or as `/dld:dld-plan` if another skill has the same name. Third-party marketplaces do not auto-update by default. To update:
+
+```bash
+claude plugin marketplace update dld-kit
+claude plugin update dld@dld-kit
+```
+
+### Codex and Copilot CLI plugins
+
+Both install the portable skills from the repository root, with no hook.
+
+```bash
+codex plugin marketplace add jimutt/dld-kit       # then install dld from /plugins in Codex
+copilot plugin marketplace add jimutt/dld-kit
+copilot plugin install dld@dld-kit
+```
+
+Then run the dld-init skill in each project for the config and the rule. For Copilot CLI it installs the rule as for Codex.
+
+### Pi package
+
+```bash
+pi install npm:dld-kit        # for your user
+pi install -l npm:dld-kit     # for this project (.pi/settings.json)
+```
+
+Run `/skill:dld-init` in each project for the config and the rule. Update with `pi update npm:dld-kit`.
+
+### `npx skills` or `gh skill`
+
+```bash
+npx skills add jimutt/dld-kit
+gh skill install jimutt/dld-kit --all
+```
+
+Install all the skills. If you pick some with `--skill`, include `dld-common`: it holds the `dld` CLI the other skills run. Then run the dld-init skill in each project for the config and the rule. Update with `npx skills update` or `gh skill update`.
+
+`npx skills` puts the files in `.agents/skills/` and links them from `.claude/skills/` for Claude Code. `dld update` refuses to write through those links; keep updating with `npx skills update`.
+
+### Manual copy
+
+Copy the `dld-*` directories from [`skills/`](skills/) into your agent's skills directory, or from [`.claude/skills/`](.claude/skills/) into a project's `.claude/skills/` for Claude Code. Include `dld-common`. Then run the dld-init skill for the config and the rule.
+
+### Combining channels
+
+Channels can be combined. These combinations need care:
+
+- **A user-level plugin or package, plus skills committed in the project for the same agent.** The agent sees each skill twice, possibly at different versions. In Claude Code, run the plugin's copy as `/dld:dld-plan`.
+- **Skills for Claude Code and for an `.agents/skills/` agent in one project.** OpenCode and Cursor read both `.claude/skills/` and `.agents/skills/`. OpenCode 2.x loads the `.agents/skills/` copy; OpenCode 1.x and Cursor may load either. Both copies work.
+- **`dld update` and `npx skills` on the same skills.** `dld update` refuses symlinked skills and warns when `skills-lock.json` lists `dld-*` skills. Update those skills with one tool.
+
+### Agents
+
+| Agent | Skills (`dld init`) | Always-on rule (`dld init`, `/dld-init`) | Run a skill |
+|---|---|---|---|
+| Claude Code | `.claude/skills/` | `.claude/rules/dld-workflow.md`, or the block in `CLAUDE.md`, or in `AGENTS.md` imported from a CLAUDE file (`@AGENTS.md`) | `/dld-plan` |
+| Antigravity | `.agents/skills/` | `.agents/rules/dld-workflow.md` | Ask for the dld-plan skill |
+| Codex | `.agents/skills/` | Block in `AGENTS.md` | Ask for the dld-plan skill |
+| Cursor | `.agents/skills/` | Block in `AGENTS.md` or `CLAUDE.md` (Cursor reads both) | Ask for the dld-plan skill |
+| OpenCode | `.agents/skills/` | Block in `AGENTS.md` (OpenCode 2.x reads no `CLAUDE.md`) | Ask for the dld-plan skill |
+| Pi | `.agents/skills/` | Block in `AGENTS.md`, or `CLAUDE.md` if there is no `AGENTS.md` | `/skill:dld-plan` |
+| Copilot CLI | Plugin only | Block in `AGENTS.md` (installed as for Codex) | Ask for the dld-plan skill |
+
+A new block goes into `AGENTS.md` if it exists. Otherwise it goes into an existing `CLAUDE.md` only when every selected agent that takes the block (Codex, Cursor, OpenCode, Pi) reads that file, which Cursor and Pi do, and into a new `AGENTS.md` in all other cases. Pi reads `CLAUDE.md` only while there is no `AGENTS.md`, so when `dld` creates `AGENTS.md` next to a `CLAUDE.md` for Pi, it warns you to move anything Pi needs. A block already in `CLAUDE.md` stays there; `dld install-rule` warns about agents that cannot see it (Codex, OpenCode) and says how to move it.
+
+Each agent gets the rule once. Claude Code reads `AGENTS.md` by itself only when the project has no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`, so adding one of those (even an uncommitted `CLAUDE.local.md`) would stop it. When the block is in `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, `init` writes `.claude/CLAUDE.md` with the line `@../AGENTS.md`. Claude Code then loads `AGENTS.md` through that import, once, whichever CLAUDE files are added later. If a `CLAUDE.md` of yours already imports `@AGENTS.md`, the block there is Claude Code's rule and no other file is written.
+
+The examples below use Claude Code's `/dld-plan` form. In other agents, name the skill instead, e.g. "use the dld-plan skill to plan the retry feature".
+
+### Upgrading from 0.x
+
+Before 1.0, the skills were copied by hand or installed with Tessl, each skill carried `scripts/*.sh`, and `/dld-init` appended a `## DLD (Decision-Linked Development)` section to `CLAUDE.md`.
+
+- **Your data carries over unchanged:** `dld.config.yaml`, `decisions/records/`, `decisions/INDEX.md` and `decisions/.dld-state.yaml`. 1.0 reads them as 0.x wrote them.
+- **Skills copied into `.claude/skills/` or `.agents/skills/`:** in the project, run `npx dld-kit@latest update --agent <names>` (e.g. `--agent claude,codex`). It rewrites the `dld-*` skills, deletes their old `scripts/*.sh`, and installs the always-on rule. Commit the result.
+- **Skills copied anywhere else** (e.g. `.cursor/skills/`, `.codex/skills/`): delete those `dld-*` directories, then run the same `update`.
+- **Tessl installs:** remove the `dld-kit/dld` tile with Tessl, and delete any DLD rule text Tessl added. Then run `update`. The Tessl tile gets no new versions.
+- **The old `CLAUDE.md` section:** once the rule is installed, delete the `## DLD (Decision-Linked Development)` section yourself. Until then Claude Code and Cursor read the rule twice. `update` warns while the section is there, and never edits it.
+- **To use the plugin or `npx skills` instead:** delete the copied `dld-*` directories and the old `CLAUDE.md` section first, then install through that channel.
+
 ## Get started
-
-### Install
-
-**Via [Tessl](https://tessl.io)** (works across Claude Code, Cursor, Copilot, etc.):
-
-```bash
-tessl install dld-kit/dld
-```
-
-**Manual** (Claude Code only):
-
-```bash
-cp -r /path/to/dld-kit/.claude/skills/dld-* your-project/.claude/skills/
-```
-
-Then run `/dld-init` to set up your project's `CLAUDE.md` with the required rules, or [add them manually](#manual-claude-md-setup).
 
 ### New feature or change
 
@@ -127,6 +253,8 @@ DLD is designed for long-lived codebases where decisions accumulate, original au
 
 ## Skills
 
+The table uses Claude Code's slash form; in Pi use `/skill:<name>`, and in other agents ask for the skill by name.
+
 | Skill | Purpose |
 |-------|---------|
 | `/dld-init` | Bootstrap DLD in a repository (run once) |
@@ -168,8 +296,10 @@ decisions/
   SNAPSHOT.md       # Detailed per-decision reference
   OVERVIEW.md       # Narrative synthesis with Mermaid diagrams
   PRACTICES.md      # Development practices manifest (optional)
-  DL-001.md
-  DL-002.md
+  .dld-state.yaml   # Last audit and snapshot runs
+  records/
+    DL-001.md
+    DL-002.md
 ```
 
 ### Namespaced mode (monorepos)
@@ -181,13 +311,14 @@ decisions/
   SNAPSHOT.md
   OVERVIEW.md
   PRACTICES.md
-  billing/
-    DL-001.md
-    DL-004.md
-    PRACTICES.md    # Namespace-specific practices (optional)
-  auth/
-    DL-002.md
-    DL-005.md
+  records/
+    billing/
+      DL-001.md
+      DL-004.md
+      PRACTICES.md  # Namespace-specific practices (optional)
+    auth/
+      DL-002.md
+      DL-005.md
 ```
 
 IDs are globally sequential across namespaces, so `@decision(DL-012)` is unambiguous regardless of which namespace it belongs to.
@@ -251,6 +382,31 @@ implement_review: false
 
 The review subagent operates with limited context and may flag false positives. The implementing agent uses its own judgment and asks for user input when uncertain about a finding.
 
+## CLI
+
+The `dld` command comes with the npm package (`npx dld-kit <command>`, or `npm install --global dld-kit`). The skills carry their own copy in `dld-common/scripts/dld.mjs`, so they never need a global install.
+
+| Command | What it does |
+|---|---|
+| `dld init` | Creates `dld.config.yaml`, `decisions/` and `INDEX.md`, then installs the skills and the rule (see [above](#npx-dld-kit-init)) |
+| `dld update` | Rewrites the installed skills and rule with this version; `--agent` adds agents |
+| `dld install-rule --agent <names>` | Installs or refreshes only the always-on rule |
+| `dld session-context --agent <name>` | Prints the rule for a session hook, unless the agent loads it already (used by the Claude Code plugin) |
+| `dld --help` | Lists the setup commands above, then the commands the skills run |
+
+`init` and `update` refuse to overwrite files from a newer dld-kit unless given `--force`.
+
+Semantic versioning covers the four commands above, their flags, exit codes and documented output, and `--help` and `--version`. The other commands (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their own bundled copy of the CLI, and their names, arguments and output can change in a minor release. Don't script against them.
+
+## Development
+
+```bash
+bun install                               # dev dependencies (Bun is a dev tool; the CLI runs on Node 20+)
+npm run lint && npm run typecheck && npm test
+```
+
+Skills and plugin manifests are generated: edit `templates/`, then run `npm run generate` to rebuild `skills/`, `.claude/skills/`, `claude-plugin/` and the manifests. See `CLAUDE.md` for the full set of commands, `docs/releasing.md` for releases, and `docs/plan/v1.md` for the 1.0 plan.
+
 ## Further reading
 
 - [Concept paper](docs/concept/dld-concept.md) — full rationale and design philosophy
@@ -280,24 +436,11 @@ See the [concept paper](docs/concept/dld-concept.md) for a detailed discussion o
 
 DLD is under active development. Feature requests and ideas are welcome — [open an issue](https://github.com/jimutt/dld-kit/issues).
 
-## Manual CLAUDE.md setup
+## Manual rule setup
 
-If you installed manually and prefer not to use `/dld-init`, add this to your project's `CLAUDE.md`:
+The always-on rule tells the agent to read a decision before changing code annotated with it. `/dld-init` installs it with `dld install-rule --agent <harness>`, which picks the file the harness loads: `.claude/rules/dld-workflow.md` for Claude Code (unless it reads the block in `AGENTS.md`, directly or through a `.claude/CLAUDE.md` import), `.agents/rules/dld-workflow.md` for Antigravity, or a marked block in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi.
 
-```markdown
-## DLD (Decision-Linked Development)
-
-This project uses Decision-Linked Development. Decision records (DL-*.md) live in `decisions/records/`. High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in `decisions/`.
-
-### Rules
-
-- When you encounter `@decision(DL-XXX)` annotations in code, use `/dld-lookup DL-XXX` to read the referenced decision BEFORE modifying the annotated code.
-- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
-- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (via `/dld-decide`) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.
-- Use `/dld-decide` to record new decisions
-- Use `/dld-implement` to implement proposed decisions
-- Use `/dld-lookup` to query decisions by ID, tag, or code path
-```
+To add it by hand instead, copy [`templates/rules/dld-workflow.md`](templates/rules/dld-workflow.md) into one of those files.
 
 ## License
 

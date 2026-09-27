@@ -28,6 +28,12 @@ namespaces:
 # Default: @decision(DL-XXX)
 annotation_prefix: "@decision"
 
+# Paths whose annotations are ignored (optional)
+# git glob patterns relative to the repo root; see "Annotation exclusions" below
+annotation_exclude:
+  - docs/**
+  - tests/fixtures/**
+
 # Whether /dld-implement runs a review subagent before finalizing
 # Default: true
 implement_review: true
@@ -65,6 +71,12 @@ namespaces:
   - shared
 ```
 
+### Annotation exclusions
+
+`annotation_exclude` lists paths whose annotations are not treated as references to the project's decisions. Use it for documentation, examples and test fixtures that contain `` `@decision` `` annotations only to illustrate the syntax. `find-annotations` (used by `/dld-audit`) and `verify-annotations` (used by `/dld-implement`) both skip matching files.
+
+Each entry is a git glob pattern relative to the repository root, applied as a `:(exclude,glob)` pathspec. `*` matches within a single directory level, so `*.md` matches only top-level markdown files; `**` matches across directories, so `docs/**` covers everything under `docs/`. A pattern that matches a directory excludes everything beneath it, so `docs/*` also covers `docs/sub/…`. Patterns must be relative to the root; absolute paths and `..` are rejected. Files ignored by `.gitignore`, the decisions directory, and common build and dependency directories are always skipped.
+
 ### Implement Review
 
 When `implement_review` is `true` (the default), `/dld-implement` launches a review subagent over the changed files before finalizing. The point of using a separate agent is that it reads the diff cold — the implementing agent has just spent a long session convincing itself the code is right, and is poor at catching its own baked-in assumptions.
@@ -96,7 +108,9 @@ The `/dld-init` skill bootstraps DLD in a repository:
 2. If namespaced, asks for the initial namespace list
 3. Creates `dld.config.yaml` at the repo root
 4. Creates the `decisions/` directory with a `records/` subdirectory (and namespace subdirectories under `records/` if applicable)
-5. Adds DLD instructions to `CLAUDE.md` — specifically, the instruction for the AI agent to look up `@decision` references before modifying annotated code
+5. Installs the always-on rule (the instruction for the AI agent to look up `@decision` references before modifying annotated code) with `dld install-rule`, into the file the agent's harness loads
+
+From a terminal, `npx dld-kit init` does the same without an agent session and also installs the skills; `dld update` refreshes them after an upgrade.
 
 ## Decision Log Index
 

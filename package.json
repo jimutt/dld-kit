@@ -1,0 +1,64 @@
+{
+  "name": "dld-kit",
+  "version": "1.0.0-rc.3",
+  "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
+  "license": "MIT",
+  "author": {
+    "name": "Jimmy Utterström",
+    "url": "https://github.com/jimutt"
+  },
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jimutt/dld-kit.git"
+  },
+  "homepage": "https://github.com/jimutt/dld-kit#readme",
+  "keywords": [
+    "dld",
+    "decision-records",
+    "agent-skills",
+    "cli",
+    "pi-package"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "dld": "dist/dld.mjs"
+  },
+  "files": [
+    "dist/dld.mjs",
+    "skills/",
+    "templates/skills/",
+    "templates/rules/"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "generate": "bun scripts/generate.ts",
+    "check:generated": "bun scripts/generate.ts --check",
+    "prepack": "npm run build",
+    "version": "npm run generate && git add skills .claude/skills .claude/rules claude-plugin .claude-plugin plugin.json .agents/plugins .github/plugin",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.src.json",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "test": "npm run check:generated && npm run test:unit && npm run test:cli",
+    "test:unit": "bun test src",
+    "test:coverage": "bun test --coverage src",
+    "test:cli": "npm run build && bun test tests/cli",
+    "check:pack": "node scripts/check-pack.mjs",
+    "check:installers": "node scripts/check-installers.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/bun": "1.4.2",
+    "@types/node": "20.19.43",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "yaml": "2.9.1"
+  }
+}

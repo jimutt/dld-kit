@@ -1,0 +1,24 @@
+{
+  "name": "dld-kit",
+  "owner": {
+    "name": "Jimmy Utterström"
+  },
+  "metadata": {
+    "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
+    "version": "1.0.0-rc.3"
+  },
+  "plugins": [
+    {
+      "name": "dld",
+      "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
+      "version": "1.0.0-rc.3",
+      "category": "development",
+      "tags": [
+        "dld",
+        "decision-records",
+        "agent-skills"
+      ],
+      "source": "./"
+    }
+  ]
+}

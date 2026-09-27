@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "dld-kit",
+  "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
+  "owner": {
+    "name": "Jimmy Utterström"
+  },
+  "plugins": [
+    {
+      "name": "dld",
+      "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
+      "version": "1.0.0-rc.3",
+      "category": "development",
+      "tags": [
+        "dld",
+        "decision-records",
+        "agent-skills"
+      ],
+      "source": "./claude-plugin",
+      "homepage": "https://github.com/jimutt/dld-kit#readme"
+    }
+  ]
+}

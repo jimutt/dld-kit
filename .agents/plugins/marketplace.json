@@ -1,0 +1,20 @@
+{
+  "name": "dld-kit",
+  "interface": {
+    "displayName": "DLD Kit"
+  },
+  "plugins": [
+    {
+      "name": "dld",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/jimutt/dld-kit.git"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
