@@ -96,6 +96,21 @@ Each entry has two fields:
 
 Artifacts are written to the `decisions/` directory alongside the built-in snapshot files.
 
+For example:
+
+```yaml
+snapshot_artifacts:
+  - title: ONBOARDING.md
+    prompt: >
+      Generate a developer onboarding guide that explains the system
+      from scratch, assuming no prior context. Focus on what a new
+      contributor needs to know to start working.
+  - title: API-CONTRACTS.md
+    prompt: >
+      Summarize all API-related decisions into a single API contract
+      reference. Include endpoints, payload shapes, and auth requirements.
+```
+
 ### ID Assignment
 
 The next available ID is derived by scanning existing decision files rather than tracked in config. This avoids merge conflicts when multiple people create decisions concurrently. The framework scans all `DL-NNN.md` filenames in the `records/` subdirectory (including namespace subdirectories), finds the highest existing ID, and increments by one.
