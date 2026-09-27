@@ -148,14 +148,58 @@ describe("planRule", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  test("warns when the block lands in CLAUDE.md and Codex or Cursor is selected", () => {
-    const { result } = plan({ "/p/CLAUDE.md": "# C\n" }, ["block"], ["codex", "cursor", "pi"]);
-    expect(result.warnings).toEqual([
-      "The dld-kit rule block is in CLAUDE.md, but Codex and Cursor read AGENTS.md. To cover them, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule.",
-    ]);
-    expect(
-      plan({ "/p/CLAUDE.md": "# C\n" }, ["block"], ["pi", "opencode"]).result.warnings,
-    ).toEqual([]);
+  describe("where a new block goes (DL-061)", () => {
+    const placed = (files: Record<string, string>, names: string[]) =>
+      plan(files, ["block"], names).result.writes.map((w) => w.path);
+    const claudeOnly = { "/p/CLAUDE.md": "# C\n" };
+
+    test("CLAUDE.md only when every target reads it: Cursor and Pi", () => {
+      expect(placed(claudeOnly, ["cursor"])).toEqual(["CLAUDE.md"]);
+      expect(placed(claudeOnly, ["pi"])).toEqual(["CLAUDE.md"]);
+      expect(placed(claudeOnly, ["cursor", "pi"])).toEqual(["CLAUDE.md"]);
+      for (const names of [["codex"], ["opencode"], ["cursor", "codex"], ["pi", "opencode"]]) {
+        expect(placed(claudeOnly, names)).toEqual(["AGENTS.md"]);
+      }
+    });
+
+    test("an existing AGENTS.md always wins, and neither file means a new AGENTS.md", () => {
+      const both = { "/p/AGENTS.md": "# A\n", "/p/CLAUDE.md": "# C\n" };
+      for (const names of [["cursor"], ["pi"], ["codex", "opencode"]]) {
+        expect(placed(both, names)).toEqual(["AGENTS.md"]);
+        expect(placed({}, names)).toEqual(["AGENTS.md"]);
+      }
+    });
+
+    test("warns Pi, and only Pi, when a new AGENTS.md takes over from CLAUDE.md", () => {
+      const warnings = (names: string[]) => plan(claudeOnly, ["block"], names).result.warnings;
+      expect(warnings(["pi", "codex"])).toEqual([
+        "dld-kit creates AGENTS.md for the rule block, because not every selected agent reads CLAUDE.md. Pi will read AGENTS.md instead of CLAUDE.md from now on, so move anything it needs from CLAUDE.md into AGENTS.md.",
+      ]);
+      expect(warnings(["cursor", "codex"])).toEqual([]);
+      expect(warnings(["opencode"])).toEqual([]);
+      expect(plan({}, ["block"], ["pi", "codex"]).result.warnings).toEqual([]);
+    });
+
+    test("an existing block in CLAUDE.md warns the targets that cannot see it", () => {
+      const inClaude = { "/p/CLAUDE.md": upsertBlock("# C\n", BLOCK, "") };
+      const { result } = plan(inClaude, ["block"], ["codex", "cursor", "opencode", "pi"]);
+      expect(result.writes).toEqual([]);
+      expect(result.warnings).toEqual([
+        "The dld-kit rule block is in CLAUDE.md, but Codex and OpenCode read AGENTS.md. To cover them, move the block (the dld-kit:start line through the dld-kit:end line) into AGENTS.md, then run dld install-rule.",
+      ]);
+    });
+
+    test("Cursor reads a block in either file", () => {
+      const inClaude = upsertBlock("# C\n", BLOCK, "");
+      const cursor = harness("cursor");
+      const loads = (files: Record<string, string>) =>
+        loadsRule(fakeContext({ fs: memoryFs(files) }), "/p", cursor);
+      expect(loads({ "/p/AGENTS.md": "# A\n", "/p/CLAUDE.md": inClaude })).toBe(true);
+      expect(loads({ "/p/AGENTS.md": upsertBlock("# A\n", BLOCK, ""), "/p/CLAUDE.md": "" })).toBe(
+        true,
+      );
+      expect(loads({ "/p/AGENTS.md": "# A\n", "/p/CLAUDE.md": "# C\n" })).toBe(false);
+    });
   });
 
   test("with neither file, a new AGENTS.md holds the block, which Claude Code reads through an import", () => {

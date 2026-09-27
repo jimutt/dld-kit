@@ -9058,7 +9058,6 @@ var AGENTS_LAYOUT = {
   dir: ".agents/skills"
 };
 var LAYOUTS = [CLAUDE_LAYOUT, AGENTS_LAYOUT];
-var AGENTS_FIRST = ["AGENTS.md", "CLAUDE.md"];
 var HARNESSES = [
   {
     name: "claude",
@@ -9091,7 +9090,9 @@ var HARNESSES = [
     layout: AGENTS_LAYOUT,
     rule: "block",
     markers: [".cursor"],
-    instructions: ["AGENTS.md"]
+    // @decision(DL-061)
+    instructions: ["AGENTS.md", "CLAUDE.md"],
+    readsAll: true
   },
   {
     name: "opencode",
@@ -9099,7 +9100,8 @@ var HARNESSES = [
     layout: AGENTS_LAYOUT,
     rule: "block",
     markers: [".opencode", "opencode.json", "opencode.jsonc"],
-    instructions: AGENTS_FIRST
+    // @decision(DL-061) OpenCode 2.x; 1.x also fell back to CLAUDE.md.
+    instructions: ["AGENTS.md"]
   },
   {
     name: "pi",
@@ -9107,7 +9109,7 @@ var HARNESSES = [
     layout: AGENTS_LAYOUT,
     rule: "block",
     markers: [".pi"],
-    instructions: AGENTS_FIRST
+    instructions: ["AGENTS.md", "CLAUDE.md"]
   }
 ];
 var GENERIC_MARKERS = ["AGENTS.md", ".agents/skills"];
@@ -9366,7 +9368,12 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   let blockFiles = [AGENTS_MD, CLAUDE_MD].filter(
     (file) => regular(file) && findBlock(read(file), file) !== void 0
   );
-  if (blockFiles.length === 0 && channels.has("block")) blockFiles = [blockPlacement(ctx, root)];
+  if (blockFiles.length === 0 && channels.has("block")) {
+    const targets = harnesses.filter((h) => h.rule === "block");
+    const file = blockPlacement(ctx, root, targets);
+    blockFiles = [file];
+    plan.warnings.push(...switchWarnings(ctx, root, file, targets));
+  }
   const pending = /* @__PURE__ */ new Map();
   for (const file of blockFiles) {
     const content = read(file);
@@ -9433,6 +9440,7 @@ function projectView(ctx, root) {
 }
 function instructionFiles(harness, view) {
   if (harness.name !== "claude") {
+    if (harness.readsAll) return harness.instructions.filter((f) => view.exists(f));
     const file = harness.instructions.find((f) => view.exists(f));
     return file === void 0 ? [] : [file];
   }
@@ -9475,16 +9483,28 @@ function blindWarnings(blockFiles, blind, reads) {
     return `The dld-kit rule block is in ${blockFiles.join(" and ")}, but ${names} ${one ? "reads" : "read"} ${file}. To cover ${one ? "it" : "them"}, move the block (the dld-kit:start line through the dld-kit:end line) into ${file}, then run dld install-rule.`;
   });
 }
-function blockPlacement(ctx, root) {
-  for (const file of [AGENTS_MD, CLAUDE_MD]) {
-    if (ctx.fs.isRegularFile(join15(root, file))) return file;
+function blockPlacement(ctx, root, targets) {
+  if (ctx.fs.isRegularFile(join15(root, AGENTS_MD))) return AGENTS_MD;
+  const agentsLinked = ctx.fs.lexists(join15(root, AGENTS_MD));
+  if (ctx.fs.isRegularFile(join15(root, CLAUDE_MD)) && (agentsLinked || targets.every((h) => h.instructions.includes(CLAUDE_MD)))) {
+    return CLAUDE_MD;
   }
-  if (ctx.fs.lexists(join15(root, AGENTS_MD))) {
+  if (agentsLinked) {
     throw new DldError(
       `${AGENTS_MD} is not a regular file (a symlink?); dld-kit does not edit through it. Point it at a regular file or add the dld-kit block by hand.`
     );
   }
   return AGENTS_MD;
+}
+function switchWarnings(ctx, root, file, targets) {
+  if (file !== AGENTS_MD || ctx.fs.lexists(join15(root, AGENTS_MD))) return [];
+  if (!ctx.fs.lexists(join15(root, CLAUDE_MD))) return [];
+  const switching = targets.filter((h) => !h.readsAll && h.instructions.includes(CLAUDE_MD));
+  if (switching.length === 0) return [];
+  const names = switching.map((h) => h.title).join(" and ");
+  return [
+    `dld-kit creates AGENTS.md for the rule block, because not every selected agent reads CLAUDE.md. ${names} will read AGENTS.md instead of CLAUDE.md from now on, so move anything ${switching.length === 1 ? "it needs" : "they need"} from CLAUDE.md into AGENTS.md.`
+  ];
 }
 var LEGACY_HEADING = /^## DLD \(Decision-Linked Development\)\s*$/;
 function legacyBlockWarnings(claudeMd, ruleInstalled) {

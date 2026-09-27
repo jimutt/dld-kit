@@ -345,8 +345,7 @@ describe("upgrading a pre-1.0 project (built, under node)", () => {
   write("src/net.ts", "// @decision(DL-001)\nexport const retries = 3;\n");
 
   test("update replaces the copied skills and installs the rule, leaving the data as it is", () => {
-    // The README's step for adding Codex: an AGENTS.md for the block.
-    write("AGENTS.md", "");
+    // No AGENTS.md: Codex does not read CLAUDE.md, so the block goes into a new one (DL-061).
     const result = dldIn(project, "update", "--agent", "claude,codex");
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Wrote the DLD rule to AGENTS.md\n");
