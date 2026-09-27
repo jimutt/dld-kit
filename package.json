@@ -1,6 +1,6 @@
 {
   "name": "dld-kit",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
   "license": "MIT",
   "author": {

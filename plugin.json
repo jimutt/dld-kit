@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dld",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
   "author": {
     "name": "Jimmy Utterström",
