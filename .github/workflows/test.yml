@@ -4,7 +4,7 @@ name: Tests
 on:
   pull_request:
   push:
-    branches: [main, v1] # @decision(DL-058)
+    branches: [main] # @decision(DL-058) @decision(DL-062)
 
 permissions:
   contents: read

@@ -10,23 +10,28 @@ All other commands are internal: the skills run them from the CLI copy bundled w
 
 ## Release branch
 
-Until 1.0.0, release candidates (`1.0.0-rc.N`) are tagged on `v1` and published under the `next` dist-tag (DL-058). A new candidate follows each round of fixes until the candidates run clean in real repositories; there is no fixed number and no date.
+`main` is the release branch. Release candidates (`1.0.0-rc.N`) are tagged on it until 1.0.0 (DL-058, DL-062). A new candidate follows each round of fixes until the candidates run clean in real repositories; there is no fixed number and no date. The `v1` integration branch is retired.
 
-`main` still holds the pre-1.0 skills, and the Claude Code, Codex and Copilot CLI marketplaces read the default branch. To test a candidate's plugin, add the marketplace at the `v1` ref: `claude plugin marketplace add jimutt/dld-kit#v1`.
+The workflow publishes a candidate under the npm `next` dist-tag and as a GitHub prerelease. Until 1.0.0, each candidate is also the default install. After the workflow finishes, make it so by hand:
+
+```bash
+npm dist-tag add dld-kit@1.0.0-rc.4 latest                    # npx dld-kit, pi install npm:dld-kit
+gh release edit v1.0.0-rc.4 --prerelease=false --latest       # gh skill install jimutt/dld-kit
+```
+
+The Claude Code, Codex and Copilot CLI marketplaces and `npx skills` read `main`, so they serve a candidate once it is merged there.
 
 ### Releasing 1.0.0
 
 Not done yet. When the candidates are clean:
 
-1. Merge `v1` into `main` (PR #76), so the marketplaces serve the 1.0 plugin.
-2. On `main`, run `npm version 1.0.0` and push the tag, as below.
-3. In the same release, remove the README's "Early development" note.
-4. Retire `v1`: remove it from the `push` branches in `.github/workflows/test.yml`, and change this document to name `main` as the release branch.
-5. Mark `docs/plan/v1.md` as done.
+1. On `main`, run `npm version 1.0.0` and push the tag, as below. The workflow publishes it to `latest` and as the latest GitHub release; no manual steps.
+2. In the same release, remove the README's release-candidate note.
+3. Mark `docs/plan/v1.md` as done.
 
 ## Release a version
 
-1. On the release branch (`v1` until 1.0.0, then `main`), with a clean working tree:
+1. On `main`, with a clean working tree:
 
    ```bash
    npm version 1.2.0          # or 1.2.0-rc.1 for a prerelease
@@ -66,7 +71,7 @@ In a scratch git repository, for the agent under test:
   - Expect `.claude/skills/dld-*` and `.claude/rules/dld-workflow.md`. With `--agent claude,codex` in a project without `CLAUDE.md`, the block goes into `AGENTS.md`. Expect `.claude/CLAUDE.md` holding `@../AGENTS.md` instead of the rule file.
   - Run skills as `/dld-decide`. `dld-common` must not appear in the `/` menu.
   - Step 3 must not prompt for permission to run `node ".../dld-common/scripts/dld.mjs"`: the skills' `allowed-tools` pre-approves it. This is unverified, since headless `claude -p` does not apply it.
-- **Claude Code plugin** (`claude plugin marketplace add jimutt/dld-kit#v1`, then `claude plugin install dld@dld-kit`)
+- **Claude Code plugin** (`claude plugin marketplace add jimutt/dld-kit`, then `claude plugin install dld@dld-kit`)
   - Run `/dld-init` in a project without DLD, then the common steps.
   - In a project with `dld.config.yaml` and no rule file, step 2 passes through the plugin's SessionStart hook. Once `/dld-init` has installed `.claude/rules/dld-workflow.md`, the hook prints nothing (`dld session-context --agent claude` is empty).
 - **Codex** (`npx dld-kit@next init --yes --agent codex`)
@@ -88,7 +93,6 @@ In a scratch git repository, for the agent under test:
   - Expect `.agents/skills/dld-*` and `.agents/rules/dld-workflow.md`, whose frontmatter is `trigger: always_on`.
   - Step 2 checks that the rule loads in every conversation.
 - **Codex and Copilot CLI plugins** (`codex plugin marketplace add jimutt/dld-kit`, `copilot plugin marketplace add jimutt/dld-kit`)
-  - These marketplaces read `main`, which holds the pre-1.0 skills until 1.0.0. Check them on the 1.0.0 release, unless the tool accepts a `#v1` ref.
   - The dld-init skill installs the rule with `--agent codex` for Copilot CLI.
 - **`gh skill`** (`gh skill install jimutt/dld-kit --all`)
   - Every `dld-*` skill arrives once, `dld-common/scripts/dld.mjs` is present, and nothing comes from `claude-plugin/`.
