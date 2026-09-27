@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 204" width="880" height="204" role="img" aria-labelledby="title desc">
+<title id="title">DLD workflow</title>
+<desc id="desc">Plan with /dld-plan to record proposed decisions. Implement with /dld-implement, which writes and reviews the code and links it to the decisions with @decision comments. Snapshot with /dld-snapshot, on demand, on a schedule or in CI, to generate OVERVIEW.md and SNAPSHOT.md. Agents read the linked decision before editing annotated code.</desc>
+<style>
+.box{fill:#f6f8fa;stroke:#d0d7de;stroke-width:1.5}
+.t{fill:#1f2328;font:600 16px -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+.m{fill:#59636e;font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.s{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+.a{fill:#0969da;font:600 12.5px -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif}
+.line{fill:none;stroke:#59636e;stroke-width:1.5}
+.link{fill:none;stroke:#0969da;stroke-width:1.5;stroke-dasharray:5 4}
+.head{fill:#59636e}
+.headA{fill:#0969da}
+.clock{fill:none;stroke:#59636e;stroke-width:1.3}
+</style>
+<defs>
+<marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0 0L10 5L0 10z"/></marker>
+<marker id="hA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="headA" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+
+<rect class="box" x="20" y="48" width="220" height="64" rx="10"/>
+<text class="t" x="130" y="76" text-anchor="middle">Plan</text>
+<text class="m" x="130" y="98" text-anchor="middle">/dld-plan</text>
+
+<rect class="box" x="330" y="48" width="220" height="64" rx="10"/>
+<text class="t" x="440" y="76" text-anchor="middle">Implement</text>
+<text class="m" x="440" y="98" text-anchor="middle">/dld-implement</text>
+<path class="line" d="M470 48C470 20 410 20 410 46" marker-end="url(#h)"/>
+<text class="s" x="440" y="16" text-anchor="middle">review</text>
+
+<rect class="box" x="640" y="48" width="220" height="64" rx="10"/>
+<text class="t" x="750" y="76" text-anchor="middle">Snapshot</text>
+<text class="m" x="750" y="98" text-anchor="middle">/dld-snapshot</text>
+<circle class="clock" cx="666" cy="30" r="7"/>
+<path class="clock" d="M666 25.5V30L669 32"/>
+<text class="s" x="680" y="34">on demand, scheduled or in CI</text>
+
+<path class="line" d="M244 80H326" marker-end="url(#h)"/>
+<path class="line" d="M554 80H636" marker-end="url(#h)"/>
+
+<text class="m" x="130" y="136" text-anchor="middle">DL-012.md · proposed</text>
+<text class="m" x="440" y="136" text-anchor="middle">code + @decision(DL-012)</text>
+<text class="m" x="750" y="136" text-anchor="middle">OVERVIEW.md · SNAPSHOT.md</text>
+
+<path class="link" d="M440 146Q285 198 132 148" marker-end="url(#hA)"/>
+<text class="a" x="285" y="196" text-anchor="middle">agents read the decision before editing the code</text>
+</svg>
