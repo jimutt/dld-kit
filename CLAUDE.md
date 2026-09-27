@@ -6,7 +6,7 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 
 ## Directory structure
 
-<!-- @decision(DL-053) -->
+<!-- @decision(DL-053) @decision(DL-063) -->
 ```
 package.json               # npm package dld-kit (bin: dld) — DL-002
 src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.ts colocated
@@ -28,7 +28,9 @@ plugin.json                # GENERATED: Agent Plugins manifest over skills/ for 
 .agents/plugins/, .github/plugin/  # GENERATED: Codex and Copilot CLI marketplaces (DL-050)
 tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
 docs/
-  concept/                 # Design philosophy, FAQ, TL;DR
+  install.md, workflows.md, upgrading-from-0x.md  # Reference moved out of the README (DL-063)
+  assets/                  # README workflow diagram, light and dark SVG
+  concept/                 # Design philosophy, FAQ, TL;DR, acknowledgements
   framework/               # Decision record format, project configuration specs
   plan/                    # Design plans (skill design, 1.0 plan)
 decisions/                 # dld-kit's OWN decision log (dogfooding, not shipped content)
