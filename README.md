@@ -13,6 +13,18 @@ AI agents write code confidently. They just don't know *why* your code looks the
 
 Requirements: Node.js 20+ and git. `gh` is optional; `/dld-reindex` uses it to check open PRs.
 
+### Which one to use
+
+**Not sure? Run `npx dld-kit init` in the repository and commit the result.** It works for every supported agent, and teammates need nothing installed.
+
+- **Use `npx dld-kit init` if** DLD is for a shared repository, the team uses more than one agent, or you want the setup reviewed and versioned with the code. This fits most projects, new or existing.
+- **Use the Claude Code plugin if** you use Claude Code and want DLD in your own setup across many repositories, without committing skills to each one. Run `/dld-init` once per repository for the config and the rule.
+- **Use the Pi package, or the Codex or Copilot CLI plugin, if** the same applies to you in those agents.
+- **Use `npx skills` or `gh skill` if** you already manage your agents' skills with that tool. Then update with it, not with `dld update`.
+- **Upgrading from 0.x?** Run `npx dld-kit@latest update` in the repository; see [Upgrading from 0.x](#upgrading-from-0x).
+
+For each agent, pick one per repository: skills committed with `init`, or a user-level plugin or package. Having both makes the agent see every skill twice (see [Combining channels](#combining-channels)).
+
 Each channel below installs the same skills. They differ in which agents they reach, how the always-on rule gets into the agent's context, and how you update.
 
 | Channel | Agents | Installs into | Always-on rule | Update with |
