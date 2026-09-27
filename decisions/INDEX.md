@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-063 | Restructure the README as a short entry point and move reference material to docs/ | accepted | docs, readme |
 | DL-062 | Merge v1 into main during the release candidates and make each candidate the default install | accepted | v1-release, release |
 | DL-061 | Correct the instruction files Cursor and OpenCode read, and place a new rule block where every target harness reads it | accepted | v1-release, rule, harnesses |
 | DL-060 | Skip the agent configuration directories that hold installed skills when scanning for annotations | accepted | v1-release, annotations, audit |
