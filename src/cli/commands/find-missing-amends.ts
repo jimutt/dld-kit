@@ -5,6 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const findMissingAmendsCommand: Command = {
   name: "find-missing-amends",
   summary: "List decision IDs mentioned in a body but not declared",
+  internal: true,
   usage: `Usage: dld find-missing-amends [--all]
 
 Print <source-id>:<referenced-id> for each decision ID a record's body mentions without

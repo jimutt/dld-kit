@@ -2,12 +2,12 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-060 | Skip the agent configuration directories that hold installed skills when scanning for annotations | proposed | v1-release, annotations, audit |
-| DL-059 | Move the pinned GitHub Actions to their Node 24 majors, still pinned by commit SHA | proposed | v1-release, ci, github-actions |
-| DL-058 | Ship workstream 10 as 1.0.0-rc.3 from v1; release 1.0.0 from main only after the release candidates run clean | proposed | v1-release, release |
-| DL-057 | Migrate pre-1.0 installs with dld update and document it in the README | proposed | v1-release, migration, docs |
-| DL-056 | The semver contract covers the setup commands; the commands the skills run are internal | proposed | v1-release, cli, commands |
-| DL-055 | Give Claude Code the AGENTS.md block through a dld-kit .claude/CLAUDE.md import, and follow AGENTS.md imports | proposed | v1-release, rule, claude-code |
+| DL-060 | Skip the agent configuration directories that hold installed skills when scanning for annotations | accepted | v1-release, annotations, audit |
+| DL-059 | Move the pinned GitHub Actions to their Node 24 majors, still pinned by commit SHA | accepted | v1-release, ci, github-actions |
+| DL-058 | Ship workstream 10 as 1.0.0-rc.3 from v1; release 1.0.0 from main only after the release candidates run clean | accepted | v1-release, release |
+| DL-057 | Migrate pre-1.0 installs with dld update and document it in the README | accepted | v1-release, migration, docs |
+| DL-056 | The semver contract covers the setup commands; the commands the skills run are internal | accepted | v1-release, cli, commands |
+| DL-055 | Give Claude Code the AGENTS.md block through a dld-kit .claude/CLAUDE.md import, and follow AGENTS.md imports | accepted | v1-release, rule, claude-code |
 | DL-054 | Resolve the instruction file each agent reads from Claude Code's documented rules and the planned block | accepted | rule, harnesses |
 | DL-053 | Rewrite the README around the 1.0 install channels | accepted | v1-distribution, docs |
 | DL-052 | Release from a version tag with npm trusted publishing; package.json holds the one version | accepted | v1-distribution, release, npm, ci |

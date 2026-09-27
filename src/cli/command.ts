@@ -21,6 +21,9 @@ export interface Command {
   /** Ported commands keep the name of the script they replace, without `.sh`. */
   name: string;
   summary: string;
+  // @decision(DL-056)
+  /** Run by the skills, outside the semver contract; unset for the setup commands. */
+  internal?: boolean;
   usage: string;
   run(args: readonly string[], io: Io, ctx: Context): number | Promise<number>;
 }

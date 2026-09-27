@@ -5,6 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 export const detectSnapshotChangesCommand: Command = {
   name: "detect-snapshot-changes",
   summary: "Report what changed since the last snapshot",
+  internal: true,
   usage:
     "Usage: dld detect-snapshot-changes\n\nPrint mode (full or incremental), new_decisions, modified_decisions and commit_range.\n",
   run(args, io, ctx) {
