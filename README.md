@@ -1,4 +1,4 @@
-# DLD Kit
+# DLD Kit | Decision-Linked Development
 
 **Stop AI agents from breaking code they don't understand.**
 
