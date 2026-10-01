@@ -1,9 +1,9 @@
 import { basename } from "node:path";
 import type { Context } from "./context.ts";
-import { DldError } from "./errors.ts";
+import { DldError, GitCommandError } from "./errors.ts";
 import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
 import { formatId } from "./ids.ts";
-import { openPrIds } from "./open-prs.ts";
+import { openPrIds, type PrClaim } from "./open-prs.ts";
 import type { Project, ProjectPaths } from "./project.ts";
 import { DECISION_MENTION, RECORD_FILE } from "./records.ts";
 
@@ -88,21 +88,73 @@ function localAdditions(git: Git, paths: ProjectPaths, base: string): string[] {
   );
 }
 
-function takenIds(ctx: Context, paths: ProjectPaths, base: string): WithScan<{ ids: string[] }> {
+interface Taken {
+  /** Every taken ID, unique and sorted by number. */
+  ids: string[];
+  onBase: Set<string>;
+  claims: PrClaim[];
+}
+
+function takenIds(ctx: Context, paths: ProjectPaths, base: string): WithScan<Taken> {
   const git = gitAt(ctx, paths.root);
   const onBase = nulSeparated(
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths)),
   ).flatMap((path) => path.match(DECISION_MENTION) ?? []);
   const scan = openPrIds(ctx, paths, base);
-  const ids = [...new Set([...onBase, ...scan.ids])].sort(compareIds);
-  return scan.skipped === undefined ? { ids } : { ids, skipped: scan.skipped };
+  const ids = [...new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
+  const taken = { ids, onBase: new Set(onBase), claims: scan.claims };
+  return scan.skipped === undefined ? taken : { ...taken, skipped: scan.skipped };
 }
 
-// @decision(DL-027)
+/** Whether `ancestor` is `commit` or one of its ancestors; false when git cannot tell. */
+function isAncestor(git: Git, ancestor: string, commit: string): boolean {
+  try {
+    git("merge-base", "--is-ancestor", ancestor, commit);
+    return true;
+  } catch (error) {
+    if (error instanceof GitCommandError) return false;
+    throw error;
+  }
+}
+
+// @decision(DL-065)
+/**
+ * Whether a record added on this branch collides with a taken ID. A PR's claim does not count
+ * when the commit that added the record here is in that PR's history: the record came from
+ * the PR. A claim whose head commit is unknown or not fetched counts.
+ */
+function collides(git: Git, base: string, { path, id }: Collision, taken: Taken): boolean {
+  if (taken.onBase.has(id)) return true;
+  const claims = taken.claims.filter((claim) => claim.id === id);
+  if (claims.length === 0) return false;
+  const added = git(
+    "--literal-pathspecs",
+    "log",
+    // log.follow or log.showSignature in the user's config would change the output.
+    "--no-follow",
+    "--no-show-signature",
+    "-1",
+    "--format=%H",
+    "--diff-filter=A",
+    `${base}..HEAD`,
+    "--",
+    path,
+  ).trim();
+  return claims.some(
+    ({ head }) => head === undefined || added === "" || !isAncestor(git, added, head),
+  );
+}
+
+// @decision(DL-027) @decision(DL-065)
 /** IDs taken on the base branch and in open PRs, sorted by number. */
-export function listTakenIds(ctx: Context, { paths }: Project, base: string) {
+export function listTakenIds(
+  ctx: Context,
+  { paths }: Project,
+  base: string,
+): WithScan<{ ids: string[] }> {
   verifyBase(ctx, paths, base, " Fetch first or pass --base.");
-  return takenIds(ctx, paths, base);
+  const { ids, skipped } = takenIds(ctx, paths, base);
+  return skipped === undefined ? { ids } : { ids, skipped };
 }
 
 function collisionsOf(
@@ -110,16 +162,16 @@ function collisionsOf(
   paths: ProjectPaths,
   base: string,
 ): WithScan<{ collisions: Collision[]; localIds: string[]; taken: string[] }> {
-  const added = localAdditions(gitAt(ctx, paths.root), paths, base);
+  const git = gitAt(ctx, paths.root);
+  const added = localAdditions(git, paths, base);
   const local = added.flatMap((path) => {
     const id = basename(path, ".md");
     return RECORD_FILE.test(basename(path)) ? [{ path, id }] : [];
   });
   if (local.length === 0) return { collisions: [], localIds: [], taken: [] };
   const taken = takenIds(ctx, paths, base);
-  const takenSet = new Set(taken.ids);
   const result = {
-    collisions: local.filter(({ id }) => takenSet.has(id)),
+    collisions: local.filter((record) => collides(git, base, record, taken)),
     localIds: local.map(({ id }) => id),
     taken: taken.ids,
   };

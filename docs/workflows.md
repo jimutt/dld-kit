@@ -30,15 +30,19 @@ This works as a standalone "document this codebase" action. You get structured d
 
 ## Working in a team
 
-When multiple developers draft decisions in parallel, two of them can end up picking the same `DL-NNN` ID. Once one of those PRs lands on the base branch, the other can't rebase cleanly — the colliding decision file path appears in both histories.
+When multiple developers draft decisions in parallel, two of them can end up picking the same `DL-NNN` ID. Once one of those lands on the base branch, or shows up in an open PR, the other branch has to renumber.
 
 ```
 /dld-reindex           # Renames the local draft(s) to the next free ID,
                        # rewrites @decision annotations and cross-references,
-                       # squashes the branch into a single rebase-clean commit
+                       # and commits the renames on top of the branch
+/dld-reindex squash    # Same, but squashes the branch into one commit
+                       # that rebases cleanly (needs a force-push)
 ```
 
-Run this before rebasing onto an updated base. The skill resolves the ID against the base branch and, when `gh` is installed and authenticated, also against open PRs so the new IDs don't collide with someone else's in-flight work.
+The skill checks IDs against the base branch and, when `gh` is installed and authenticated, against open PRs, so the new IDs don't collide with someone else's work in progress. Decisions your branch got from a PR it's stacked on (an implementation branch cut from a decisions PR) are not collisions.
+
+By default the renames are a new commit, and history is left alone. Merging works: `git merge <base>`, or merging the PR with a merge commit or a squash merge. Rebasing doesn't, because the branch's earlier commits still add the old file names. If you rebase, or your repo uses "Rebase and merge", ask for a squash.
 
 ## Active workflow
 

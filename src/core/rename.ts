@@ -102,10 +102,11 @@ export interface StaleMention {
   text: string;
 }
 
-// @decision(DL-029)
+// @decision(DL-029) @decision(DL-064)
 /**
  * Remaining `DL-OLD` mentions, for each rename in the plan, in changed files outside the
  * decisions directory. Excluded and non-annotation text is included for the agent to judge.
+ * An empty plan is an error, so a lost plan cannot pass as "nothing to review".
  */
 export function findStaleMentions(
   ctx: Context,
@@ -114,7 +115,7 @@ export function findStaleMentions(
   base: string,
 ): StaleMention[] {
   const renames = parseRenamePlan(paths, planText);
-  if (renames.length === 0) return [];
+  if (renames.length === 0) throw new DldError("no rename plan on stdin.");
   verifyBase(ctx, paths, base);
   const decisions = `${decisionsPathspec(paths)}/`;
   const files = changedFiles(ctx, paths, mergeBase(ctx, paths, base)).flatMap((file) => {

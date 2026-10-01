@@ -2,6 +2,8 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-065 | Records this branch got from an open PR are not collisions with it | accepted | reindex |
+| DL-064 | Reindex commits the renames on top of the branch; squash only on request | accepted | reindex, git |
 | DL-063 | Restructure the README as a short entry point and move reference material to docs/ | accepted | docs, readme |
 | DL-062 | Merge v1 into main during the release candidates and make each candidate the default install | accepted | v1-release, release |
 | DL-061 | Correct the instruction files Cursor and OpenCode read, and place a new rule block where every target harness reads it | accepted | v1-release, rule, harnesses |

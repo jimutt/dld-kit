@@ -185,7 +185,7 @@ describe("reindex end to end (built, under node)", () => {
       commit(message);
       git("checkout", "--quiet", "feature");
     };
-    const reindex = () => {
+    const reindex = (...commitArgs: string[]) => {
       const plan = run("", "plan-renames", "--base", "main");
       for (const line of plan.trim().split("\n")) {
         const [path = "", oldId = "", newId = ""] = line.split("\t");
@@ -202,14 +202,16 @@ describe("reindex end to end (built, under node)", () => {
           "main",
         );
       }
-      run(plan, "commit-reindex", "--base", "main");
+      if (!commitArgs.includes("--squash")) run("", "regenerate-index");
+      run(plan, "commit-reindex", "--base", "main", ...commitArgs);
       return plan;
     };
     const read = (path: string) => readFileSync(join(root, path), "utf8");
     return { root, git, record, run, commit, onMain, reindex, read };
   }
 
-  test("flat: renames collisions, rewrites annotations and rebases cleanly", () => {
+  // @decision(DL-064)
+  test("flat: commits the renames on top, and the base merges in", () => {
     const p = project("reindex-flat", FLAT);
     p.onMain(() => {
       for (const id of ["DL-002", "DL-003", "DL-004"])
@@ -226,18 +228,30 @@ describe("reindex end to end (built, under node)", () => {
     expect(p.reindex()).toBe(
       "decisions/records/DL-002.md\tDL-002\tDL-005\ndecisions/records/DL-003.md\tDL-003\tDL-006\n",
     );
-    p.git("rebase", "--quiet", "main");
+    expect(p.git("log", "--format=%s", "main..HEAD")).toBe(
+      "reindex local decisions: DL-002 -> DL-005, DL-003 -> DL-006\nfeature: DL-002 and DL-003\n",
+    );
+    expect(p.read("decisions/INDEX.md")).toMatch(/\| DL-006 \|[\s\S]*\| DL-005 \|/);
+    // Both sides added rows to INDEX.md, so only it conflicts; regenerating resolves it.
+    const merge = spawnSync("git", ["merge", "--quiet", "--no-edit", "main"], {
+      cwd: p.root,
+      encoding: "utf8",
+      env: ENV,
+    });
+    expect(merge.status).toBe(1);
+    expect(p.git("diff", "--name-only", "--diff-filter=U")).toBe("decisions/INDEX.md\n");
+    p.run("", "regenerate-index");
+    p.commit("merge main");
     expect(p.read("decisions/records/DL-002.md")).toContain("status: accepted");
     expect(p.read("decisions/records/DL-005.md")).toContain("id: DL-005");
     expect(p.read("decisions/records/DL-006.md")).toContain("id: DL-006");
     expect(p.read("src/auth.py")).toBe("# @decision(DL-005)\n");
     expect(p.read("src/billing.py")).toBe("# @decision(DL-006)\n");
-    expect(p.read("decisions/INDEX.md")).not.toMatch(/DL-00[56]/);
-    p.run("", "regenerate-index");
-    expect(p.read("decisions/INDEX.md")).toMatch(/\| DL-006 \|[\s\S]*\| DL-005 \|/);
+    expect(p.read("decisions/INDEX.md")).toMatch(/\| DL-006 \|[\s\S]*\| DL-002 \|/);
   });
 
-  test("namespaced: keeps the namespace directory and rebases cleanly", () => {
+  // @decision(DL-030)
+  test("namespaced: --squash keeps the namespace directory and rebases cleanly", () => {
     const p = project("reindex-ns", NAMESPACED, "decisions/records/auth");
     p.onMain(() => p.record("decisions/records/billing", "DL-002", "accepted"), "land DL-002");
     p.record("decisions/records/auth", "DL-002", "proposed");
@@ -245,7 +259,7 @@ describe("reindex end to end (built, under node)", () => {
     expect(p.run("", "find-collisions", "--base", "main")).toBe(
       "decisions/records/auth/DL-002.md\tDL-002\n",
     );
-    p.reindex();
+    p.reindex("--squash");
     expect(existsSync(join(p.root, "decisions/records/auth/DL-002.md"))).toBe(false);
     expect(existsSync(join(p.root, "decisions/records/auth/DL-003.md"))).toBe(true);
     p.git("rebase", "--quiet", "main");

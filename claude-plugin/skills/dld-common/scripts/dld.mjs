@@ -7902,11 +7902,11 @@ function detectSnapshotChanges(ctx, project) {
   if ((stored === void 0 || stored === "unknown") && lastRun !== void 0) {
     stored = gitOrEmpty(git, "log", `--until=${lastRun}`, "--format=%h", "-1").trim() || void 0;
   }
-  const commit = resolveStateCommit(git, stored);
+  const commit2 = resolveStateCommit(git, stored);
   let modifiedDecisions = [];
   let commitRange = "";
-  if (commit !== void 0 && commit !== shortHead(ctx, paths.root)) {
-    commitRange = `${commit}..HEAD`;
+  if (commit2 !== void 0 && commit2 !== shortHead(ctx, paths.root)) {
+    commitRange = `${commit2}..HEAD`;
     const numbers = nulSeparated(
       gitOrEmpty(git, "diff", "-z", "--name-only", commitRange, "--", recordsPathspec(paths))
     ).map((path) => basename3(path)).filter((name) => RECORD_FILE.test(name)).map((name) => recordNumber(name)).filter((number) => number <= includedNumber);
@@ -7927,17 +7927,17 @@ function formatSnapshotChanges(changes) {
 function updateSnapshotState(ctx, project, customArtifacts) {
   const { paths } = project;
   const timestamp = formatTimestamp(ctx.now());
-  const commit = shortHead(ctx, paths.root);
+  const commit2 = shortHead(ctx, paths.root);
   const highest = readRecords(ctx, project).filter((record) => record.accepted).reduce((max, record) => Math.max(max, record.number), 0);
   const artifacts = /* @__PURE__ */ Object.create(null);
   for (const name of [...BUILT_IN_ARTIFACTS, ...customArtifacts]) artifacts[name] = timestamp;
   writeStateSection(ctx, paths, "snapshot", {
     last_run: timestamp,
-    commit_hash: commit,
+    commit_hash: commit2,
     decisions_included: String(highest),
     artifacts
   });
-  return { timestamp, commit, highest };
+  return { timestamp, commit: commit2, highest };
 }
 
 // src/cli/commands/collect-active-decisions.ts
@@ -7962,8 +7962,9 @@ import { basename as basename4 } from "node:path";
 // src/core/open-prs.ts
 var GITHUB_REMOTE = /github\.com[:/]/;
 var PR_LIMIT = "100";
+var COMMIT_ID = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 function openPrIds(ctx, paths, base) {
-  const skipped = (reason) => ({ ids: [], skipped: reason });
+  const skipped = (reason) => ({ claims: [], skipped: reason });
   try {
     ctx.gh(["--version"]);
   } catch (error) {
@@ -7990,7 +7991,7 @@ function openPrIds(ctx, paths, base) {
       "open",
       `--base=${prBase}`,
       "--json",
-      "files,headRefName,isCrossRepository",
+      "files,headRefName,headRefOid,isCrossRepository",
       "--limit",
       PR_LIMIT
     ]);
@@ -8004,14 +8005,15 @@ function openPrIds(ctx, paths, base) {
   if (prs === void 0) return skipped("gh pr list returned unexpected output");
   const current = gitOrEmpty(git, "rev-parse", "--abbrev-ref", "HEAD").trim();
   const prefix = `${recordsPathspec(paths)}/`;
-  const ids = [];
+  const claims = [];
   for (const pr of prs) {
     if (!pr.isCrossRepository && pr.headRefName === current) continue;
     for (const path of pr.files) {
-      if (path.startsWith(prefix)) ids.push(...path.match(DECISION_MENTION) ?? []);
+      if (!path.startsWith(prefix)) continue;
+      for (const id of path.match(DECISION_MENTION) ?? []) claims.push({ id, head: pr.headRefOid });
     }
   }
-  return { ids };
+  return { claims };
 }
 function parsePrList(output) {
   let value;
@@ -8027,6 +8029,7 @@ function parsePrList(output) {
     const files = Array.isArray(item.files) ? item.files : [];
     prs.push({
       headRefName: typeof item.headRefName === "string" ? item.headRefName : void 0,
+      headRefOid: typeof item.headRefOid === "string" && COMMIT_ID.test(item.headRefOid) ? item.headRefOid : void 0,
       isCrossRepository: item.isCrossRepository === true,
       files: files.flatMap(
         (file) => isObject(file) && typeof file.path === "string" ? [file.path] : []
@@ -8095,24 +8098,56 @@ function takenIds(ctx, paths, base) {
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths))
   ).flatMap((path) => path.match(DECISION_MENTION) ?? []);
   const scan = openPrIds(ctx, paths, base);
-  const ids = [.../* @__PURE__ */ new Set([...onBase, ...scan.ids])].sort(compareIds);
-  return scan.skipped === void 0 ? { ids } : { ids, skipped: scan.skipped };
+  const ids = [.../* @__PURE__ */ new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
+  const taken = { ids, onBase: new Set(onBase), claims: scan.claims };
+  return scan.skipped === void 0 ? taken : { ...taken, skipped: scan.skipped };
+}
+function isAncestor(git, ancestor, commit2) {
+  try {
+    git("merge-base", "--is-ancestor", ancestor, commit2);
+    return true;
+  } catch (error) {
+    if (error instanceof GitCommandError) return false;
+    throw error;
+  }
+}
+function collides(git, base, { path, id }, taken) {
+  if (taken.onBase.has(id)) return true;
+  const claims = taken.claims.filter((claim) => claim.id === id);
+  if (claims.length === 0) return false;
+  const added = git(
+    "--literal-pathspecs",
+    "log",
+    // log.follow or log.showSignature in the user's config would change the output.
+    "--no-follow",
+    "--no-show-signature",
+    "-1",
+    "--format=%H",
+    "--diff-filter=A",
+    `${base}..HEAD`,
+    "--",
+    path
+  ).trim();
+  return claims.some(
+    ({ head }) => head === void 0 || added === "" || !isAncestor(git, added, head)
+  );
 }
 function listTakenIds(ctx, { paths }, base) {
   verifyBase(ctx, paths, base, " Fetch first or pass --base.");
-  return takenIds(ctx, paths, base);
+  const { ids, skipped } = takenIds(ctx, paths, base);
+  return skipped === void 0 ? { ids } : { ids, skipped };
 }
 function collisionsOf(ctx, paths, base) {
-  const added = localAdditions(gitAt(ctx, paths.root), paths, base);
+  const git = gitAt(ctx, paths.root);
+  const added = localAdditions(git, paths, base);
   const local = added.flatMap((path) => {
     const id = basename4(path, ".md");
     return RECORD_FILE.test(basename4(path)) ? [{ path, id }] : [];
   });
   if (local.length === 0) return { collisions: [], localIds: [], taken: [] };
   const taken = takenIds(ctx, paths, base);
-  const takenSet = new Set(taken.ids);
   const result = {
-    collisions: local.filter(({ id }) => takenSet.has(id)),
+    collisions: local.filter((record) => collides(git, base, record, taken)),
     localIds: local.map(({ id }) => id),
     taken: taken.ids
   };
@@ -8190,7 +8225,7 @@ function parseRenamePlan(paths, text) {
 
 // src/core/commit-reindex.ts
 var SUBJECT_LIST_LIMIT = 3;
-function reindexMessage(renames, originalSubjects) {
+function reindexMessage(renames, originalSubjects = "") {
   const pairs = renames.map(({ oldId, newId }) => `${oldId} -> ${newId}`);
   const subject = renames.length > SUBJECT_LIST_LIMIT ? `reindex ${renames.length} local decisions to avoid base-branch collisions` : `reindex local decisions: ${pairs.join(", ")}`;
   const message = `${subject}
@@ -8202,11 +8237,75 @@ ${pairs.map((pair) => `- ${pair}`).join("\n")}`;
 Squashed from original branch commits:
 ${originalSubjects}`;
 }
-function commitReindex(ctx, { paths }, planText, base) {
-  const git = gitAt(ctx, paths.root);
+function commitReindex(ctx, { paths }, planText, base, { squash = false } = {}) {
   verifyBase(ctx, paths, base);
   const renames = parseRenamePlan(paths, planText);
   if (renames.length === 0) throw new DldError("no rename plan on stdin.");
+  for (const { oldId, newId, path } of renames) {
+    const renamed = posix2.join(posix2.dirname(path), `${newId}.md`);
+    if (!ctx.fs.isRegularFile(join7(paths.root, renamed))) {
+      throw new DldError(`${renamed} not found. Run rename-decision for ${oldId} first.`);
+    }
+  }
+  const git = gitAt(ctx, paths.root);
+  return squash ? squashReindex(ctx, git, paths, renames, base) : commitOnTop(ctx, git, paths, renames);
+}
+function commitOnTop(ctx, git, paths, renames) {
+  const stage = /* @__PURE__ */ new Set();
+  for (const { path, newId } of renames) {
+    stage.add(path);
+    stage.add(posix2.join(posix2.dirname(path), `${newId}.md`));
+  }
+  for (const file of nulSeparated(git("diff", "-z", "--no-renames", "--name-only", "HEAD"))) {
+    stage.add(file);
+  }
+  const head = git("rev-parse", "HEAD").trim();
+  const tree = git("write-tree").trim();
+  let stepName = "staging";
+  try {
+    for (const path of [...stage].sort()) {
+      stepName = `staging ${path}`;
+      stagePath(ctx, git, join7(paths.root, path), path);
+    }
+    stepName = "checking the staged changes";
+    if (!hasStagedChanges(git)) {
+      throw new DldError(
+        "nothing to commit. The reindex may have already been committed, or the plan didn't match the working tree."
+      );
+    }
+    stepName = "committing";
+    commit(git, reindexMessage(renames));
+  } catch (error) {
+    try {
+      git("read-tree", tree);
+    } catch (restoreError) {
+      throw new DldError(
+        `commit-reindex failed while ${stepName}: ${describe(error)}
+Restoring the index also failed: ${describe(restoreError)}
+To restore by hand: git read-tree ${tree}`
+      );
+    }
+    if (!(error instanceof DldError)) throw error;
+    throw new DldError(
+      `commit-reindex failed while ${stepName}: ${error.message}
+The index was restored.`,
+      error.exitCode
+    );
+  }
+  return {
+    commit: git("rev-parse", "--short", "HEAD").trim(),
+    onto: git("rev-parse", "--short", head).trim()
+  };
+}
+function commit(git, message) {
+  try {
+    git("commit", "--quiet", "-m", message);
+  } catch (error) {
+    if (error instanceof GitCommandError) throw new DldError(`git commit failed: ${error.stderr}`);
+    throw error;
+  }
+}
+function squashReindex(ctx, git, paths, renames, base) {
   const onto = mergeBase(ctx, paths, base);
   const head = git("rev-parse", "HEAD").trim();
   if (onto === head) throw new DldError("HEAD is already at the merge-base \u2014 nothing to squash.");
@@ -8255,15 +8354,7 @@ function commitReindex(ctx, { paths }, planText, base) {
         );
       }
     });
-    step("committing", () => {
-      try {
-        git("commit", "--quiet", "-m", message);
-      } catch (error) {
-        if (error instanceof GitCommandError)
-          throw new DldError(`git commit failed: ${error.stderr}`);
-        throw error;
-      }
-    });
+    step("committing", () => commit(git, message));
   } catch (error) {
     throw rollback(ctx, git, indexFull, saved, stepName, error);
   }
@@ -8326,24 +8417,35 @@ function skippedNotice(reason) {
 // src/cli/commands/commit-reindex.ts
 var commitReindexCommand = {
   name: "commit-reindex",
-  summary: "Squash the branch into one reindex commit",
+  summary: "Commit the renamed decisions",
   internal: true,
-  usage: `Usage: dld commit-reindex --base <ref> < plan
+  usage: `Usage: dld commit-reindex --base <ref> [--squash] < plan
 
-Read a rename plan on standard input and squash the branch's commits since the merge-base
-with <ref> into one reindex commit. INDEX.md is left at its merge-base state. On failure the
-branch, index and INDEX.md are restored.
+Read a rename plan on standard input and commit the renames, which rename-decision has
+already applied. By default this adds one commit on top of HEAD with the plan's paths and
+every tracked file changed since HEAD; untracked files are left out. On failure the index is
+restored.
+
+With --squash, the branch's commits since the merge-base with <ref> are squashed into one
+reindex commit instead, and INDEX.md is left at its merge-base state. On failure the branch,
+index and INDEX.md are restored.
 
 Options:
   --base <ref>  Base ref (required)
+  --squash      Squash the branch instead of adding a commit
 `,
   run(args, io, ctx) {
-    const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
+    const { values } = parseCommandArgs({
+      args: [...args],
+      options: { base: { type: "string" }, squash: { type: "boolean" } }
+    });
     if (!values.base) throw new DldError("--base is required.");
     const base = baseOption(values.base);
     const project = loadProject(ctx);
-    const { commit, onto } = commitReindex(ctx, project, ctx.readStdin(), base);
-    io.stdout(`Created reindex commit ${commit} on top of ${onto}
+    const { commit: commit2, onto } = commitReindex(ctx, project, ctx.readStdin(), base, {
+      squash: values.squash === true
+    });
+    io.stdout(`Created reindex commit ${commit2} on top of ${onto}
 `);
     return EXIT_OK;
   }
@@ -8726,11 +8828,11 @@ var idNumber2 = (id) => Number.parseInt(id.slice(3), 10);
 function recordsChangedSinceAudit(ctx, { paths }) {
   const git = gitAt(ctx, paths.root);
   const stored = stateString(readStateSection(ctx, paths, "audit"), "commit_hash");
-  const commit = resolveStateCommit(git, stored);
-  if (commit === void 0) return void 0;
+  const commit2 = resolveStateCommit(git, stored);
+  if (commit2 === void 0) return void 0;
   const records = recordsPathspec(paths);
   return /* @__PURE__ */ new Set([
-    ...nulSeparated(git("diff", "-z", "--name-only", commit, "--", records)),
+    ...nulSeparated(git("diff", "-z", "--name-only", commit2, "--", records)),
     ...nulSeparated(git("ls-files", "-z", "--others", "--exclude-standard", "--", records))
   ]);
 }
@@ -8756,9 +8858,9 @@ function findMissingAmends(ctx, project, { all }) {
 }
 function updateAuditState(ctx, { paths }) {
   const timestamp = formatTimestamp(ctx.now());
-  const commit = shortHead(ctx, paths.root);
-  writeStateSection(ctx, paths, "audit", { last_run: timestamp, commit_hash: commit });
-  return { timestamp, commit };
+  const commit2 = shortHead(ctx, paths.root);
+  writeStateSection(ctx, paths, "audit", { last_run: timestamp, commit_hash: commit2 });
+  return { timestamp, commit: commit2 };
 }
 
 // src/cli/commands/find-missing-amends.ts
@@ -8787,7 +8889,7 @@ Options:
 import { Buffer as Buffer2 } from "node:buffer";
 import { join as join12, posix as posix3 } from "node:path";
 var idPattern = (id, flags = "") => new RegExp(`${id}(?![0-9])`, flags);
-function changedFiles(ctx, paths, commit) {
+function changedFiles(ctx, paths, commit2) {
   return nulSeparated(
     gitAt(ctx, paths.root)(
       "diff",
@@ -8795,7 +8897,7 @@ function changedFiles(ctx, paths, commit) {
       "--find-renames",
       "--name-only",
       "--diff-filter=AMR",
-      commit
+      commit2
     )
   );
 }
@@ -8846,7 +8948,7 @@ function renameDecision(ctx, project, rename, base) {
 }
 function findStaleMentions(ctx, { paths }, planText, base) {
   const renames = parseRenamePlan(paths, planText);
-  if (renames.length === 0) return [];
+  if (renames.length === 0) throw new DldError("no rename plan on stdin.");
   verifyBase(ctx, paths, base);
   const decisions = `${decisionsPathspec(paths)}/`;
   const files = changedFiles(ctx, paths, mergeBase(ctx, paths, base)).flatMap((file) => {
@@ -9279,7 +9381,7 @@ function removeEmptyParents(ctx, dir, paths) {
 import { dirname as dirname3, join as join15, posix as posix4 } from "node:path";
 
 // templates/rules/dld-workflow.md
-var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch (and open PRs) before rebasing\n";
+var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
 
 // src/generate/rule.ts
 var RULE_TEXT = dld_workflow_default;
@@ -10194,8 +10296,8 @@ var updateAuditStateCommand = {
   usage: "Usage: dld update-audit-state\n\nRecord the current time and HEAD commit as the last audit.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
-    const { timestamp, commit } = updateAuditState(ctx, loadProject(ctx));
-    io.stdout(`Audit state updated: ${timestamp} at ${commit}
+    const { timestamp, commit: commit2 } = updateAuditState(ctx, loadProject(ctx));
+    io.stdout(`Audit state updated: ${timestamp} at ${commit2}
 `);
     return EXIT_OK;
   }
@@ -10217,8 +10319,8 @@ SNAPSHOT.md, OVERVIEW.md and any custom artifacts named.
       options: {},
       allowPositionals: true
     });
-    const { timestamp, commit, highest } = updateSnapshotState(ctx, loadProject(ctx), positionals);
-    io.stdout(`Snapshot state updated: ${timestamp} at ${commit} (through ${formatId(highest)})
+    const { timestamp, commit: commit2, highest } = updateSnapshotState(ctx, loadProject(ctx), positionals);
+    io.stdout(`Snapshot state updated: ${timestamp} at ${commit2} (through ${formatId(highest)})
 `);
     return EXIT_OK;
   }

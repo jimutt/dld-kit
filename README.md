@@ -86,7 +86,7 @@ DLD gives agents context, not guarantees. Keep your tests.
 - **Small change:** `/dld-decide` records one decision, then `/dld-implement`.
 - **Existing codebase:** `/dld-retrofit` writes decisions and annotations for code you already have. Follow it with `/dld-snapshot`.
 - **Hands-off:** after a one-time `/dld-retrofit`, run `/dld-audit-auto` and `/dld-snapshot` on a schedule or in CI. The audit finds changes to annotated code that no decision covers, records decisions for them and opens a PR, so nobody has to change how they work.
-- **Teams:** two branches can pick the same `DL-NNN`. Run `/dld-reindex` before you rebase. It renames your drafts to free IDs, updates everything that refers to them, and squashes your branch into one commit.
+- **Teams:** two branches can pick the same `DL-NNN`. When the other one gets there first, run `/dld-reindex`. It renames your drafts to free IDs, updates everything that refers to them, and commits the renames on top of your branch.
 
 More detail, with diagrams: [workflows](docs/workflows.md).
 
@@ -105,7 +105,7 @@ More detail, with diagrams: [workflows](docs/workflows.md).
 | `/dld-audit-auto` | Audit, fix and open a PR, for scheduled runs |
 | `/dld-snapshot` | Generate `OVERVIEW.md` and `SNAPSHOT.md` from the decisions |
 | `/dld-retrofit` | Write decisions for existing code, broadly or in detail |
-| `/dld-reindex` | Fix decision ID clashes before a rebase |
+| `/dld-reindex` | Fix decision ID clashes with the base branch and open PRs |
 
 ## Install
 

@@ -37,7 +37,7 @@ describe("openPrIds", () => {
     const gh = () => {
       throw new ToolNotFoundError("gh");
     };
-    expect(scan(gh)).toEqual({ ids: [], skipped: "gh CLI not installed" });
+    expect(scan(gh)).toEqual({ claims: [], skipped: "gh CLI not installed" });
   });
 
   test("skips when origin is missing or not on GitHub", () => {
@@ -74,9 +74,11 @@ describe("openPrIds", () => {
 
   test("reads IDs from record paths of other branches' PRs targeting the base", () => {
     const calls: string[][] = [];
+    const head = "a".repeat(40);
     const prs = [
       {
         headRefName: "other",
+        headRefOid: head,
         files: [
           { path: "decisions/records/DL-007.md" },
           { path: "decisions/records/billing/DL-012.md" },
@@ -94,7 +96,13 @@ describe("openPrIds", () => {
       { headRefName: "third" },
     ];
     const result = scan(fakeGh({ "pr list": () => JSON.stringify(prs) }, calls));
-    expect(result).toEqual({ ids: ["DL-007", "DL-012", "DL-060"] });
+    expect(result).toEqual({
+      claims: [
+        { id: "DL-007", head },
+        { id: "DL-012", head },
+        { id: "DL-060", head: undefined },
+      ],
+    });
     expect(calls.find((c) => c[0] === "pr")).toEqual([
       "pr",
       "list",
@@ -102,10 +110,22 @@ describe("openPrIds", () => {
       "open",
       "--base=main",
       "--json",
-      "files,headRefName,isCrossRepository",
+      "files,headRefName,headRefOid,isCrossRepository",
       "--limit",
       "100",
     ]);
+  });
+
+  // @decision(DL-065)
+  test("keeps only full commit IDs as head commits", () => {
+    const sha256 = "b".repeat(64);
+    const prs = ["--output=x", "abc123", "A".repeat(40), sha256].map((headRefOid) => ({
+      headRefName: "other",
+      headRefOid,
+      files: [{ path: "decisions/records/DL-007.md" }],
+    }));
+    const heads = scan(fakeGh({ "pr list": () => JSON.stringify(prs) })).claims.map((c) => c.head);
+    expect(heads).toEqual([undefined, undefined, undefined, sha256]);
   });
 
   test("passes a base without an origin/ prefix through unchanged", () => {
@@ -115,7 +135,9 @@ describe("openPrIds", () => {
   });
 
   test("still scans when gh --version fails, and rethrows unexpected errors", () => {
-    expect(scan(fakeGh({ "--version": fail("odd"), "pr list": () => "[]" }))).toEqual({ ids: [] });
+    expect(scan(fakeGh({ "--version": fail("odd"), "pr list": () => "[]" }))).toEqual({
+      claims: [],
+    });
     project?.cleanup();
     const broken = () => {
       throw new Error("bug");

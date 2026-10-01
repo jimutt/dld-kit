@@ -3,20 +3,23 @@ import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
 import { decisionsPathspec, gitAt, nulSeparated } from "./git.ts";
-import type { Project } from "./project.ts";
+import type { Project, ProjectPaths } from "./project.ts";
 import { mergeBase, type Rename, verifyBase } from "./reindex.ts";
 import { parseRenamePlan } from "./rename-plan.ts";
 
 const SUBJECT_LIST_LIMIT = 3;
 
 export interface ReindexCommit {
-  /** Short hash of the new commit and of the merge-base it sits on. */
+  /** Short hash of the new commit and of the commit it sits on. */
   commit: string;
   onto: string;
 }
 
-/** The squashed commit's message: renames in the subject, then the original subjects. */
-export function reindexMessage(renames: readonly Rename[], originalSubjects: string): string {
+/**
+ * The reindex commit's message: renames in the subject, then, when squashing, the original
+ * subjects.
+ */
+export function reindexMessage(renames: readonly Rename[], originalSubjects = ""): string {
   const pairs = renames.map(({ oldId, newId }) => `${oldId} -> ${newId}`);
   const subject =
     renames.length > SUBJECT_LIST_LIMIT
@@ -35,6 +38,101 @@ interface SavedState {
   index: { bytes: Uint8Array; mode: number } | undefined;
 }
 
+// @decision(DL-064)
+/**
+ * Commits the renamed records in `planText`. By default it adds one commit on top of HEAD with
+ * the plan's paths and every tracked file changed since HEAD. With `squash`, it squashes the
+ * branch instead (see squashReindex).
+ */
+export function commitReindex(
+  ctx: Context,
+  { paths }: Project,
+  planText: string,
+  base: string,
+  { squash = false }: { squash?: boolean } = {},
+): ReindexCommit {
+  verifyBase(ctx, paths, base);
+  const renames = parseRenamePlan(paths, planText);
+  if (renames.length === 0) throw new DldError("no rename plan on stdin.");
+  for (const { oldId, newId, path } of renames) {
+    const renamed = posix.join(posix.dirname(path), `${newId}.md`);
+    if (!ctx.fs.isRegularFile(join(paths.root, renamed))) {
+      throw new DldError(`${renamed} not found. Run rename-decision for ${oldId} first.`);
+    }
+  }
+  const git = gitAt(ctx, paths.root);
+  return squash
+    ? squashReindex(ctx, git, paths, renames, base)
+    : commitOnTop(ctx, git, paths, renames);
+}
+
+// @decision(DL-064)
+/**
+ * One commit on top of HEAD. HEAD does not move until the commit succeeds; if staging or the
+ * commit fails, the index is restored.
+ */
+function commitOnTop(
+  ctx: Context,
+  git: (...args: string[]) => string,
+  paths: ProjectPaths,
+  renames: readonly Rename[],
+): ReindexCommit {
+  const stage = new Set<string>();
+  for (const { path, newId } of renames) {
+    stage.add(path);
+    stage.add(posix.join(posix.dirname(path), `${newId}.md`));
+  }
+  for (const file of nulSeparated(git("diff", "-z", "--no-renames", "--name-only", "HEAD"))) {
+    stage.add(file);
+  }
+  const head = git("rev-parse", "HEAD").trim();
+  const tree = git("write-tree").trim();
+  let stepName = "staging";
+  try {
+    for (const path of [...stage].sort()) {
+      stepName = `staging ${path}`;
+      stagePath(ctx, git, join(paths.root, path), path);
+    }
+    stepName = "checking the staged changes";
+    if (!hasStagedChanges(git)) {
+      throw new DldError(
+        "nothing to commit. The reindex may have already been committed, or the plan didn't match the working tree.",
+      );
+    }
+    stepName = "committing";
+    commit(git, reindexMessage(renames));
+  } catch (error) {
+    try {
+      git("read-tree", tree);
+    } catch (restoreError) {
+      throw new DldError(
+        `commit-reindex failed while ${stepName}: ${describe(error)}\n` +
+          `Restoring the index also failed: ${describe(restoreError)}\n` +
+          `To restore by hand: git read-tree ${tree}`,
+      );
+    }
+    if (!(error instanceof DldError)) throw error;
+    throw new DldError(
+      `commit-reindex failed while ${stepName}: ${error.message}\nThe index was restored.`,
+      error.exitCode,
+    );
+  }
+  return {
+    commit: git("rev-parse", "--short", "HEAD").trim(),
+    onto: git("rev-parse", "--short", head).trim(),
+  };
+}
+
+function commit(git: (...args: string[]) => string, message: string): void {
+  try {
+    git("commit", "--quiet", "-m", message);
+  } catch (error) {
+    // The arguments include the whole message; report git's own output instead.
+    if (error instanceof GitCommandError) throw new DldError(`git commit failed: ${error.stderr}`);
+    throw error;
+  }
+}
+
 // @decision(DL-030)
 /**
  * Squashes the branch's commits since the merge-base with `base` into one commit holding the
@@ -42,17 +140,13 @@ interface SavedState {
  * its merge-base state. If anything fails after HEAD moves, HEAD, the index and INDEX.md are
  * restored.
  */
-export function commitReindex(
+function squashReindex(
   ctx: Context,
-  { paths }: Project,
-  planText: string,
+  git: (...args: string[]) => string,
+  paths: ProjectPaths,
+  renames: readonly Rename[],
   base: string,
 ): ReindexCommit {
-  const git = gitAt(ctx, paths.root);
-  verifyBase(ctx, paths, base);
-  const renames = parseRenamePlan(paths, planText);
-  if (renames.length === 0) throw new DldError("no rename plan on stdin.");
-
   const onto = mergeBase(ctx, paths, base);
   const head = git("rev-parse", "HEAD").trim();
   if (onto === head) throw new DldError("HEAD is already at the merge-base — nothing to squash.");
@@ -107,16 +201,7 @@ export function commitReindex(
         );
       }
     });
-    step("committing", () => {
-      try {
-        git("commit", "--quiet", "-m", message);
-      } catch (error) {
-        // The arguments include the whole message; report git's own output instead.
-        if (error instanceof GitCommandError)
-          throw new DldError(`git commit failed: ${error.stderr}`);
-        throw error;
-      }
-    });
+    step("committing", () => commit(git, message));
   } catch (error) {
     throw rollback(ctx, git, indexFull, saved, stepName, error);
   }
