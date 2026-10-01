@@ -1,6 +1,6 @@
 ---
 name: dld-reindex
-description: Resolve decision ID collisions between a local branch and the base branch (and open PRs) before rebasing. Renames colliding local decisions with git mv, rewrites cross-references and annotations, then squashes branch commits into a single rebase-clean reindex commit.
+description: Resolve decision ID collisions between a local branch and the base branch (and open PRs). Renames colliding local decisions with git mv, rewrites cross-references and annotations, and commits the renames on top of the branch. Squashes the branch only when the user asks.
 compatibility: Requires Node.js 20+ and git. Open-PR scanning additionally needs the `gh` CLI authenticated against a GitHub remote — the skill falls back gracefully when unavailable.
 metadata:
   dld-kit-version: "1.0.0-rc.3"
@@ -9,15 +9,15 @@ metadata:
 
 # /dld-reindex — Resolve Decision ID Collisions
 
-You are helping the developer untangle decision ID collisions before they rebase. Two or more developers can draft `DL-NNN` decisions in parallel; once one of them lands on the base branch (or appears in an open PR), the others must rename their local copies to the next free ID. This skill handles that mechanically and produces a branch state that rebases cleanly.
+You are helping the developer untangle decision ID collisions. Two or more developers can draft `DL-NNN` decisions in parallel; once one of them lands on the base branch (or appears in an open PR), the others must rename their local copies to the next free ID. This skill does that mechanically.
 
-**This skill rewrites branch history.** That's not optional: if a colliding path (e.g. `decisions/records/DL-205.md`) was added by any commit on the branch, `git rebase` will hit an add/add conflict on that commit *before* it ever sees a later rename. The only fix is to ensure the colliding path never appears in the branch's history. The skill does this by squashing all branch commits since the merge-base into one reindex commit containing the renamed files.
+**By default the skill adds a commit and does not rewrite history.** The renames go into one new commit on top of the branch (or a few, for a large reindex). A merge only compares end states, so once the branch tip has the record at its new path, `git merge <base>` and merging the PR on GitHub (merge commit or squash merge) don't conflict on the records. A normal push is enough.
 
-If the branch has already been pushed, finishing the reindex will require a `--force-with-lease` push. The skill asks for explicit consent before rewriting history.
+**Squash mode, only when the user asks for it.** A rebase replays every branch commit, and the commit that added the colliding path (e.g. `decisions/records/DL-205.md`) hits an add/add conflict, whatever later commits do. If the user wants to rebase (or their repo uses GitHub's "Rebase and merge"), they can ask for a squash: the branch's commits since the merge-base become one reindex commit, and a pushed branch then needs `git push --force-with-lease`. Use squash mode only when the user's request says so (e.g. `/dld-reindex squash`, "squash it", "I want to rebase"). Never pick it on your own.
 
 ## Interaction style
 
-Use the `AskUserQuestion` tool when prompting for consent and at the finish step. Everything else is deterministic.
+Use the `AskUserQuestion` tool when asking about pushing and, in squash mode, for consent to rewrite history. Everything else is deterministic.
 
 **Do not redirect any command output to `/tmp` files.** The commands in this skill emit only what you need to act on; piping to `/tmp/*.txt`, `tee`-ing into scratch files, or stashing stderr separately is unnecessary and creates clutter outside the repo. If a command's output is too long to read in one go, narrow it (`| tail -N`, `| head -N`, or pass a more specific flag) rather than persisting it.
 
@@ -61,17 +61,24 @@ Output is tab-separated, one rename per line:
 
 If the output is empty, exit with:
 
-> No ID collisions detected. Safe to rebase onto `$BASE`.
+> No ID collisions with `$BASE` or open PRs.
 
 `plan-renames` may print a stderr note like `[dld-reindex] open PRs not scanned: gh CLI not installed`. **Always surface this to the user** so they know the renamed IDs were chosen against base-branch state only and may still collide with an open PR.
 
+A record this branch got from an open PR it is stacked on (an implementation branch cut from a decisions PR) is not a collision with that PR: it is the same decision. This needs the PR's head commit locally, which the `git fetch origin` above provides; a PR from a fork whose head isn't fetched still counts as a collision.
+
 The underlying helpers (`find-collisions`, `list-taken-ids`) remain available for debugging, but the SKILL flow always goes through `plan-renames`.
 
-## Step 3: Get explicit consent for the history rewrite
+## Step 3: Choose how to commit
 
-Show the user the rename plan and the implication. Use `AskUserQuestion`:
+**Default mode (no squash requested).** Don't ask for consent; the renames are new commits the user can review or revert. Decide how many commits to make:
 
-> Resolving these collisions requires rewriting branch history. I will squash the N commits since `<merge-base>` into a single reindex commit. The original commit subjects will be preserved in the new commit body. If the branch has already been pushed, finishing will require `git push --force-with-lease`. How should I proceed?
+- **One commit** for the whole plan. This is the normal case.
+- **Several commits** when the reindex is large: many renames, or renames that rewrite many files (lots of annotations, amendments, supersedes or references between the renamed decisions). Each commit holds one decision, or a group of related ones (e.g. a decision and the local decisions that amend or supersede it). Say in a line which groups you chose.
+
+**Squash mode (the user asked for it).** Show the rename plan and the implication, then use `AskUserQuestion`:
+
+> Squashing rewrites branch history. I will squash the N commits since `<merge-base>` into a single reindex commit. The original commit subjects will be preserved in the new commit body. If the branch has already been pushed, finishing will require `git push --force-with-lease`. How should I proceed?
 
 Options:
 - **Rewrite and force-push** — agent applies renames, squashes, commits, and runs `git push --force-with-lease`.
@@ -82,7 +89,9 @@ If the user cancels, exit without touching anything.
 
 ## Step 4: Apply renames
 
-For each line in the plan, call:
+Run steps 4 to 6 once for the whole plan, or, in default mode, once per group when you split the work. Put the lines you are working on in `GROUP`: a subset of `$PLAN` in the same format, or all of `$PLAN` for a single commit or a squash.
+
+For each line in the plan (or group), call:
 
 ```bash
 node "<skill-dir>/../dld-common/scripts/dld.mjs" rename-decision --old DL-OLD --new DL-NEW --path <relative-path> --base "$BASE"
@@ -102,10 +111,10 @@ The substitution is digit-aware: renaming `DL-100` will not accidentally rewrite
 
 ## Step 5: Review plain-text DL-OLD mentions
 
-After all renames are applied (but before the squash), find any remaining bare `DL-OLD` references in non-decision changed files:
+After the renames are applied (and before committing), find any remaining bare `DL-OLD` references in non-decision changed files:
 
 ```bash
-echo "$PLAN" | node "<skill-dir>/../dld-common/scripts/dld.mjs" find-stale-mentions --base "$BASE"
+echo "$GROUP" | node "<skill-dir>/../dld-common/scripts/dld.mjs" find-stale-mentions --base "$BASE"
 ```
 
 Output is tab-separated, one match per line: `<path>\t<line>\t<DL-OLD>\t<DL-NEW>\t<line-content>`. Empty output means nothing to review.
@@ -119,12 +128,25 @@ For each match:
 
 Surface the list of matches to the user with your verdicts before you finish, so they can sanity-check the judgment calls.
 
-## Step 6: Squash and commit
+## Step 6: Commit
 
-Pipe the rename plan into `commit-reindex`:
+**Do not use `git add -A` or `git commit -a` anywhere in this flow.** Use only `commit-reindex` to commit.
+
+**Default mode.** Regenerate INDEX.md so it lists the new IDs, then commit:
 
 ```bash
-echo "$PLAN" | node "<skill-dir>/../dld-common/scripts/dld.mjs" commit-reindex --base "$BASE"
+node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index
+echo "$GROUP" | node "<skill-dir>/../dld-common/scripts/dld.mjs" commit-reindex --base "$BASE"
+```
+
+`commit-reindex` checks that every renamed file exists, stages the plan's old and new paths plus every tracked file changed since HEAD (the renames, the rewritten references and annotations, your step 5 edits, INDEX.md), and commits on top of HEAD. Untracked files are not staged. The message lists the group's renames. If the commit fails (e.g. a hook rejects it), the index is restored and HEAD has not moved.
+
+If you split the work, go back to step 4 for the next group.
+
+**Squash mode.** Pipe the whole rename plan into `commit-reindex --squash`:
+
+```bash
+echo "$PLAN" | node "<skill-dir>/../dld-common/scripts/dld.mjs" commit-reindex --base "$BASE" --squash
 ```
 
 This:
@@ -135,11 +157,19 @@ This:
 4. Stages **only** an explicit path list derived from the original branch diff and the rename plan — the old paths (for deletions), the new paths (for additions), every other file the branch touched. Untracked unrelated paths (e.g. `.claude/worktrees`, scratch files, in-progress edits to unrelated files) are deliberately NOT swept in.
 5. Commits with a templated message that lists the renames in the subject and preserves the original branch commits' subjects in the body.
 
-**Do not use `git add -A` or `git commit -a` anywhere in this flow.** Use only `commit-reindex` to commit. Targeting paths explicitly is the whole point of this step.
+## Step 7: Push
 
-## Step 7: Push (if the user chose force-push)
+**Default mode.** Use `AskUserQuestion` to ask whether to push now (options: **Push** / **Don't push**). If yes:
 
-If step 3's answer was "Rewrite and force-push":
+```bash
+if git rev-parse --verify --quiet "@{upstream}" >/dev/null; then
+  git push
+else
+  git push -u origin HEAD
+fi
+```
+
+**Squash mode.** If step 3's answer was "Rewrite and force-push":
 
 ```bash
 if git rev-parse --verify --quiet "@{upstream}" >/dev/null; then
@@ -157,8 +187,16 @@ Print:
 
 - The renames table.
 - The stderr note from step 2 if `gh` was skipped.
-- The number of commits squashed.
-- The next steps:
+- The commits created (default mode), or the number of commits squashed (squash mode).
+- The next steps.
+
+Default mode:
+
+> 1. Bring in the base when you need it: `git merge $BASE`, or merge the PR as usual.
+> 2. If INDEX.md conflicts (both sides added rows), run `node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index`, then `git add` INDEX.md and finish the merge.
+> 3. Don't rebase this branch onto `$BASE`: its earlier commits still add the old paths and will conflict. To rebase anyway, drop the reindex commits (`git reset --keep HEAD~N`, N = the number of reindex commits) and run `/dld-reindex squash`.
+
+Squash mode:
 
 > 1. `git rebase $BASE`
 > 2. `node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index` (to repopulate INDEX.md with the renamed locals — the reindex commit intentionally leaves INDEX.md alone to keep the rebase conflict-free; INDEX.md is missing the renamed rows until you regenerate)
@@ -169,5 +207,5 @@ The skill never rebases or merges — that is always the user's call.
 ## Out of scope
 
 - **Already-conflicted rebases.** If the user is mid-rebase with conflicts, tell them to `git rebase --abort` first and re-run this skill.
-- **Preserving per-commit granularity.** The squash trades original commit boundaries for a deterministic rewrite. A future `--preserve-history` flag could perform a cherry-pick walk that rewrites each commit individually, but the edge cases (commits modifying an already-renamed file, merge commits, partial reruns) make it materially more complex than the squash.
+- **Rewriting each commit in place.** Neither mode rewrites the branch commit by commit (a cherry-pick walk); the edge cases (commits modifying an already-renamed file, merge commits, partial reruns) make it much more complex than adding a commit or squashing.
 - **Cross-namespace ID reconciliation** in namespaced projects. IDs are assumed globally unique across namespaces, matching `next-id`.

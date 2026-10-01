@@ -129,6 +129,81 @@ describe("findCollisions", () => {
   });
 });
 
+// @decision(DL-065)
+describe("stacked branches", () => {
+  /**
+   * main holds DL-001. Branch `decisions` adds DL-002 and has an open PR; `feature` is cut from
+   * it. `prs` is what gh reports, read when the scan runs.
+   */
+  function stacked() {
+    let prs: unknown[] = [];
+    const p = branched(undefined, { gh: (args) => (args[0] === "pr" ? JSON.stringify(prs) : "") });
+    p.git("remote", "add", "origin", "https://github.com/o/r");
+    p.git("checkout", "--quiet", "-b", "decisions", "main");
+    addRecord(p, "decisions/records/DL-002.md", "DL-002");
+    p.commitAll("decisions: DL-002");
+    p.git("checkout", "--quiet", "-B", "feature", "decisions");
+    p.write("src/a.py", "# @decision(DL-002)\n");
+    p.commitAll("feature: implement DL-002");
+    const pr = (headRefName: string, headRefOid: string, id = "DL-002") => ({
+      headRefName,
+      headRefOid,
+      files: [{ path: `decisions/records/${id}.md` }],
+    });
+    const tip = (branch: string) => p.git("rev-parse", branch).trim();
+    return {
+      p,
+      pr,
+      tip,
+      setPrs: (list: unknown[]) => {
+        prs = list;
+      },
+      collisions: () => findCollisions(p.ctx, loadProject(p.ctx), "main").collisions,
+    };
+  }
+
+  test("a record from the PR below is not a collision, but its ID stays taken", () => {
+    const s = stacked();
+    s.setPrs([s.pr("decisions", s.tip("decisions"))]);
+    expect(s.collisions()).toEqual([]);
+    expect(listTakenIds(s.p.ctx, loadProject(s.p.ctx), "main").ids).toEqual(["DL-001", "DL-002"]);
+  });
+
+  test("still holds after the PR below gets more commits", () => {
+    const s = stacked();
+    s.p.git("checkout", "--quiet", "decisions");
+    s.p.write("decisions/records/DL-002.md", `${recordText("DL-002")}\nReview fix.\n`);
+    s.p.commitAll("decisions: review fix");
+    s.p.git("checkout", "--quiet", "feature");
+    s.setPrs([s.pr("decisions", s.tip("decisions"))]);
+    expect(s.collisions()).toEqual([]);
+  });
+
+  test("an unrelated PR, or a head commit that is missing or unknown, collides", () => {
+    const s = stacked();
+    s.p.git("checkout", "--quiet", "-b", "other", "main");
+    addRecord(s.p, "decisions/records/DL-002.md", "DL-002");
+    s.p.commitAll("other: its own DL-002");
+    s.p.git("checkout", "--quiet", "feature");
+    const collision = [{ path: "decisions/records/DL-002.md", id: "DL-002" }];
+    for (const head of [s.tip("other"), "c".repeat(40), "not-a-sha"]) {
+      s.setPrs([s.pr("decisions", s.tip("decisions")), s.pr("x", head)]);
+      expect(s.collisions()).toEqual(collision);
+    }
+  });
+
+  test("allocates new IDs above the PR below", () => {
+    const s = stacked();
+    s.p.onMain("land", () => addRecord(s.p, "decisions/records/DL-003.md", "DL-003"));
+    addRecord(s.p, "decisions/records/DL-003.md", "DL-003");
+    s.p.commitAll("feature: DL-003");
+    s.setPrs([s.pr("decisions", s.tip("decisions"), "DL-004")]);
+    expect(planRenames(s.p.ctx, loadProject(s.p.ctx), "main").renames.map(formatRename)).toEqual([
+      "decisions/records/DL-003.md\tDL-003\tDL-005",
+    ]);
+  });
+});
+
 describe("planRenames", () => {
   test("assigns consecutive IDs above everything taken or added, in ID order", () => {
     const p = branched();

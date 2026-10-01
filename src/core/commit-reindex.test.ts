@@ -44,6 +44,9 @@ function collided(): { p: BranchedProject; plan: string } {
 }
 
 const squash = (p: TempProject, plan: string, ctx: Context = p.ctx) =>
+  commitReindex(ctx, loadProject(ctx), plan, "main", { squash: true });
+
+const onTop = (p: TempProject, plan: string, ctx: Context = p.ctx) =>
   commitReindex(ctx, loadProject(ctx), plan, "main");
 
 /** HEAD, the index tree and INDEX.md, to compare before and after a failed run. */
@@ -71,7 +74,114 @@ function failingGit(p: TempProject, match: string, once = true): Context {
   };
 }
 
+// @decision(DL-064)
 describe("commitReindex", () => {
+  test("adds one commit on top, with tracked changes but not untracked files", () => {
+    const { p, plan } = collided();
+    const head = p.git("rev-parse", "HEAD").trim();
+    p.write("decisions/INDEX.md", "# Decision Log\n| DL-003 |\n");
+    p.write("stray.txt", "stray");
+    expect(onTop(p, plan)).toEqual({
+      commit: p.git("rev-parse", "--short", "HEAD").trim(),
+      onto: p.git("rev-parse", "--short", head).trim(),
+    });
+    expect(p.git("rev-parse", "HEAD~1").trim()).toBe(head);
+    expect(p.git("log", "-1", "--format=%B").trim()).toBe(
+      "reindex local decisions: DL-002 -> DL-003\n\nRenames:\n- DL-002 -> DL-003",
+    );
+    expect(p.git("show", "--name-status", "--format=", "--no-renames", "HEAD").trim()).toBe(
+      "M\tdecisions/INDEX.md\nD\tdecisions/records/DL-002.md\nA\tdecisions/records/DL-003.md\nM\tsrc/a.py",
+    );
+    expect(p.git("status", "--porcelain")).toBe("?? stray.txt\n");
+  });
+
+  test("merges into the base without touching the records, and splits by plan", () => {
+    const p = branchedProject();
+    project = p;
+    p.onMain("land DL-002 and DL-003", () => {
+      for (const id of ["DL-002", "DL-003"]) p.write(`decisions/records/${id}.md`, recordText(id));
+    });
+    for (const id of ["DL-002", "DL-003"]) {
+      p.write(`decisions/records/${id}.md`, recordText(id, "proposed"));
+    }
+    p.write("src/a.py", "# @decision(DL-002) @decision(DL-003)\n");
+    p.commitAll("feature: drafts");
+    const renames = planRenames(p.ctx, loadProject(p.ctx), "main").renames;
+    for (const rename of renames) {
+      renameDecision(p.ctx, loadProject(p.ctx), rename, "main");
+      onTop(p, formatRename(rename));
+    }
+    expect(p.git("log", "--format=%s", "main..HEAD").trim().split("\n")).toEqual([
+      "reindex local decisions: DL-003 -> DL-005",
+      "reindex local decisions: DL-002 -> DL-004",
+      "feature: drafts",
+    ]);
+    p.git("merge", "--quiet", "--no-edit", "main");
+    expect(p.git("ls-tree", "-r", "--name-only", "HEAD", "decisions/records").trim()).toBe(
+      ["DL-001", "DL-002", "DL-003", "DL-004", "DL-005"]
+        .map((id) => `decisions/records/${id}.md`)
+        .join("\n"),
+    );
+  });
+
+  test("refuses a plan whose renames were not applied, in both modes", () => {
+    const p = branchedProject();
+    project = p;
+    p.write("decisions/records/DL-002.md", recordText("DL-002", "proposed"));
+    p.commitAll("local");
+    const before = state(p);
+    const plan = "decisions/records/DL-002.md\tDL-002\tDL-003\n";
+    for (const run of [onTop, squash]) {
+      expect(() => run(p, plan)).toThrow(
+        "decisions/records/DL-003.md not found. Run rename-decision for DL-002 first.",
+      );
+    }
+    expect(state(p)).toEqual(before);
+  });
+
+  test("restores the index when the commit is rejected or there is nothing to commit", () => {
+    const { p, plan } = collided();
+    const before = state(p);
+    const hook = join(p.root, ".git/hooks/pre-commit");
+    writeFileSync(hook, "#!/bin/sh\necho rejected >&2\nexit 1\n");
+    chmodSync(hook, 0o755);
+    expect(() => onTop(p, plan)).toThrow(
+      "commit-reindex failed while committing: git commit failed: rejected\nThe index was restored.",
+    );
+    expect(state(p)).toEqual(before);
+    rmSync(hook);
+    onTop(p, plan);
+    expect(() => onTop(p, plan)).toThrow("nothing to commit. The reindex may have already");
+  });
+
+  test("explains how to restore by hand, and rethrows unexpected errors", () => {
+    const { p, plan } = collided();
+    const ctx = failingGit(p, "read-tree");
+    const failing: Context = {
+      ...ctx,
+      git: (args) => {
+        if (args.includes("commit")) throw new GitCommandError(args, "boom");
+        return ctx.git(args);
+      },
+    };
+    expect(() => onTop(p, plan, failing)).toThrow(
+      /Restoring the index also failed: git .*read-tree.*\nTo restore by hand: git read-tree [0-9a-f]{40}/,
+    );
+    const before = state(p);
+    const buggy: Context = {
+      ...p.ctx,
+      git: (args) => {
+        if (args.includes("add")) throw new Error("bug");
+        return p.ctx.git(args);
+      },
+    };
+    expect(() => onTop(p, plan, buggy)).toThrow("bug");
+    expect(state(p)).toEqual(before);
+  });
+});
+
+// @decision(DL-030)
+describe("commitReindex --squash", () => {
   test("squashes the branch into one commit without INDEX.md or untracked files", () => {
     const { p, plan } = collided();
     p.write("stray.txt", "stray");
@@ -155,7 +265,7 @@ describe("commitReindex", () => {
     );
     expect(() => squash(p, "\n")).toThrow("no rename plan on stdin.");
     expect(() => squash(p, "src/a.py\tDL-002\tDL-003")).toThrow("rename plan line 1");
-    expect(() => commitReindex(p.ctx, loadProject(p.ctx), plan, "HEAD")).toThrow(
+    expect(() => commitReindex(p.ctx, loadProject(p.ctx), plan, "HEAD", { squash: true })).toThrow(
       "HEAD is already at the merge-base",
     );
     expect(state(p)).toEqual(before);
