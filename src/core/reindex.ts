@@ -130,6 +130,9 @@ function collides(git: Git, base: string, { path, id }: Collision, taken: Taken)
   const added = git(
     "--literal-pathspecs",
     "log",
+    // log.follow or log.showSignature in the user's config would change the output.
+    "--no-follow",
+    "--no-show-signature",
     "-1",
     "--format=%H",
     "--diff-filter=A",

@@ -203,9 +203,12 @@ describe("findStaleMentions", () => {
     ]);
   });
 
-  test("returns nothing for an empty plan and checks the base otherwise", () => {
+  // @decision(DL-064)
+  test("refuses an empty plan and checks the base otherwise", () => {
     const p = branched();
-    expect(findStaleMentions(p.ctx, loadProject(p.ctx), "\n", "nope")).toEqual([]);
+    expect(() => findStaleMentions(p.ctx, loadProject(p.ctx), "\n", "main")).toThrow(
+      "no rename plan on stdin.",
+    );
     expect(() => findStaleMentions(p.ctx, loadProject(p.ctx), plan, "nope")).toThrow(
       "base ref 'nope' not found.",
     );

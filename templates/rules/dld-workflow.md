@@ -19,4 +19,4 @@ This project uses Decision-Linked Development. Decision records (DL-*.md) live i
 - dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log
 - dld-status: a quick overview of the decision log state
 - dld-retrofit: generate decisions from an existing codebase
-- dld-reindex: resolve decision-ID collisions with the base branch (and open PRs) before rebasing
+- dld-reindex: resolve decision-ID collisions with the base branch and open PRs

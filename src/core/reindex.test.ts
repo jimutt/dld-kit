@@ -169,6 +169,14 @@ describe("stacked branches", () => {
     expect(listTakenIds(s.p.ctx, loadProject(s.p.ctx), "main").ids).toEqual(["DL-001", "DL-002"]);
   });
 
+  test("ignores log.follow and log.showSignature in the user's git config", () => {
+    const s = stacked();
+    s.p.git("config", "log.follow", "true");
+    s.p.git("config", "log.showSignature", "true");
+    s.setPrs([s.pr("decisions", s.tip("decisions"))]);
+    expect(s.collisions()).toEqual([]);
+  });
+
   test("still holds after the PR below gets more commits", () => {
     const s = stacked();
     s.p.git("checkout", "--quiet", "decisions");

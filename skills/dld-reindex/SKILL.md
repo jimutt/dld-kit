@@ -27,6 +27,8 @@ The commands below run the `dld` CLI bundled with the dld-common skill, and need
 
 This skill uses: `resolve-base`, `plan-renames`, `rename-decision`, `find-stale-mentions`, `commit-reindex`, `regenerate-index`.
 
+The steps below use shell variables (`BASE`, `PLAN`, `GROUP`). If your shell doesn't keep variables between commands, set them again in each command, or write the values out (e.g. pipe the plan lines with `printf '%s\t%s\t%s\n' ...`). `find-stale-mentions` and `commit-reindex` fail on an empty plan, so a lost variable shows up as an error.
+
 ## Prerequisites
 
 1. Check that `dld.config.yaml` exists at the repo root. If not, tell the user to run `/dld-init` first and stop.
@@ -44,7 +46,7 @@ BASE=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" resolve-base)
 
 `resolve-base` prefers the branch's upstream when it tracks a *different* branch (the typical "feature → main" setup). It falls back to `origin/main` if the upstream is unset OR if the upstream tracks the same branch name as the current branch (i.e. it's just the remote copy of this same branch, not a useful collision base).
 
-The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex origin/develop`) — honor it if present.
+The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex origin/develop`) — honor it if present. The word `squash` is not a base: it selects squash mode (`/dld-reindex squash origin/develop` does both).
 
 ## Step 2: Plan the renames
 
@@ -64,6 +66,8 @@ If the output is empty, exit with:
 > No ID collisions with `$BASE` or open PRs.
 
 `plan-renames` may print a stderr note like `[dld-reindex] open PRs not scanned: gh CLI not installed`. **Always surface this to the user** so they know the renamed IDs were chosen against base-branch state only and may still collide with an open PR.
+
+**Check that each rename is a real collision.** For each plan line, compare the local record with the base's record of the same ID: `git show "$BASE:<path>"`, or, when the base keeps it in another namespace directory, find it with `git ls-tree -r --name-only "$BASE" | grep '/DL-205\.md$'`. If they are the same decision (same title and substance, give or take later edits), the branch got it from a PR that has since merged into the base, typically a decisions PR this branch was stacked on that was squash- or rebase-merged. Don't rename it. Stop and tell the user to merge the base into the branch first (`git merge $BASE`; if INDEX.md conflicts, `node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index` and `git add` it), then run `/dld-reindex` again.
 
 A record this branch got from an open PR it is stacked on (an implementation branch cut from a decisions PR) is not a collision with that PR: it is the same decision. This needs the PR's head commit locally, which the `git fetch origin` above provides; a PR from a fork whose head isn't fetched still counts as a collision.
 
@@ -89,7 +93,12 @@ If the user cancels, exit without touching anything.
 
 ## Step 4: Apply renames
 
-Run steps 4 to 6 once for the whole plan, or, in default mode, once per group when you split the work. Put the lines you are working on in `GROUP`: a subset of `$PLAN` in the same format, or all of `$PLAN` for a single commit or a squash.
+Run steps 4 to 6 once for the whole plan, or, in default mode, once per group when you split the work. Put the lines you are working on in `GROUP`, in the plan's format. For a single commit or a squash, that's the whole plan; for a group, pick its lines by old ID:
+
+```bash
+GROUP="$PLAN"                                          # whole plan
+GROUP=$(printf '%s\n' "$PLAN" | grep -E $'\t(DL-205|DL-207)\t')  # one group
+```
 
 For each line in the plan (or group), call:
 
@@ -194,7 +203,7 @@ Default mode:
 
 > 1. Bring in the base when you need it: `git merge $BASE`, or merge the PR as usual.
 > 2. If INDEX.md conflicts (both sides added rows), run `node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index`, then `git add` INDEX.md and finish the merge.
-> 3. Don't rebase this branch onto `$BASE`: its earlier commits still add the old paths and will conflict. To rebase anyway, drop the reindex commits (`git reset --keep HEAD~N`, N = the number of reindex commits) and run `/dld-reindex squash`.
+> 3. Don't rebase this branch onto `$BASE`: its earlier commits still add the old paths and will conflict. To rebase anyway, before you merge the base, drop the reindex commits (`git reset --keep HEAD~N`, N = the number of reindex commits) and run `/dld-reindex squash`.
 
 Squash mode:
 
