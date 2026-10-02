@@ -57,7 +57,7 @@ The decision is not on the base branch yet, or is still `proposed` there. Edit f
 
 ### On the base branch (`integrated` or `edited`)
 
-The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can always be updated. For the prose (the body below the frontmatter), follow `decision_edits` in `dld.config.yaml` (default `block`):
+The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can always be updated, except `id` and `timestamp`, which never change. For the prose (the body below the frontmatter), follow `decision_edits` in `dld.config.yaml` (default `block`):
 
 - `block`: don't edit the prose, even though the user asked. Tell them this project keeps the prose of decisions on the base branch as written, and offer to record the change as a new decision that amends or supersedes this one (`/dld-decide`). Mention that `decision_edits: ask` in `dld.config.yaml` would allow edits after confirmation. Frontmatter-only changes can still be made.
 - `ask`: use `AskUserQuestion` to present options:
@@ -133,11 +133,11 @@ node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" check-decision-edits
 
 Edits the user approved in step 2 count as kept; don't ask about them again.
 
-This lists decisions that are already on the base branch and whose prose (the body below the frontmatter) was changed or deleted on this branch. Drafts (decisions not on the base branch yet, or still `proposed` there) and frontmatter changes are never listed. If it prints nothing, continue.
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter), `id` or `timestamp` was changed on this branch, or that were deleted. Drafts (decisions not on the base branch yet, or still `proposed` there) and changes to other frontmatter fields are never listed. If it prints nothing, continue.
 
 Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command exits 1 under `block`):
 
-- `block`: put the prose back with `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" restore-decision-prose DL-NNN ...`, which keeps frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `block`: put the prose back with `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" restore-decision-prose DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
 - `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
 - `allow`: keep the edits and list them in your report.
 

@@ -42,9 +42,10 @@ export function editBase(ctx: Context, paths: ProjectPaths, base?: string): stri
 
 // @decision(DL-066)
 /**
- * Without `ids`: every integrated record whose body was edited or that was deleted. With `ids`:
- * the state of each. Integrated means present at the merge-base of `base` and HEAD; the body is
- * compared with that copy, so frontmatter changes never count.
+ * Without `ids`: every integrated record whose locked content (body, `id`, `timestamp`) was
+ * edited, or that was deleted. With `ids`: the state of each. Integrated means present at the
+ * merge-base of `base` and HEAD; the record is compared with that copy, so changes to other
+ * frontmatter keys never count.
  */
 export function checkDecisionEdits(
   ctx: Context,
@@ -61,7 +62,7 @@ export function checkDecisionEdits(
     if (isProposed(before, path)) return { path, id, state: "draft" };
     const full = join(paths.root, path);
     if (!ctx.fs.isRegularFile(full)) return { path, id, state: "deleted" };
-    const same = normalizedBody(ctx.fs.readFile(full)) === normalizedBody(before);
+    const same = lockedContent(ctx.fs.readFile(full), path) === lockedContent(before, path);
     return { path, id, state: same ? "integrated" : "edited" };
   };
 
@@ -125,8 +126,9 @@ function isProposed(text: string, source: string): boolean {
 
 // @decision(DL-068)
 /**
- * Puts back the body of each integrated record as it is at the merge-base, keeping the
- * current frontmatter. A deleted record is restored whole. Returns the paths written.
+ * Puts back the locked parts of each integrated record (body, `id`, `timestamp`) as they are
+ * at the merge-base, keeping the rest of the current frontmatter. A deleted record is restored
+ * whole. Returns the paths written.
  */
 export function restoreDecisionProse(
   ctx: Context,
@@ -146,14 +148,49 @@ export function restoreDecisionProse(
     const full = join(paths.root, path);
     const current = ctx.fs.isRegularFile(full) ? ctx.fs.readFile(full) : undefined;
     const head = current === undefined ? undefined : recordHead(current);
-    const text = head === undefined ? before : head + recordBody(before);
+    const baseHead = recordHead(before);
+    const text =
+      head === undefined || baseHead === undefined
+        ? before
+        : withLockedLines(head, baseHead) + recordBody(before);
     writeFileAtomic(ctx, full, text);
   }
   return targets;
 }
 
-function normalizedBody(text: string): string {
-  return recordBody(text.replace(/\r\n/g, "\n"));
+/** Frontmatter keys locked with the body; every other key stays editable. */
+const LOCKED_KEYS = ["id", "timestamp"] as const;
+
+// @decision(DL-066)
+/** The parts of a record that are locked once it is integrated: the body, `id` and `timestamp`. */
+function lockedContent(text: string, source: string): string {
+  const normalized = text.replace(/\r\n/g, "\n");
+  let fields: string;
+  try {
+    const record = parseRecord(normalized, source);
+    fields = JSON.stringify([record.id, record.timestamp ?? null]);
+  } catch {
+    // Unparseable frontmatter: compare all of it, so a broken edit is reported.
+    fields = recordHead(normalized) ?? "";
+  }
+  return `${fields}\n${recordBody(normalized)}`;
+}
+
+/** `head` with each locked key's line taken from `baseHead`, or added when it is missing. */
+function withLockedLines(head: string, baseHead: string): string {
+  let result = head;
+  for (const key of LOCKED_KEYS) {
+    const pattern = new RegExp(`^${key}:.*$`, "m");
+    const line = baseHead.match(pattern)?.[0];
+    if (line === undefined) continue;
+    result = pattern.test(result)
+      ? result.replace(pattern, () => line)
+      : result.replace(
+          /^---\r?\n/,
+          (open) => `${open}${line}${open.endsWith("\r\n") ? "\r\n" : "\n"}`,
+        );
+  }
+  return result;
 }
 
 /** `<path>\t<DL-NNN>\t<state>`, the command's line format. */

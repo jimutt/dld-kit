@@ -11,8 +11,9 @@ export const restoreDecisionProseCommand: Command = {
   internal: true,
   usage: `Usage: dld restore-decision-prose [--base <ref>] <DL-NNN> [DL-NNN ...]
 
-Put back the body of each decision (the text after the frontmatter) as it is at the
-merge-base of the base branch and HEAD, keeping the current frontmatter. A deleted decision
+Put back the body (the text after the frontmatter), id and timestamp of each decision as
+they are at the merge-base of the base branch and HEAD, keeping the rest of the current
+frontmatter. A deleted decision
 is restored whole. Fails for a decision that is not on the base branch.
 
 Options:

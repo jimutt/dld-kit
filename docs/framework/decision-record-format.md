@@ -93,7 +93,7 @@ proposed → accepted → deprecated
 ```
 
 - **proposed** — Intent recorded, but no implementation yet. Proposed decisions are **mutable** — they can be refined or updated as understanding evolves during implementation. This is the drafting phase where the decision takes shape.
-- **accepted** — Active and in effect. Code references this decision via `@decision` annotations. Once an accepted decision is on the base branch, its *content* (Context, Decision, Rationale, Consequences) is **immutable** by default — if the decision needs to change, record a new decision that supersedes or amends it. Until then (on the branch where it was written) it can still be edited. The frontmatter can always be updated (e.g., when code is refactored and file paths change, or when the decision is superseded).
+- **accepted** — Active and in effect. Code references this decision via `@decision` annotations. Once an accepted decision is on the base branch, its *content* (Context, Decision, Rationale, Consequences) is **immutable** by default — if the decision needs to change, record a new decision that supersedes or amends it. Until then (on the branch where it was written) it can still be edited. The frontmatter can always be updated (e.g., when code is refactored and file paths change, or when the decision is superseded), except `id` and `timestamp`.
 - **deprecated** — No longer relevant (e.g., the feature was removed). No replacement decision.
 - **superseded** — Replaced by one or more newer decisions. The superseding decision(s) will list this ID in their `supersedes` field.
 

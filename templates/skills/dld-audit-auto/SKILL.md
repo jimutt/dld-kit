@@ -103,7 +103,7 @@ Before regenerating the index, confirm the hard rule held:
 {{dld}} check-decision-edits
 ```
 
-If it lists any decision (exit code 1 under the default `decision_edits: block`; under other settings it still prints the list), put the prose back with `{{dld}} restore-decision-prose DL-NNN ...`, which keeps frontmatter changes. If the change was needed, record a new decision as described above instead.
+If it lists any decision (exit code 1 under the default `decision_edits: block`; under other settings it still prints the list), put the prose back with `{{dld}} restore-decision-prose DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change was needed, record a new decision as described above instead.
 
 ## Step 4: Regenerate INDEX.md
 

@@ -73,7 +73,7 @@ function retryWithBackoff(fn: () => Promise<Response>): Promise<Response> {
 
 The **always-on rule** is a short instruction installed for each agent: read the decision behind an annotation before changing that code. If a change would contradict it, the agent checks with you, and a new decision records the change.
 
-- **Merged decisions aren't rewritten.** While a decision is only on your branch, edit it as much as you like. Once it's on the main branch, you don't edit its reasoning: to change course, record a new decision that supersedes or amends it, so the history stays complete. The frontmatter (`status`, `references`, links) can always be updated. `decision_edits` in the config can relax this. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
+- **Merged decisions aren't rewritten.** While a decision is only on your branch, edit it as much as you like. Once it's on the main branch, you don't edit its reasoning: to change course, record a new decision that supersedes or amends it, so the history stays complete. The frontmatter (`status`, `references`, links, title) can always be updated; `id` and `timestamp` can't. `decision_edits` in the config can relax this. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
 - **The docs are generated.** `/dld-snapshot` builds `OVERVIEW.md` and `SNAPSHOT.md` from the decisions. You never edit a spec by hand.
 - **Drift gets caught.** `/dld-audit` finds annotations without a decision, references to files that no longer exist, and annotated code that changed.
 - **Conventions live in one file.** An optional `decisions/PRACTICES.md` holds your testing, style and architecture conventions, and `/dld-implement` follows it.

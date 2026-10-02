@@ -65,6 +65,16 @@ describe("checkDecisionEdits", () => {
     expect(check(p, ["DL-001"])).toEqual(edited);
   });
 
+  test("reports a changed id or timestamp", () => {
+    const p = branched();
+    p.write(DL001, recordText("DL-001").replace("id: DL-001", "id: DL-099"));
+    expect(check(p)[0]?.state).toBe("edited");
+    p.write(DL001, recordText("DL-001").replace("2026-01-15", "2027-01-15"));
+    expect(check(p)[0]?.state).toBe("edited");
+    p.write(DL001, "---\nid: [broken\n---\nText\n");
+    expect(check(p)[0]?.state).toBe("edited");
+  });
+
   test("reports deleted records", () => {
     const p = branched();
     p.git("rm", "--quiet", DL001);
@@ -131,6 +141,20 @@ describe("restoreDecisionProse", () => {
     p.git("rm", "--quiet", "--force", DL001);
     restore(p, ["DL-001"]);
     expect(read(p, DL001)).toBe(recordText("DL-001"));
+  });
+
+  test("puts back id and timestamp, keeping other frontmatter", () => {
+    const p = branched();
+    const edited = recordText("DL-001", "superseded")
+      .replace("id: DL-001", "id: DL-099")
+      .replace("timestamp: 2026-01-15T10:00:00Z\n", "");
+    p.write(DL001, edited);
+    restore(p, ["DL-001"]);
+    const restored = read(p, DL001);
+    expect(restored).toContain("id: DL-001\n");
+    expect(restored).toContain("timestamp: 2026-01-15T10:00:00Z\n");
+    expect(restored).toContain("status: superseded\n");
+    expect(check(p)).toEqual([]);
   });
 
   test("refuses drafts before writing anything", () => {

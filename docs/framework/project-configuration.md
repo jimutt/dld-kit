@@ -95,13 +95,13 @@ Set `implement_review: false` to skip the step entirely — appropriate if the p
 
 ### Decision edits
 
-A decision record is a **draft** until it reaches the base branch (`origin/main`, or the branch your branch tracks): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter) is protected. `decision_edits` sets how strictly:
+A decision record is a **draft** until it reaches the base branch (`origin/main`, or the branch your branch tracks): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter), `id` and `timestamp` are protected. `decision_edits` sets how strictly:
 
 - `block` (default): agents never edit it, even when asked. They record a new decision that amends or supersedes it instead. People can still edit by hand.
 - `ask`: agents edit it after you confirm.
 - `allow`: agents edit it when that keeps the record accurate, and say so in their summary.
 
-`/dld-audit-auto` always behaves as `block`. The skills that write records finish with `dld check-decision-edits`, which lists every decision on the base branch whose prose the branch changed or deleted, and exits 1 under `block`. You can run the same command in CI.
+`/dld-audit-auto` always behaves as `block`. The skills that write records finish with `dld check-decision-edits`, which lists every decision on the base branch whose prose, `id` or `timestamp` the branch changed, or that it deleted, and exits 1 under `block`. You can run the same command in CI.
 
 ### Snapshot Artifacts
 

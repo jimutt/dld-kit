@@ -14,9 +14,9 @@ export const checkDecisionEditsCommand: Command = {
   usage: `Usage: dld check-decision-edits [--base <ref>] [DL-NNN ...]
 
 A decision is integrated when it exists at the merge-base of the base branch and HEAD;
-otherwise it is a draft. Without IDs, print <path>\\t<DL-NNN>\\tedited for each integrated
-decision whose body (the text after the frontmatter) changed, and deleted for each that is
-gone. With IDs, print one line per ID with its state: draft, integrated, edited or deleted.
+otherwise it is a draft (so is one still proposed there). Without IDs, print
+<path>\\t<DL-NNN>\\tedited for each integrated decision whose body (the text after the
+frontmatter), id or timestamp changed, and deleted for each that is gone. With IDs, print one line per ID with its state: draft, integrated, edited or deleted.
 
 Exits 1 when decision_edits is block (the default) and an edited or deleted decision was
 printed, otherwise 0.
