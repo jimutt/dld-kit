@@ -16,7 +16,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 {{dld-setup}}
 
-This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
+This skill uses: `next-id`, `create-decision`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -100,13 +100,29 @@ If this decision supersedes others, also update their status:
 
 **Do not** update the status of amended decisions — they stay `accepted`.
 
-### 7. Regenerate INDEX.md
+### 7. Check edits to decisions on the base branch
+
+```bash
+{{dld}} check-decision-edits --uncommitted
+```
+
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter), `id` or `timestamp` has uncommitted changes, or that were deleted. Drafts (decisions not on the base branch yet, or still `proposed` there), changes to other frontmatter fields and edits already committed are never listed. If it prints nothing, continue. If a listed edit isn't yours (the user made it by hand), leave it alone and mention it.
+
+Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command then exits 3):
+
+- `block`: put the prose back with `{{dld}} restore-decision-prose --uncommitted DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
+- `allow`: keep the edits and list them in your report.
+
+If the command can't find the base branch, tell the user and continue.
+
+### 8. Regenerate INDEX.md
 
 ```bash
 {{dld}} regenerate-index
 ```
 
-### 8. Suggest next steps
+### 9. Suggest next steps
 
 > Decision **DL-NNN** recorded as `proposed`.
 >

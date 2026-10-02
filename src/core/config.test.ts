@@ -22,6 +22,7 @@ describe("parseConfig", () => {
       annotationPrefix: "@decision",
       annotationExclude: [],
       implementReview: true,
+      decisionEdits: "block",
       snapshotArtifacts: [],
     });
   });
@@ -46,6 +47,7 @@ annotation_exclude:
   - docs/**
   - "*.md"
 implement_review: false
+decision_edits: ask
 snapshot_artifacts:
   - title: ONBOARDING.md
     prompt: >
@@ -55,6 +57,7 @@ snapshot_artifacts:
     expect(config.mode).toBe("namespaced");
     expect(config.namespaces).toEqual(["billing", "auth"]);
     expect(config.implementReview).toBe(false);
+    expect(config.decisionEdits).toBe("ask");
     expect(config.annotationExclude).toEqual(["docs/**", "*.md"]);
     expect(config.snapshotArtifacts).toEqual([
       { title: "ONBOARDING.md", prompt: "Generate a developer onboarding guide from scratch.\n" },
@@ -81,6 +84,10 @@ snapshot_artifacts:
     [
       "decisions_dir: d\nmode: flat\nimplement_review: yes\n",
       "'implement_review' must be true or false",
+    ],
+    [
+      "decisions_dir: d\nmode: flat\ndecision_edits: strict\n",
+      "'decision_edits' must be one of block, ask, allow",
     ],
     [
       "decisions_dir: d\nmode: flat\nannotation_exclude: docs\n",

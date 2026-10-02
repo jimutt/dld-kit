@@ -83,6 +83,16 @@ export function recordBody(text: string): string {
   return block === undefined ? text : block.lines.slice(block.end + 1).join("\n");
 }
 
+/**
+ * The text up to and including the frontmatter's closing `---` line and its newline, or
+ * undefined if there is no frontmatter. `recordHead(text) + recordBody(text) === text`.
+ */
+export function recordHead(text: string): string | undefined {
+  const block = frontmatterBlock(text);
+  if (block === undefined) return undefined;
+  return `${block.lines.slice(0, block.end + 1).join("\n")}\n`;
+}
+
 // @decision(DL-014)
 /** Parses a record's frontmatter. `source` names the record in error messages. */
 export function parseRecord(text: string, source: string): DecisionRecord {

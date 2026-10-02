@@ -38,6 +38,12 @@ annotation_exclude:
 # Default: true
 implement_review: true
 
+# Whether agents may edit the prose of decisions already on the base branch
+# block (default): never; amend or supersede instead
+# ask: after the user confirms
+# allow: yes, to keep records accurate
+decision_edits: block
+
 # Custom snapshot artifacts (optional)
 # Additional documents generated alongside SNAPSHOT.md and OVERVIEW.md
 # by the /dld-snapshot skill. Each entry defines a filename and a prompt
@@ -86,6 +92,25 @@ When `implement_review` is `true` (the default), `/dld-implement` launches a rev
 The reviewer checks for correctness, security issues, type safety problems, and consistency with existing patterns, and reports findings grouped by severity (critical, moderate, minor). It works with limited context and may flag false positives; the implementing agent uses its own judgment and asks you when uncertain about a finding.
 
 Set `implement_review: false` to skip the step entirely — appropriate if the project already runs an independent review in CI or on the PR.
+
+### Decision edits
+
+A decision record is a **draft** until it reaches the base branch (`origin/main`, or the branch your branch tracks; `main` itself when there is no `origin/main`, so in a local-only repository a record is integrated once it is committed to `main`): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter), `id` and `timestamp` are protected. `decision_edits` sets how strictly:
+
+- `block` (default): agents never edit it, even when asked. They record a new decision that amends or supersedes it instead. People can still edit by hand.
+- `ask`: agents edit it after you confirm.
+- `allow`: agents edit it when that keeps the record accurate, and say so in their summary.
+
+`/dld-audit-auto` always behaves as `block`. The skills that write records finish with `dld check-decision-edits --uncommitted`, which lists the decisions on the base branch whose prose, `id` or `timestamp` has uncommitted changes, or that were deleted. Edits already committed, such as a fix you made by hand, are left alone.
+
+Without `--uncommitted`, the command checks the whole branch against the base, and exits 3 under `block` when it lists anything. That makes it a CI gate for pull requests. The job needs the base branch's history to find the merge-base:
+
+```yaml
+- uses: actions/checkout@v7
+  with:
+    fetch-depth: 0
+- run: npx dld-kit@latest check-decision-edits --base origin/${{ github.base_ref }}
+```
 
 ### Snapshot Artifacts
 

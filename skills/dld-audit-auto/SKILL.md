@@ -17,7 +17,7 @@ You are running an autonomous audit of the decision-code relationship. Unlike th
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `find-annotations`, `find-missing-amends`, `regenerate-index`, `update-audit-state`.
+This skill uses: `find-annotations`, `find-missing-amends`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -63,9 +63,9 @@ If unreachable (e.g., after rebase or shallow clone), skip check (4) and note it
 
 Apply fixes for each issue category. Use judgment on what can be safely fixed automatically vs. what should only be flagged in the PR description.
 
-### Hard rule: never edit the body of an accepted decision
+### Hard rule: never edit the body of an integrated decision
 
-The narrative body of an accepted decision (Context, Decision, Rationale, Consequences, and any other prose sections) is **immutable**. An audit must never rewrite, refine, "clean up", or otherwise modify it.
+The narrative body of an accepted decision that is already on the base branch (Context, Decision, Rationale, Consequences, and any other prose sections) is **immutable**. An audit must never rewrite, refine, "clean up", or otherwise modify it. This holds whatever `decision_edits` in `dld.config.yaml` says: an unattended audit has nobody to ask.
 
 The only changes an audit may make to an accepted decision are housekeeping updates to specific frontmatter fields — `references`, `amends`, `superseded_by`, and similar relational metadata — plus adding or fixing `@decision` annotations in code.
 
@@ -97,6 +97,16 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 4. **Create a new decision when needed** — Per the hard rule above, never edit the body of the existing accepted decision to absorb the new behavior. Instead, create a new decision using the standard scripts, mark it `accepted` (the code already exists), and link it to the prior decision via `supersedes` or `amends` as appropriate. Add `@decision` annotations to the new/changed code pointing at the new decision.
 
 **Important:** These best-effort fixes are inferred, not authoritative. In the PR description, clearly mark each one under a **"Inferred Decisions — Review Required"** section. Explain what changed, what context was found (commit messages, tickets), and what new decision was created. Reviewers should prioritize checking these for accuracy.
+
+### Check: no prose edits to decisions on the base branch
+
+Before regenerating the index, confirm the hard rule held:
+
+```bash
+node "<skill-dir>/../dld-common/scripts/dld.mjs" check-decision-edits --uncommitted
+```
+
+If it lists any decision (exit code 3 under the default `decision_edits: block`; under other settings it still prints the list), put the prose back with `node "<skill-dir>/../dld-common/scripts/dld.mjs" restore-decision-prose --uncommitted DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change was needed, record a new decision as described above instead.
 
 ## Step 4: Regenerate INDEX.md
 

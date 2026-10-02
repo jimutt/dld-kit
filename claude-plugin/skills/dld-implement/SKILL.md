@@ -15,7 +15,7 @@ You are implementing one or more `proposed` decisions by making code changes, ad
 
 `${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
-This skill uses: `update-status`, `verify-annotations`, `regenerate-index`.
+This skill uses: `update-status`, `check-decision-edits`, `restore-decision-prose`, `verify-annotations`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -55,7 +55,7 @@ Read each decision record carefully. Understand:
 
 Implement the decision(s) by modifying the codebase. Follow the practices manifest if one exists.
 
-**Refining decisions during implementation:** While implementing, you may discover details that weren't anticipated during planning — a specific threshold value, an edge case handling approach, or a refinement to the original design. Since the decision is still in `proposed` status, it is **mutable** and can be updated:
+**Refining decisions during implementation:** While implementing, you may discover details that weren't anticipated during planning — a specific threshold value, an edge case handling approach, or a refinement to the original design. Since the decision is still in `proposed` status, it is **mutable** and can be updated. So is any decision this branch added, even after it is `accepted`, until the branch is merged into the base branch:
 
 - **Small refinements** (implementation details, specific values, edge cases that don't change the decision's intent) — update the decision record inline. Amend the Decision, Rationale, or Consequences sections as needed. This is expected and encouraged.
 - **Major discoveries** (a fundamentally different approach is needed, or an entirely new design concern surfaces) — stop and suggest the user run `/dld-decide` to record a separate decision. If the new discovery invalidates the current decision, it may need to be superseded instead.
@@ -197,13 +197,29 @@ Group findings by severity:
 
 If you made fixes, re-run `verify-annotations` from step 5 to ensure annotations are still intact.
 
-### 7. Regenerate INDEX.md
+### 7. Check edits to decisions on the base branch
+
+```bash
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" check-decision-edits --uncommitted
+```
+
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter), `id` or `timestamp` has uncommitted changes, or that were deleted. Drafts (decisions not on the base branch yet, or still `proposed` there), changes to other frontmatter fields and edits already committed are never listed. If it prints nothing, continue. If a listed edit isn't yours (the user made it by hand), leave it alone and mention it.
+
+Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command then exits 3):
+
+- `block`: put the prose back with `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" restore-decision-prose --uncommitted DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
+- `allow`: keep the edits and list them in your report.
+
+If the command can't find the base branch, tell the user and continue.
+
+### 8. Regenerate INDEX.md
 
 ```bash
 node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" regenerate-index
 ```
 
-### 8. Suggest next steps
+### 9. Suggest next steps
 
 > Implemented and accepted: **DL-NNN** (<title>)
 >
