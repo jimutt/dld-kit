@@ -19,7 +19,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
+This skill uses: `next-id`, `create-decision`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -103,13 +103,29 @@ node "<skill-dir>/../dld-common/scripts/dld.mjs" update-status DL-003 superseded
 
 **Do not** update the status of amended decisions — they stay `accepted`.
 
-### 7. Regenerate INDEX.md
+### 7. Check edits to decisions on the base branch
+
+```bash
+node "<skill-dir>/../dld-common/scripts/dld.mjs" check-decision-edits
+```
+
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter) was changed or deleted on this branch. Drafts (decisions not on the base branch yet, or still `proposed` there) and frontmatter changes are never listed. If it prints nothing, continue.
+
+Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command exits 1 under `block`):
+
+- `block`: put the prose back with `node "<skill-dir>/../dld-common/scripts/dld.mjs" restore-decision-prose DL-NNN ...`, which keeps frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
+- `allow`: keep the edits and list them in your report.
+
+If the command can't find the base branch, tell the user and continue.
+
+### 8. Regenerate INDEX.md
 
 ```bash
 node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index
 ```
 
-### 8. Suggest next steps
+### 9. Suggest next steps
 
 > Decision **DL-NNN** recorded as `proposed`.
 >

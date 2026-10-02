@@ -7,6 +7,10 @@ export const CONFIG_FILE = "dld.config.yaml";
 
 export type Mode = "flat" | "namespaced";
 
+/** How strictly the prose of integrated decision records is protected (DL-067). */
+export const DECISION_EDITS = ["block", "ask", "allow"] as const;
+export type DecisionEdits = (typeof DECISION_EDITS)[number];
+
 export interface SnapshotArtifact {
   title: string;
   prompt: string;
@@ -20,6 +24,7 @@ export interface Config {
   /** git glob patterns excluded from annotation scanning. */
   annotationExclude: string[];
   implementReview: boolean;
+  decisionEdits: DecisionEdits;
   snapshotArtifacts: SnapshotArtifact[];
 }
 
@@ -57,6 +62,7 @@ export function parseConfig(text: string): Config {
     // @decision(DL-023)
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
     implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
+    decisionEdits: decisionEdits(raw.decision_edits),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
   };
 }
@@ -108,6 +114,16 @@ function repoRelativePatterns(value: unknown, key: string): string[] {
     throw invalid(`'${key}' patterns must be relative to the repository root, got '${outside}'`);
   }
   return patterns;
+}
+
+// @decision(DL-067)
+function decisionEdits(value: unknown): DecisionEdits {
+  if (value === undefined || value === null) return "block";
+  const allowed: readonly unknown[] = DECISION_EDITS;
+  if (!allowed.includes(value)) {
+    throw invalid(`'decision_edits' must be one of ${DECISION_EDITS.join(", ")}`);
+  }
+  return value as DecisionEdits;
 }
 
 function snapshotArtifacts(value: unknown): SnapshotArtifact[] {

@@ -38,6 +38,12 @@ annotation_exclude:
 # Default: true
 implement_review: true
 
+# Whether agents may edit the prose of decisions already on the base branch
+# block (default): never; amend or supersede instead
+# ask: after the user confirms
+# allow: yes, to keep records accurate
+decision_edits: block
+
 # Custom snapshot artifacts (optional)
 # Additional documents generated alongside SNAPSHOT.md and OVERVIEW.md
 # by the /dld-snapshot skill. Each entry defines a filename and a prompt
@@ -86,6 +92,16 @@ When `implement_review` is `true` (the default), `/dld-implement` launches a rev
 The reviewer checks for correctness, security issues, type safety problems, and consistency with existing patterns, and reports findings grouped by severity (critical, moderate, minor). It works with limited context and may flag false positives; the implementing agent uses its own judgment and asks you when uncertain about a finding.
 
 Set `implement_review: false` to skip the step entirely — appropriate if the project already runs an independent review in CI or on the PR.
+
+### Decision edits
+
+A decision record is a **draft** until it reaches the base branch (`origin/main`, or the branch your branch tracks): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter) is protected. `decision_edits` sets how strictly:
+
+- `block` (default): agents never edit it, even when asked. They record a new decision that amends or supersedes it instead. People can still edit by hand.
+- `ask`: agents edit it after you confirm.
+- `allow`: agents edit it when that keeps the record accurate, and say so in their summary.
+
+`/dld-audit-auto` always behaves as `block`. The skills that write records finish with `dld check-decision-edits`, which lists every decision on the base branch whose prose the branch changed or deleted, and exits 1 under `block`. You can run the same command in CI.
 
 ### Snapshot Artifacts
 

@@ -9,6 +9,7 @@ This project uses Decision-Linked Development. Decision records (DL-*.md) live i
 - When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.
 - ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.
 - NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.
+- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated, but don't rewrite the prose below it unless `decision_edits` in `dld.config.yaml` allows it. The default (`block`) means: record an amendment or a superseding decision with the dld-decide skill instead.
 
 ## Skills
 

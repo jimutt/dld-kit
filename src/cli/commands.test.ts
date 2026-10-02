@@ -653,3 +653,46 @@ describe("session-context", () => {
     }
   });
 });
+
+// @decision(DL-066) @decision(DL-067)
+describe("check-decision-edits", () => {
+  test("lists edited decisions and fails only under decision_edits: block", () => {
+    const p = branchedProject();
+    project = p;
+    expect(dld(p, "check-decision-edits")).toEqual({ code: EXIT_OK, out: "", err: "" });
+    p.write(
+      "decisions/records/DL-001.md",
+      recordText("DL-001").replace("Test context", "New context"),
+    );
+    const line = "decisions/records/DL-001.md\tDL-001\tedited\n";
+    expect(dld(p, "check-decision-edits", "--base", "main")).toEqual({
+      code: 1,
+      out: line,
+      err: "",
+    });
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\ndecision_edits: ask\n");
+    expect(dld(p, "check-decision-edits", "DL-001")).toEqual({ code: EXIT_OK, out: line, err: "" });
+  });
+
+  test("rejects arguments that are not decision IDs", () => {
+    project = branchedProject();
+    for (const command of ["check-decision-edits", "restore-decision-prose"]) {
+      expect(dld(project, command, "x").code).toBe(EXIT_USAGE);
+      expect(dld(project, command, "--base", "-x", "DL-001").code).toBe(EXIT_USAGE);
+    }
+    expect(dld(project, "restore-decision-prose").code).toBe(EXIT_USAGE);
+  });
+
+  // @decision(DL-068)
+  test("restore-decision-prose puts the body back", () => {
+    const p = branchedProject();
+    project = p;
+    p.write("decisions/records/DL-001.md", recordText("DL-001").replace("Test context", "New"));
+    expect(dld(p, "restore-decision-prose", "DL-001")).toEqual({
+      code: EXIT_OK,
+      out: "Restored decisions/records/DL-001.md\n",
+      err: "",
+    });
+    expect(dld(p, "check-decision-edits").code).toBe(EXIT_OK);
+  });
+});

@@ -4000,10 +4000,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep5, value } = collItem;
+        const { start, key, sep: sep6, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep5?.[0],
+          next: key ?? sep6?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -4017,7 +4017,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep5) {
+          if (!keyProps.anchor && !keyProps.tag && !sep6) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -4041,7 +4041,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep5 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep6 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -4057,7 +4057,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep5, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep6, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -4148,7 +4148,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep5 = "";
+        let sep6 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -4162,13 +4162,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep5 + cb;
-              sep5 = "";
+                comment += sep6 + cb;
+              sep6 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep5 += source;
+                sep6 += source;
               hasSpace = true;
               break;
             default:
@@ -4211,18 +4211,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep5, value } = collItem;
+        const { start, key, sep: sep6, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep5?.[0],
+          next: key ?? sep6?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep5 && !value) {
+          if (!props.anchor && !props.tag && !sep6 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -4276,8 +4276,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap2 && !sep5 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep5, null, props, onError);
+        if (!isMap2 && !sep6 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep6, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -4289,7 +4289,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep5 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep6 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -4300,8 +4300,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap2 && !props.found && ctx.options.strict) {
-              if (sep5)
-                for (const st of sep5) {
+              if (sep6)
+                for (const st of sep6) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -4318,7 +4318,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep5, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep6, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -4498,7 +4498,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep5 = "";
+      let sep6 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -4515,24 +4515,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep5 + indent.slice(trimIndent) + content;
-          sep5 = "\n";
+          value += sep6 + indent.slice(trimIndent) + content;
+          sep6 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep5 === " ")
-            sep5 = "\n";
-          else if (!prevMoreIndented && sep5 === "\n")
-            sep5 = "\n\n";
-          value += sep5 + indent.slice(trimIndent) + content;
-          sep5 = "\n";
+          if (sep6 === " ")
+            sep6 = "\n";
+          else if (!prevMoreIndented && sep6 === "\n")
+            sep6 = "\n\n";
+          value += sep6 + indent.slice(trimIndent) + content;
+          sep6 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep5 === "\n")
+          if (sep6 === "\n")
             value += "\n";
           else
-            sep5 = "\n";
+            sep6 = "\n";
         } else {
-          value += sep5 + content;
-          sep5 = " ";
+          value += sep6 + content;
+          sep6 = " ";
           prevMoreIndented = false;
         }
       }
@@ -4715,25 +4715,25 @@ var require_resolve_flow_scalar = __commonJS({
         trimBoth = /^[ \t]+|[ \t]+$/g;
       }
       let res = match[1].replace(trimEnd, "");
-      let sep5 = " ";
+      let sep6 = " ";
       let pos = line.lastIndex;
       while (match = line.exec(source)) {
         const lm = match[1].replace(trimBoth, "");
         if (lm === "") {
-          if (sep5 === "\n")
-            res += sep5;
+          if (sep6 === "\n")
+            res += sep6;
           else
-            sep5 = "\n";
+            sep6 = "\n";
         } else {
-          res += sep5 + lm;
-          sep5 = " ";
+          res += sep6 + lm;
+          sep6 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep5 + (match?.[1] ?? "");
+      return res + sep6 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -5543,14 +5543,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep5, value }) {
+    function stringifyItem({ start, key, sep: sep6, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep5)
-        for (const st of sep5)
+      if (sep6)
+        for (const st of sep6)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -6717,18 +6717,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep5;
+          let sep6;
           if (scalar.end) {
-            sep5 = scalar.end;
-            sep5.push(this.sourceToken);
+            sep6 = scalar.end;
+            sep6.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep5 = [this.sourceToken];
+            sep6 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep5 }]
+            items: [{ start, key: scalar, sep: sep6 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -6881,15 +6881,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep5 = it.sep;
-                  sep5.push(this.sourceToken);
+                  const sep6 = it.sep;
+                  sep6.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep5 }]
+                    items: [{ start: start2, key, sep: sep6 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -7083,13 +7083,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep5 = fc.end.splice(1, fc.end.length);
-            sep5.push(this.sourceToken);
+            const sep6 = fc.end.splice(1, fc.end.length);
+            sep6.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep5 }]
+              items: [{ start, key: fc, sep: sep6 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -7455,120 +7455,45 @@ function requestsHelp(config) {
   return tokens.some((token) => token.kind === "option" && token.name === "help");
 }
 
-// src/core/project.ts
-import { join as join2 } from "node:path";
+// src/core/decision-edits.ts
+import { basename as basename4, join as join3, relative as relative2, sep as sep2 } from "node:path";
 
-// src/core/config.ts
-var import_yaml = __toESM(require_dist(), 1);
-import { join } from "node:path";
-var CONFIG_FILE = "dld.config.yaml";
-function loadConfig(ctx, root) {
-  const path = join(root, CONFIG_FILE);
-  if (!ctx.fs.exists(path)) {
-    throw new DldError(`${CONFIG_FILE} not found. Run /dld-init first.`);
-  }
-  return parseConfig(ctx.fs.readFile(path));
+// src/core/files.ts
+import { basename, dirname, join } from "node:path";
+var TEMP_PREFIX = ".dld-tmp-";
+function tempPathFor(path) {
+  const suffix = Math.random().toString(36).slice(2, 10);
+  return join(dirname(path), `${TEMP_PREFIX}${basename(path)}.${suffix}`);
 }
-function parseConfig(text) {
-  const doc = (0, import_yaml.parseDocument)(text, { logLevel: "silent" });
-  const problem = doc.errors[0] ?? doc.warnings[0];
-  if (problem !== void 0) throw invalid(`not valid YAML: ${problem.message}`);
-  const raw = doc.toJS();
-  if (!isRecord(raw)) throw invalid("expected a mapping of keys to values");
-  const mode = raw.mode;
-  if (mode !== "flat" && mode !== "namespaced") {
-    throw invalid("'mode' must be 'flat' or 'namespaced'");
-  }
-  const namespaces = optionalStringList(raw.namespaces, "namespaces");
-  if (mode === "namespaced" && namespaces.length === 0) {
-    throw invalid("'namespaces' must list at least one namespace when 'mode' is 'namespaced'");
-  }
-  return {
-    decisionsDir: requiredString(raw.decisions_dir, "decisions_dir"),
-    mode,
-    namespaces,
-    annotationPrefix: optionalString(raw.annotation_prefix, "annotation_prefix") ?? "@decision",
-    // @decision(DL-023)
-    annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
-    implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
-    snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts)
-  };
-}
-function invalid(message) {
-  return new DldError(`${CONFIG_FILE}: ${message}`);
-}
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function requiredString(value, key) {
-  const result = optionalString(value, key);
-  if (result === void 0) throw invalid(`'${key}' is required`);
-  return result;
-}
-function optionalString(value, key) {
-  if (value === void 0 || value === null) return void 0;
-  if (typeof value !== "string" || value.trim() === "") {
-    throw invalid(`'${key}' must be a non-empty string`);
-  }
-  return value;
-}
-function optionalBoolean(value, key) {
-  if (value === void 0 || value === null) return void 0;
-  if (typeof value !== "boolean") throw invalid(`'${key}' must be true or false`);
-  return value;
-}
-function optionalStringList(value, key) {
-  if (value === void 0 || value === null) return [];
-  if (!Array.isArray(value)) throw invalid(`'${key}' must be a list of strings`);
-  return value.map((item) => {
-    if (typeof item !== "string" || item.trim() === "") {
-      throw invalid(`'${key}' must be a list of non-empty strings`);
-    }
-    return item;
-  });
-}
-function repoRelativePatterns(value, key) {
-  const patterns = optionalStringList(value, key);
-  const outside = patterns.find((pattern) => /^([/\\]|[A-Za-z]:|\.\.([/\\]|$))/.test(pattern));
-  if (outside !== void 0) {
-    throw invalid(`'${key}' patterns must be relative to the repository root, got '${outside}'`);
-  }
-  return patterns;
-}
-function snapshotArtifacts(value) {
-  const key = "snapshot_artifacts";
-  if (value === void 0 || value === null) return [];
-  if (!Array.isArray(value)) throw invalid(`'${key}' must be a list of {title, prompt} entries`);
-  return value.map((item) => {
-    if (!isRecord(item)) throw invalid(`'${key}' entries must have 'title' and 'prompt'`);
-    return {
-      title: requiredString(item.title, `${key}[].title`),
-      prompt: requiredString(item.prompt, `${key}[].prompt`)
-    };
-  });
-}
-
-// src/core/project.ts
-function findProjectRoot(ctx) {
+function writeFileAtomic(ctx, path, content, mode) {
+  const temp = tempPathFor(path);
   try {
-    return ctx.git(["rev-parse", "--show-toplevel"]).trim();
+    ctx.fs.writeFile(temp, content);
+    if (mode !== void 0) ctx.fs.chmod(temp, mode);
+    ctx.fs.rename(temp, path);
   } catch (error) {
-    if (error instanceof GitCommandError) throw new DldError("not a git repository");
+    removeQuietly(ctx, temp);
     throw error;
   }
 }
-function resolvePaths(root, config) {
-  const decisionsDir = join2(root, config.decisionsDir);
-  return { root, decisionsDir, recordsDir: join2(decisionsDir, "records") };
+function createFileExclusive(ctx, path, content, existsMessage) {
+  const temp = tempPathFor(path);
+  try {
+    ctx.fs.writeFile(temp, content);
+    ctx.fs.link(temp, path);
+  } catch (error) {
+    if (error instanceof FsError && error.code === "EEXIST") throw new DldError(existsMessage);
+    throw error;
+  } finally {
+    removeQuietly(ctx, temp);
+  }
 }
-function loadProject(ctx) {
-  const root = findProjectRoot(ctx);
-  const config = loadConfig(ctx, root);
-  return { config, paths: resolvePaths(root, config) };
+function removeQuietly(ctx, path) {
+  try {
+    ctx.fs.remove(path);
+  } catch {
+  }
 }
-
-// src/core/snapshot.ts
-import { basename as basename3, join as join6, relative as relative3 } from "node:path";
 
 // src/core/git.ts
 import { relative, sep } from "node:path";
@@ -7599,8 +7524,8 @@ function resolveStateCommit(git, value) {
 }
 
 // src/core/records.ts
-var import_yaml2 = __toESM(require_dist(), 1);
-import { basename, join as join3 } from "node:path";
+var import_yaml = __toESM(require_dist(), 1);
+import { basename as basename2, join as join2 } from "node:path";
 var STATUSES = ["proposed", "accepted", "deprecated", "superseded"];
 var RECORD_FILE = /^DL-(\d+)\.md$/;
 var DECISION_ID = /^DL-\d+$/;
@@ -7613,7 +7538,7 @@ function listRecordFiles(ctx, recordsDir) {
   const walk = (dir) => {
     const entries = ctx.fs.readDir(dir).sort((a, b) => a.name < b.name ? -1 : 1);
     for (const entry of entries) {
-      const path = join3(dir, entry.name);
+      const path = join2(dir, entry.name);
       if (entry.isDirectory) walk(path);
       else if (entry.isFile && RECORD_FILE.test(entry.name)) found.push(path);
     }
@@ -7622,12 +7547,12 @@ function listRecordFiles(ctx, recordsDir) {
   return found;
 }
 function recordNumber(path) {
-  const digits = RECORD_FILE.exec(basename(path))?.[1];
+  const digits = RECORD_FILE.exec(basename2(path))?.[1];
   if (digits === void 0) throw new Error(`not a decision record file: ${path}`);
   return Number.parseInt(digits, 10);
 }
 function findRecordFile(ctx, recordsDir, id) {
-  return listRecordFiles(ctx, recordsDir).find((path) => basename(path) === `${id}.md`);
+  return listRecordFiles(ctx, recordsDir).find((path) => basename2(path) === `${id}.md`);
 }
 var isDelimiter = (line) => line === "---" || line === "---\r";
 function frontmatterBlock(text) {
@@ -7642,15 +7567,21 @@ function recordBody(text) {
   const block = frontmatterBlock(text);
   return block === void 0 ? text : block.lines.slice(block.end + 1).join("\n");
 }
+function recordHead(text) {
+  const block = frontmatterBlock(text);
+  if (block === void 0) return void 0;
+  return `${block.lines.slice(0, block.end + 1).join("\n")}
+`;
+}
 function parseRecord(text, source) {
   const invalid2 = (message) => new DldError(`${source}: ${message}`);
   const block = frontmatterBlock(text);
   if (block === void 0) throw invalid2("no frontmatter between --- lines");
   const frontmatter = block.lines.slice(block.start + 1, block.end).map((line) => line.replace(/\r$/, ""));
-  const doc = (0, import_yaml2.parseDocument)(frontmatter.join("\n"), { logLevel: "silent" });
+  const doc = (0, import_yaml.parseDocument)(frontmatter.join("\n"), { logLevel: "silent" });
   const problem = doc.errors[0] ?? doc.warnings[0];
   const raw = problem === void 0 ? doc.toJS() : legacyFields(frontmatter);
-  if (!isRecord2(raw)) throw invalid2("frontmatter must be a mapping");
+  if (!isRecord(raw)) throw invalid2("frontmatter must be a mapping");
   const string = (key) => {
     const value = raw[key];
     if (value === void 0 || value === null) return void 0;
@@ -7707,13 +7638,13 @@ function references(value, invalid2) {
   if (value === void 0 || value === null) return [];
   if (!Array.isArray(value)) throw invalid2("'references' must be a list");
   return value.map((item) => {
-    if (!isRecord2(item) || typeof item.path !== "string") {
+    if (!isRecord(item) || typeof item.path !== "string") {
       throw invalid2("'references' entries must have a 'path'");
     }
     return typeof item.symbol === "string" ? { path: item.path, symbol: item.symbol } : { path: item.path };
   });
 }
-function isRecord2(value) {
+function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function setStatus(text, status, source) {
@@ -7779,6 +7710,9 @@ function formatTimestamp(date) {
   return `${date.toISOString().slice(0, 19)}Z`;
 }
 
+// src/core/reindex.ts
+import { basename as basename3 } from "node:path";
+
 // src/core/ids.ts
 function formatId(n) {
   return `DL-${String(n).padStart(3, "0")}`;
@@ -7787,177 +7721,6 @@ function nextId(ctx, recordsDir) {
   const highest = listRecordFiles(ctx, recordsDir).map(recordNumber).reduce((max, n) => Math.max(max, n), 0);
   return formatId(highest + 1);
 }
-
-// src/core/state.ts
-var import_yaml3 = __toESM(require_dist(), 1);
-import { join as join5, relative as relative2 } from "node:path";
-
-// src/core/files.ts
-import { basename as basename2, dirname, join as join4 } from "node:path";
-var TEMP_PREFIX = ".dld-tmp-";
-function tempPathFor(path) {
-  const suffix = Math.random().toString(36).slice(2, 10);
-  return join4(dirname(path), `${TEMP_PREFIX}${basename2(path)}.${suffix}`);
-}
-function writeFileAtomic(ctx, path, content, mode) {
-  const temp = tempPathFor(path);
-  try {
-    ctx.fs.writeFile(temp, content);
-    if (mode !== void 0) ctx.fs.chmod(temp, mode);
-    ctx.fs.rename(temp, path);
-  } catch (error) {
-    removeQuietly(ctx, temp);
-    throw error;
-  }
-}
-function createFileExclusive(ctx, path, content, existsMessage) {
-  const temp = tempPathFor(path);
-  try {
-    ctx.fs.writeFile(temp, content);
-    ctx.fs.link(temp, path);
-  } catch (error) {
-    if (error instanceof FsError && error.code === "EEXIST") throw new DldError(existsMessage);
-    throw error;
-  } finally {
-    removeQuietly(ctx, temp);
-  }
-}
-function removeQuietly(ctx, path) {
-  try {
-    ctx.fs.remove(path);
-  } catch {
-  }
-}
-
-// src/core/state.ts
-var STATE_FILE = ".dld-state.yaml";
-function statePath(paths) {
-  return join5(paths.decisionsDir, STATE_FILE);
-}
-function loadStateDocument(ctx, paths) {
-  const path = statePath(paths);
-  if (!ctx.fs.exists(path)) return new import_yaml3.Document(void 0, { schema: "failsafe" });
-  const source = relative2(paths.root, path);
-  const doc = (0, import_yaml3.parseDocument)(ctx.fs.readFile(path), { schema: "failsafe", logLevel: "error" });
-  const problem = doc.errors[0] ?? doc.warnings[0];
-  if (problem !== void 0) throw new DldError(`${source}: not valid YAML: ${problem.message}`);
-  if (doc.contents !== null && !(0, import_yaml3.isMap)(doc.contents)) {
-    throw new DldError(`${source}: expected a mapping of sections`);
-  }
-  return doc;
-}
-function readStateSection(ctx, paths, section) {
-  const value = loadStateDocument(ctx, paths).toJS()?.[section];
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? { ...value } : void 0;
-}
-function writeStateSection(ctx, paths, section, value) {
-  const doc = loadStateDocument(ctx, paths);
-  doc.set(section, value);
-  writeFileAtomic(ctx, statePath(paths), String(doc));
-}
-function stateString(section, key) {
-  const value = section?.[key];
-  return typeof value === "string" && value !== "" ? value : void 0;
-}
-function shortHead(ctx, root) {
-  try {
-    return ctx.git(["-C", root, "rev-parse", "--short", "HEAD"]).trim();
-  } catch (error) {
-    if (error instanceof GitCommandError) return "unknown";
-    throw error;
-  }
-}
-
-// src/core/snapshot.ts
-var DECISION_BOUNDARY = "===DLD_DECISION_BOUNDARY===";
-var BUILT_IN_ARTIFACTS = ["SNAPSHOT.md", "OVERVIEW.md"];
-function readRecords(ctx, { paths }) {
-  return listRecordFiles(ctx, paths.recordsDir).map((path) => {
-    const text = ctx.fs.readFile(path);
-    const record = parseRecord(text, relative3(paths.root, path));
-    return { path, number: recordNumber(path), text, accepted: record.status === "accepted" };
-  }).sort((a, b) => a.number - b.number);
-}
-function collectActiveDecisions(ctx, project) {
-  if (!ctx.fs.isDirectory(project.paths.recordsDir)) {
-    throw new DldError(`records directory not found at ${project.paths.recordsDir}`);
-  }
-  return readRecords(ctx, project).filter((record) => record.accepted).map((record) => record.text).join(`${DECISION_BOUNDARY}
-`);
-}
-function detectSnapshotChanges(ctx, project) {
-  const { paths } = project;
-  const state = readStateSection(ctx, paths, "snapshot");
-  if (state === void 0) return { mode: "full" };
-  if (BUILT_IN_ARTIFACTS.some((name) => !ctx.fs.exists(join6(paths.decisionsDir, name)))) {
-    return { mode: "full" };
-  }
-  const included = stateString(state, "decisions_included");
-  if (included === void 0 || !/^\d+$/.test(included)) return { mode: "full" };
-  const includedNumber = Number.parseInt(included, 10);
-  const newDecisions = readRecords(ctx, project).filter((record) => record.number > includedNumber && record.accepted).map((record) => formatId(record.number));
-  const git = gitAt(ctx, paths.root);
-  let stored = stateString(state, "commit_hash");
-  const lastRun = stateString(state, "last_run");
-  if ((stored === void 0 || stored === "unknown") && lastRun !== void 0) {
-    stored = gitOrEmpty(git, "log", `--until=${lastRun}`, "--format=%h", "-1").trim() || void 0;
-  }
-  const commit2 = resolveStateCommit(git, stored);
-  let modifiedDecisions = [];
-  let commitRange = "";
-  if (commit2 !== void 0 && commit2 !== shortHead(ctx, paths.root)) {
-    commitRange = `${commit2}..HEAD`;
-    const numbers = nulSeparated(
-      gitOrEmpty(git, "diff", "-z", "--name-only", commitRange, "--", recordsPathspec(paths))
-    ).map((path) => basename3(path)).filter((name) => RECORD_FILE.test(name)).map((name) => recordNumber(name)).filter((number) => number <= includedNumber);
-    modifiedDecisions = [...new Set(numbers)].sort((a, b) => a - b).map(formatId);
-  }
-  return { mode: "incremental", newDecisions, modifiedDecisions, commitRange };
-}
-function formatSnapshotChanges(changes) {
-  if (changes.mode === "full") return "mode: full\n";
-  return [
-    "mode: incremental",
-    `new_decisions: ${changes.newDecisions.join(", ")}`,
-    `modified_decisions: ${changes.modifiedDecisions.join(", ")}`,
-    `commit_range: ${changes.commitRange}`,
-    ""
-  ].join("\n");
-}
-function updateSnapshotState(ctx, project, customArtifacts) {
-  const { paths } = project;
-  const timestamp = formatTimestamp(ctx.now());
-  const commit2 = shortHead(ctx, paths.root);
-  const highest = readRecords(ctx, project).filter((record) => record.accepted).reduce((max, record) => Math.max(max, record.number), 0);
-  const artifacts = /* @__PURE__ */ Object.create(null);
-  for (const name of [...BUILT_IN_ARTIFACTS, ...customArtifacts]) artifacts[name] = timestamp;
-  writeStateSection(ctx, paths, "snapshot", {
-    last_run: timestamp,
-    commit_hash: commit2,
-    decisions_included: String(highest),
-    artifacts
-  });
-  return { timestamp, commit: commit2, highest };
-}
-
-// src/cli/commands/collect-active-decisions.ts
-var collectActiveDecisionsCommand = {
-  name: "collect-active-decisions",
-  summary: "Print every accepted decision record",
-  internal: true,
-  usage: "Usage: dld collect-active-decisions\n\nPrint each accepted record in ID order, separated by ===DLD_DECISION_BOUNDARY=== lines.\n",
-  run(args, io, ctx) {
-    parseCommandArgs({ args: [...args], options: {} });
-    io.stdout(collectActiveDecisions(ctx, loadProject(ctx)));
-    return EXIT_OK;
-  }
-};
-
-// src/core/commit-reindex.ts
-import { join as join7, posix as posix2 } from "node:path";
-
-// src/core/reindex.ts
-import { basename as basename4 } from "node:path";
 
 // src/core/open-prs.ts
 var GITHUB_REMOTE = /github\.com[:/]/;
@@ -8141,8 +7904,8 @@ function collisionsOf(ctx, paths, base) {
   const git = gitAt(ctx, paths.root);
   const added = localAdditions(git, paths, base);
   const local = added.flatMap((path) => {
-    const id = basename4(path, ".md");
-    return RECORD_FILE.test(basename4(path)) ? [{ path, id }] : [];
+    const id = basename3(path, ".md");
+    return RECORD_FILE.test(basename3(path)) ? [{ path, id }] : [];
   });
   if (local.length === 0) return { collisions: [], localIds: [], taken: [] };
   const taken = takenIds(ctx, paths, base);
@@ -8168,6 +7931,410 @@ function planRenames(ctx, { paths }, base) {
 function formatRename({ path, oldId, newId }) {
   return `${path}	${oldId}	${newId}`;
 }
+
+// src/core/decision-edits.ts
+function editBase(ctx, paths, base) {
+  if (base !== void 0) {
+    verifyBase(ctx, paths, base, " Fetch first or pass --base.");
+    return base;
+  }
+  const resolved = resolveBase(ctx);
+  const git = gitAt(ctx, paths.root);
+  const exists = (ref) => gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`) !== "";
+  if (exists(resolved)) return resolved;
+  const local = resolved.startsWith("origin/") ? resolved.slice("origin/".length) : void 0;
+  if (local !== void 0 && exists(local)) return local;
+  throw new DldError(`base ref '${resolved}' not found. Fetch first or pass --base.`);
+}
+function checkDecisionEdits(ctx, { paths }, base, ids = []) {
+  const git = gitAt(ctx, paths.root);
+  const { onto, integrated } = integratedRecords(ctx, paths, base);
+  const edit = (path) => {
+    const id = basename4(path, ".md");
+    const before = git("show", `${onto}:${path}`);
+    if (isProposed(before, path)) return { path, id, state: "draft" };
+    const full = join3(paths.root, path);
+    if (!ctx.fs.isRegularFile(full)) return { path, id, state: "deleted" };
+    const same = normalizedBody(ctx.fs.readFile(full)) === normalizedBody(before);
+    return { path, id, state: same ? "integrated" : "edited" };
+  };
+  if (ids.length === 0) {
+    const integratedSet = new Set(integrated);
+    const changed = nulSeparated(
+      gitOrEmpty(
+        git,
+        "diff",
+        "-z",
+        "--no-renames",
+        "--name-only",
+        onto,
+        "--",
+        recordsPathspec(paths)
+      )
+    );
+    return changed.filter((path) => integratedSet.has(path)).sort().map(edit).filter(({ state }) => state === "edited" || state === "deleted");
+  }
+  return ids.map((id) => {
+    const path = integrated.find((candidate) => basename4(candidate) === `${id}.md`);
+    if (path !== void 0) return edit(path);
+    const local = findRecordFile(ctx, paths.recordsDir, id);
+    if (local === void 0) throw new DldError(`decision ${id} not found.`);
+    return { path: relative2(paths.root, local).split(sep2).join("/"), id, state: "draft" };
+  });
+}
+function integratedRecords(ctx, paths, base) {
+  const onto = mergeBase(ctx, paths, base);
+  const integrated = nulSeparated(
+    gitOrEmpty(
+      gitAt(ctx, paths.root),
+      "ls-tree",
+      "-r",
+      "-z",
+      "--name-only",
+      onto,
+      "--",
+      recordsPathspec(paths)
+    )
+  ).filter((path) => RECORD_FILE.test(basename4(path)));
+  return { onto, integrated };
+}
+function isProposed(text, source) {
+  try {
+    return parseRecord(text, source).status === "proposed";
+  } catch {
+    return false;
+  }
+}
+function restoreDecisionProse(ctx, { paths }, base, ids) {
+  const git = gitAt(ctx, paths.root);
+  const { onto, integrated } = integratedRecords(ctx, paths, base);
+  const targets = ids.map((id) => {
+    const path = integrated.find((candidate) => basename4(candidate) === `${id}.md`);
+    if (path === void 0) throw new DldError(`${id} is not on the base branch; it is a draft.`);
+    return path;
+  });
+  for (const path of targets) {
+    const before = git("show", `${onto}:${path}`);
+    const full = join3(paths.root, path);
+    const current = ctx.fs.isRegularFile(full) ? ctx.fs.readFile(full) : void 0;
+    const head = current === void 0 ? void 0 : recordHead(current);
+    const text = head === void 0 ? before : head + recordBody(before);
+    writeFileAtomic(ctx, full, text);
+  }
+  return targets;
+}
+function normalizedBody(text) {
+  return recordBody(text.replace(/\r\n/g, "\n"));
+}
+function formatRecordEdit({ path, id, state }) {
+  return `${path}	${id}	${state}`;
+}
+
+// src/core/project.ts
+import { join as join5 } from "node:path";
+
+// src/core/config.ts
+var import_yaml2 = __toESM(require_dist(), 1);
+import { join as join4 } from "node:path";
+var CONFIG_FILE = "dld.config.yaml";
+var DECISION_EDITS = ["block", "ask", "allow"];
+function loadConfig(ctx, root) {
+  const path = join4(root, CONFIG_FILE);
+  if (!ctx.fs.exists(path)) {
+    throw new DldError(`${CONFIG_FILE} not found. Run /dld-init first.`);
+  }
+  return parseConfig(ctx.fs.readFile(path));
+}
+function parseConfig(text) {
+  const doc = (0, import_yaml2.parseDocument)(text, { logLevel: "silent" });
+  const problem = doc.errors[0] ?? doc.warnings[0];
+  if (problem !== void 0) throw invalid(`not valid YAML: ${problem.message}`);
+  const raw = doc.toJS();
+  if (!isRecord2(raw)) throw invalid("expected a mapping of keys to values");
+  const mode = raw.mode;
+  if (mode !== "flat" && mode !== "namespaced") {
+    throw invalid("'mode' must be 'flat' or 'namespaced'");
+  }
+  const namespaces = optionalStringList(raw.namespaces, "namespaces");
+  if (mode === "namespaced" && namespaces.length === 0) {
+    throw invalid("'namespaces' must list at least one namespace when 'mode' is 'namespaced'");
+  }
+  return {
+    decisionsDir: requiredString(raw.decisions_dir, "decisions_dir"),
+    mode,
+    namespaces,
+    annotationPrefix: optionalString(raw.annotation_prefix, "annotation_prefix") ?? "@decision",
+    // @decision(DL-023)
+    annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
+    implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
+    decisionEdits: decisionEdits(raw.decision_edits),
+    snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts)
+  };
+}
+function invalid(message) {
+  return new DldError(`${CONFIG_FILE}: ${message}`);
+}
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function requiredString(value, key) {
+  const result = optionalString(value, key);
+  if (result === void 0) throw invalid(`'${key}' is required`);
+  return result;
+}
+function optionalString(value, key) {
+  if (value === void 0 || value === null) return void 0;
+  if (typeof value !== "string" || value.trim() === "") {
+    throw invalid(`'${key}' must be a non-empty string`);
+  }
+  return value;
+}
+function optionalBoolean(value, key) {
+  if (value === void 0 || value === null) return void 0;
+  if (typeof value !== "boolean") throw invalid(`'${key}' must be true or false`);
+  return value;
+}
+function optionalStringList(value, key) {
+  if (value === void 0 || value === null) return [];
+  if (!Array.isArray(value)) throw invalid(`'${key}' must be a list of strings`);
+  return value.map((item) => {
+    if (typeof item !== "string" || item.trim() === "") {
+      throw invalid(`'${key}' must be a list of non-empty strings`);
+    }
+    return item;
+  });
+}
+function repoRelativePatterns(value, key) {
+  const patterns = optionalStringList(value, key);
+  const outside = patterns.find((pattern) => /^([/\\]|[A-Za-z]:|\.\.([/\\]|$))/.test(pattern));
+  if (outside !== void 0) {
+    throw invalid(`'${key}' patterns must be relative to the repository root, got '${outside}'`);
+  }
+  return patterns;
+}
+function decisionEdits(value) {
+  if (value === void 0 || value === null) return "block";
+  const allowed = DECISION_EDITS;
+  if (!allowed.includes(value)) {
+    throw invalid(`'decision_edits' must be one of ${DECISION_EDITS.join(", ")}`);
+  }
+  return value;
+}
+function snapshotArtifacts(value) {
+  const key = "snapshot_artifacts";
+  if (value === void 0 || value === null) return [];
+  if (!Array.isArray(value)) throw invalid(`'${key}' must be a list of {title, prompt} entries`);
+  return value.map((item) => {
+    if (!isRecord2(item)) throw invalid(`'${key}' entries must have 'title' and 'prompt'`);
+    return {
+      title: requiredString(item.title, `${key}[].title`),
+      prompt: requiredString(item.prompt, `${key}[].prompt`)
+    };
+  });
+}
+
+// src/core/project.ts
+function findProjectRoot(ctx) {
+  try {
+    return ctx.git(["rev-parse", "--show-toplevel"]).trim();
+  } catch (error) {
+    if (error instanceof GitCommandError) throw new DldError("not a git repository");
+    throw error;
+  }
+}
+function resolvePaths(root, config) {
+  const decisionsDir = join5(root, config.decisionsDir);
+  return { root, decisionsDir, recordsDir: join5(decisionsDir, "records") };
+}
+function loadProject(ctx) {
+  const root = findProjectRoot(ctx);
+  const config = loadConfig(ctx, root);
+  return { config, paths: resolvePaths(root, config) };
+}
+
+// src/cli/commands/base-option.ts
+function baseOption(value, fallback = DEFAULT_BASE) {
+  const base = value ?? fallback;
+  if (base.startsWith("-")) throw new UsageError(`--base must be a git ref, got '${base}'`);
+  return base;
+}
+function skippedNotice(reason) {
+  return `[dld-reindex] open PRs not scanned: ${reason}
+`;
+}
+
+// src/cli/commands/check-decision-edits.ts
+var EXIT_BLOCKED = 1;
+var checkDecisionEditsCommand = {
+  name: "check-decision-edits",
+  summary: "List edits to the prose of decisions already on the base branch",
+  internal: true,
+  usage: `Usage: dld check-decision-edits [--base <ref>] [DL-NNN ...]
+
+A decision is integrated when it exists at the merge-base of the base branch and HEAD;
+otherwise it is a draft. Without IDs, print <path>\\t<DL-NNN>\\tedited for each integrated
+decision whose body (the text after the frontmatter) changed, and deleted for each that is
+gone. With IDs, print one line per ID with its state: draft, integrated, edited or deleted.
+
+Exits 1 when decision_edits is block (the default) and an edited or deleted decision was
+printed, otherwise 0.
+
+Options:
+  --base <ref>  Base ref (default: the branch's upstream base, else origin/main or main)
+`,
+  run(args, io, ctx) {
+    const { values, positionals: ids } = parseCommandArgs({
+      args: [...args],
+      options: { base: { type: "string" } },
+      allowPositionals: true
+    });
+    const bad = ids.find((id) => !DECISION_ID.test(id));
+    if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
+    const project = loadProject(ctx);
+    const base = editBase(
+      ctx,
+      project.paths,
+      values.base === void 0 ? void 0 : baseOption(values.base)
+    );
+    const edits = checkDecisionEdits(ctx, project, base, ids);
+    for (const edit of edits) io.stdout(`${formatRecordEdit(edit)}
+`);
+    const changed = edits.some(({ state }) => state === "edited" || state === "deleted");
+    return changed && project.config.decisionEdits === "block" ? EXIT_BLOCKED : EXIT_OK;
+  }
+};
+
+// src/core/snapshot.ts
+import { basename as basename5, join as join7, relative as relative4 } from "node:path";
+
+// src/core/state.ts
+var import_yaml3 = __toESM(require_dist(), 1);
+import { join as join6, relative as relative3 } from "node:path";
+var STATE_FILE = ".dld-state.yaml";
+function statePath(paths) {
+  return join6(paths.decisionsDir, STATE_FILE);
+}
+function loadStateDocument(ctx, paths) {
+  const path = statePath(paths);
+  if (!ctx.fs.exists(path)) return new import_yaml3.Document(void 0, { schema: "failsafe" });
+  const source = relative3(paths.root, path);
+  const doc = (0, import_yaml3.parseDocument)(ctx.fs.readFile(path), { schema: "failsafe", logLevel: "error" });
+  const problem = doc.errors[0] ?? doc.warnings[0];
+  if (problem !== void 0) throw new DldError(`${source}: not valid YAML: ${problem.message}`);
+  if (doc.contents !== null && !(0, import_yaml3.isMap)(doc.contents)) {
+    throw new DldError(`${source}: expected a mapping of sections`);
+  }
+  return doc;
+}
+function readStateSection(ctx, paths, section) {
+  const value = loadStateDocument(ctx, paths).toJS()?.[section];
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? { ...value } : void 0;
+}
+function writeStateSection(ctx, paths, section, value) {
+  const doc = loadStateDocument(ctx, paths);
+  doc.set(section, value);
+  writeFileAtomic(ctx, statePath(paths), String(doc));
+}
+function stateString(section, key) {
+  const value = section?.[key];
+  return typeof value === "string" && value !== "" ? value : void 0;
+}
+function shortHead(ctx, root) {
+  try {
+    return ctx.git(["-C", root, "rev-parse", "--short", "HEAD"]).trim();
+  } catch (error) {
+    if (error instanceof GitCommandError) return "unknown";
+    throw error;
+  }
+}
+
+// src/core/snapshot.ts
+var DECISION_BOUNDARY = "===DLD_DECISION_BOUNDARY===";
+var BUILT_IN_ARTIFACTS = ["SNAPSHOT.md", "OVERVIEW.md"];
+function readRecords(ctx, { paths }) {
+  return listRecordFiles(ctx, paths.recordsDir).map((path) => {
+    const text = ctx.fs.readFile(path);
+    const record = parseRecord(text, relative4(paths.root, path));
+    return { path, number: recordNumber(path), text, accepted: record.status === "accepted" };
+  }).sort((a, b) => a.number - b.number);
+}
+function collectActiveDecisions(ctx, project) {
+  if (!ctx.fs.isDirectory(project.paths.recordsDir)) {
+    throw new DldError(`records directory not found at ${project.paths.recordsDir}`);
+  }
+  return readRecords(ctx, project).filter((record) => record.accepted).map((record) => record.text).join(`${DECISION_BOUNDARY}
+`);
+}
+function detectSnapshotChanges(ctx, project) {
+  const { paths } = project;
+  const state = readStateSection(ctx, paths, "snapshot");
+  if (state === void 0) return { mode: "full" };
+  if (BUILT_IN_ARTIFACTS.some((name) => !ctx.fs.exists(join7(paths.decisionsDir, name)))) {
+    return { mode: "full" };
+  }
+  const included = stateString(state, "decisions_included");
+  if (included === void 0 || !/^\d+$/.test(included)) return { mode: "full" };
+  const includedNumber = Number.parseInt(included, 10);
+  const newDecisions = readRecords(ctx, project).filter((record) => record.number > includedNumber && record.accepted).map((record) => formatId(record.number));
+  const git = gitAt(ctx, paths.root);
+  let stored = stateString(state, "commit_hash");
+  const lastRun = stateString(state, "last_run");
+  if ((stored === void 0 || stored === "unknown") && lastRun !== void 0) {
+    stored = gitOrEmpty(git, "log", `--until=${lastRun}`, "--format=%h", "-1").trim() || void 0;
+  }
+  const commit2 = resolveStateCommit(git, stored);
+  let modifiedDecisions = [];
+  let commitRange = "";
+  if (commit2 !== void 0 && commit2 !== shortHead(ctx, paths.root)) {
+    commitRange = `${commit2}..HEAD`;
+    const numbers = nulSeparated(
+      gitOrEmpty(git, "diff", "-z", "--name-only", commitRange, "--", recordsPathspec(paths))
+    ).map((path) => basename5(path)).filter((name) => RECORD_FILE.test(name)).map((name) => recordNumber(name)).filter((number) => number <= includedNumber);
+    modifiedDecisions = [...new Set(numbers)].sort((a, b) => a - b).map(formatId);
+  }
+  return { mode: "incremental", newDecisions, modifiedDecisions, commitRange };
+}
+function formatSnapshotChanges(changes) {
+  if (changes.mode === "full") return "mode: full\n";
+  return [
+    "mode: incremental",
+    `new_decisions: ${changes.newDecisions.join(", ")}`,
+    `modified_decisions: ${changes.modifiedDecisions.join(", ")}`,
+    `commit_range: ${changes.commitRange}`,
+    ""
+  ].join("\n");
+}
+function updateSnapshotState(ctx, project, customArtifacts) {
+  const { paths } = project;
+  const timestamp = formatTimestamp(ctx.now());
+  const commit2 = shortHead(ctx, paths.root);
+  const highest = readRecords(ctx, project).filter((record) => record.accepted).reduce((max, record) => Math.max(max, record.number), 0);
+  const artifacts = /* @__PURE__ */ Object.create(null);
+  for (const name of [...BUILT_IN_ARTIFACTS, ...customArtifacts]) artifacts[name] = timestamp;
+  writeStateSection(ctx, paths, "snapshot", {
+    last_run: timestamp,
+    commit_hash: commit2,
+    decisions_included: String(highest),
+    artifacts
+  });
+  return { timestamp, commit: commit2, highest };
+}
+
+// src/cli/commands/collect-active-decisions.ts
+var collectActiveDecisionsCommand = {
+  name: "collect-active-decisions",
+  summary: "Print every accepted decision record",
+  internal: true,
+  usage: "Usage: dld collect-active-decisions\n\nPrint each accepted record in ID order, separated by ===DLD_DECISION_BOUNDARY=== lines.\n",
+  run(args, io, ctx) {
+    parseCommandArgs({ args: [...args], options: {} });
+    io.stdout(collectActiveDecisions(ctx, loadProject(ctx)));
+    return EXIT_OK;
+  }
+};
+
+// src/core/commit-reindex.ts
+import { join as join8, posix as posix2 } from "node:path";
 
 // src/core/rename-plan.ts
 import { posix } from "node:path";
@@ -8243,7 +8410,7 @@ function commitReindex(ctx, { paths }, planText, base, { squash = false } = {}) 
   if (renames.length === 0) throw new DldError("no rename plan on stdin.");
   for (const { oldId, newId, path } of renames) {
     const renamed = posix2.join(posix2.dirname(path), `${newId}.md`);
-    if (!ctx.fs.isRegularFile(join7(paths.root, renamed))) {
+    if (!ctx.fs.isRegularFile(join8(paths.root, renamed))) {
       throw new DldError(`${renamed} not found. Run rename-decision for ${oldId} first.`);
     }
   }
@@ -8265,7 +8432,7 @@ function commitOnTop(ctx, git, paths, renames) {
   try {
     for (const path of [...stage].sort()) {
       stepName = `staging ${path}`;
-      stagePath(ctx, git, join7(paths.root, path), path);
+      stagePath(ctx, git, join8(paths.root, path), path);
     }
     stepName = "checking the staged changes";
     if (!hasStagedChanges(git)) {
@@ -8321,7 +8488,7 @@ function squashReindex(ctx, git, paths, renames, base) {
   for (const file of branchFiles) if (file !== indexRel) stage.add(file);
   const subjects = git("log", "--reverse", "--format=- %s", `${onto}..HEAD`).replace(/\n+$/, "");
   const message = reindexMessage(renames, subjects);
-  const indexFull = join7(paths.root, indexRel);
+  const indexFull = join8(paths.root, indexRel);
   if (ctx.fs.lexists(indexFull) && !ctx.fs.isRegularFile(indexFull)) {
     throw new DldError(`${indexRel} is not a regular file.`);
   }
@@ -8345,7 +8512,7 @@ function squashReindex(ctx, git, paths, renames, base) {
       }
     });
     for (const path of [...stage].sort()) {
-      step(`staging ${path}`, () => stagePath(ctx, git, join7(paths.root, path), path));
+      step(`staging ${path}`, () => stagePath(ctx, git, join8(paths.root, path), path));
     }
     step("checking the staged changes", () => {
       if (!hasStagedChanges(git)) {
@@ -8403,17 +8570,6 @@ function describe(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-// src/cli/commands/base-option.ts
-function baseOption(value, fallback = DEFAULT_BASE) {
-  const base = value ?? fallback;
-  if (base.startsWith("-")) throw new UsageError(`--base must be a git ref, got '${base}'`);
-  return base;
-}
-function skippedNotice(reason) {
-  return `[dld-reindex] open PRs not scanned: ${reason}
-`;
-}
-
 // src/cli/commands/commit-reindex.ts
 var commitReindexCommand = {
   name: "commit-reindex",
@@ -8452,7 +8608,7 @@ Options:
 };
 
 // src/core/init.ts
-import { join as join8 } from "node:path";
+import { join as join9 } from "node:path";
 function parseMode(value) {
   if (value !== "flat" && value !== "namespaced") {
     throw new DldError(`mode must be 'flat' or 'namespaced', got '${value}'.`);
@@ -8470,7 +8626,7 @@ function createConfig(ctx, root, mode, namespaces) {
   if (mode === "namespaced" && namespaces.length === 0) {
     throw new DldError("namespaced mode requires at least one namespace.");
   }
-  const path = join8(root, CONFIG_FILE);
+  const path = join9(root, CONFIG_FILE);
   createFileExclusive(ctx, path, renderConfig(mode, namespaces), `${CONFIG_FILE} already exists.`);
   return path;
 }
@@ -8479,9 +8635,9 @@ function createDirectories(ctx, { config, paths }) {
   ctx.fs.mkdir(paths.recordsDir);
   if (config.mode !== "namespaced") return;
   for (const namespace of config.namespaces) {
-    const dir = join8(paths.recordsDir, namespace);
+    const dir = join9(paths.recordsDir, namespace);
     ctx.fs.mkdir(dir);
-    const keep = join8(dir, ".gitkeep");
+    const keep = join9(dir, ".gitkeep");
     if (!ctx.fs.exists(keep)) createFileExclusive(ctx, keep, "", `${keep} already exists.`);
   }
 }
@@ -8508,12 +8664,12 @@ var createConfigCommand = {
 };
 
 // src/core/decisions.ts
-import { join as join9, relative as relative4 } from "node:path";
+import { join as join10, relative as relative5 } from "node:path";
 function updateStatus(ctx, project, id, status) {
   const path = findRecordFile(ctx, project.paths.recordsDir, id);
   if (path === void 0) throw new DldError(`decision ${id} not found.`);
   const text = ctx.fs.readFile(path);
-  writeFileAtomic(ctx, path, setStatus(text, status, relative4(project.paths.root, path)));
+  writeFileAtomic(ctx, path, setStatus(text, status, relative5(project.paths.root, path)));
   return path;
 }
 function createDecision(ctx, project, input) {
@@ -8524,9 +8680,9 @@ function createDecision(ctx, project, input) {
   if (namespaced && !isSafeDirName(input.namespace ?? "")) {
     throw new DldError(`invalid namespace '${input.namespace}'.`);
   }
-  const dir = namespaced ? join9(project.paths.recordsDir, input.namespace ?? "") : project.paths.recordsDir;
+  const dir = namespaced ? join10(project.paths.recordsDir, input.namespace ?? "") : project.paths.recordsDir;
   ctx.fs.mkdir(dir);
-  const path = join9(dir, `${input.id}.md`);
+  const path = join10(dir, `${input.id}.md`);
   const content = renderNewRecord({
     id: input.id,
     title: input.title,
@@ -8611,7 +8767,7 @@ var createDirectoriesCommand = {
 };
 
 // src/core/index-file.ts
-import { basename as basename5, join as join10, relative as relative5, sep as sep2 } from "node:path";
+import { basename as basename6, join as join11, relative as relative6, sep as sep3 } from "node:path";
 var INDEX_FILE = "INDEX.md";
 function renderIndex(rows, mode) {
   const namespaced = mode === "namespaced";
@@ -8632,13 +8788,13 @@ function renderIndex(rows, mode) {
 `;
 }
 function indexPath(paths) {
-  return join10(paths.decisionsDir, INDEX_FILE);
+  return join11(paths.decisionsDir, INDEX_FILE);
 }
 function collectIndexRows(ctx, paths, includeBase) {
   const localFiles = listRecordFiles(ctx, paths.recordsDir);
   const rows = localFiles.map((path) => ({
     number: recordNumber(path),
-    record: parseRecord(ctx.fs.readFile(path), relative5(paths.root, path))
+    record: parseRecord(ctx.fs.readFile(path), relative6(paths.root, path))
   }));
   if (includeBase === void 0) return rows;
   const git = (...args) => ctx.git(["-C", paths.root, ...args]);
@@ -8650,9 +8806,9 @@ function collectIndexRows(ctx, paths, includeBase) {
     }
     throw error;
   }
-  const localNames = new Set(localFiles.map((path) => basename5(path)));
-  const recordsRel = relative5(paths.root, paths.recordsDir).split(sep2).join("/");
-  const basePaths = git("ls-tree", "-r", "--name-only", includeBase, "--", recordsRel).split("\n").filter((path) => RECORD_FILE.test(basename5(path)) && !localNames.has(basename5(path)));
+  const localNames = new Set(localFiles.map((path) => basename6(path)));
+  const recordsRel = relative6(paths.root, paths.recordsDir).split(sep3).join("/");
+  const basePaths = git("ls-tree", "-r", "--name-only", includeBase, "--", recordsRel).split("\n").filter((path) => RECORD_FILE.test(basename6(path)) && !localNames.has(basename6(path)));
   for (const path of basePaths) {
     rows.push({
       number: recordNumber(path),
@@ -8695,7 +8851,7 @@ var detectSnapshotChangesCommand = {
 };
 
 // src/core/annotations.ts
-import { join as join11, relative as relative6, sep as sep3 } from "node:path";
+import { join as join12, relative as relative7, sep as sep4 } from "node:path";
 var EXCLUDED_DIRS = /* @__PURE__ */ new Set([
   ".git",
   // Agent configuration directories, which hold installed skills.
@@ -8742,7 +8898,7 @@ function listScannableFiles(ctx, options) {
     "--",
     ...(options.exclude ?? []).map((pattern) => `:(exclude,glob)${pattern}`)
   ]);
-  const decisionsRel = relative6(options.root, options.decisionsDir).split(sep3).join("/");
+  const decisionsRel = relative7(options.root, options.decisionsDir).split(sep4).join("/");
   const files = /* @__PURE__ */ new Set();
   for (const file of output.split("\0")) {
     if (file === "" || EXCLUDED_FILE.test(file)) continue;
@@ -8760,7 +8916,7 @@ function scanAnnotations(ctx, options) {
   const pattern = new RegExp(`${escapeRegExp(options.prefix)}\\((DL-\\d+)\\)`, "g");
   const found = [];
   for (const file of listScannableFiles(ctx, options)) {
-    const path = join11(options.root, file);
+    const path = join12(options.root, file);
     if (!ctx.fs.isRegularFile(path)) continue;
     const text = ctx.fs.readFile(path);
     if (text.slice(0, BINARY_SNIFF_BYTES).includes("\0")) continue;
@@ -8821,9 +8977,9 @@ Options:
 };
 
 // src/core/audit.ts
-import { basename as basename6, relative as relative7, sep as sep4 } from "node:path";
+import { basename as basename7, relative as relative8, sep as sep5 } from "node:path";
 var MENTION = /DL-\d+/g;
-var toPosix = (path) => path.split(sep4).join("/");
+var toPosix = (path) => path.split(sep5).join("/");
 var idNumber2 = (id) => Number.parseInt(id.slice(3), 10);
 function recordsChangedSinceAudit(ctx, { paths }) {
   const git = gitAt(ctx, paths.root);
@@ -8844,11 +9000,11 @@ function findMissingAmends(ctx, project, { all }) {
     (a, b) => recordNumber(a) - recordNumber(b)
   );
   for (const file of files) {
-    const rel = toPosix(relative7(paths.root, file));
+    const rel = toPosix(relative8(paths.root, file));
     if (changed !== void 0 && !changed.has(rel)) continue;
     const text = ctx.fs.readFile(file);
     const record = parseRecord(text, rel);
-    const source = basename6(file, ".md");
+    const source = basename7(file, ".md");
     const declared = /* @__PURE__ */ new Set([...record.supersedes, ...record.amends]);
     const mentioned = new Set(recordBody(text).match(MENTION) ?? []);
     const refs = [...mentioned].filter((id) => id !== source && !declared.has(id)).sort((a, b) => idNumber2(a) - idNumber2(b));
@@ -8887,7 +9043,7 @@ Options:
 
 // src/core/rename.ts
 import { Buffer as Buffer2 } from "node:buffer";
-import { join as join12, posix as posix3 } from "node:path";
+import { join as join13, posix as posix3 } from "node:path";
 var idPattern = (id, flags = "") => new RegExp(`${id}(?![0-9])`, flags);
 function changedFiles(ctx, paths, commit2) {
   return nulSeparated(
@@ -8915,12 +9071,12 @@ function renameDecision(ctx, project, rename, base) {
   const { path, oldId, newId } = rename;
   const problem = renameProblem(paths, rename);
   if (problem !== void 0) throw new DldError(problem);
-  const full = join12(paths.root, path);
+  const full = join13(paths.root, path);
   if (!ctx.fs.isRegularFile(full)) throw new DldError(`${path} not found.`);
   const record = parseRecord(ctx.fs.readFile(full), path);
   if (record.id !== oldId) throw new DldError(`${path} has id ${record.id}, not ${oldId}.`);
   const newPath = posix3.join(posix3.dirname(path), `${newId}.md`);
-  const newFull = join12(paths.root, newPath);
+  const newFull = join13(paths.root, newPath);
   if (ctx.fs.lexists(newFull)) throw new DldError(`${newPath} already exists.`);
   verifyBase(ctx, paths, base);
   const since = mergeBase(ctx, paths, base);
@@ -8935,11 +9091,11 @@ function renameDecision(ctx, project, rename, base) {
   for (const file of changedFiles(ctx, paths, since)) {
     if (file === newPath) continue;
     if (file.startsWith(decisions)) {
-      rewriteFile(ctx, join12(paths.root, file), substitute);
+      rewriteFile(ctx, join13(paths.root, file), substitute);
     } else if (scannable.has(file)) {
       rewriteFile(
         ctx,
-        join12(paths.root, file),
+        join13(paths.root, file),
         (text) => text.split(oldAnnotation).join(newAnnotation)
       );
     }
@@ -8953,7 +9109,7 @@ function findStaleMentions(ctx, { paths }, planText, base) {
   const decisions = `${decisionsPathspec(paths)}/`;
   const files = changedFiles(ctx, paths, mergeBase(ctx, paths, base)).flatMap((file) => {
     if (file.startsWith(decisions)) return [];
-    const full = join12(paths.root, file);
+    const full = join13(paths.root, file);
     if (!ctx.fs.isRegularFile(full)) return [];
     const text = ctx.fs.readFile(full);
     if (text.slice(0, BINARY_SNIFF_BYTES).includes("\0")) return [];
@@ -9002,10 +9158,10 @@ Options:
 };
 
 // src/cli/commands/init.ts
-import { join as join17, relative as relative8 } from "node:path";
+import { join as join18, relative as relative9 } from "node:path";
 
 // src/generate/harnesses.ts
-import { join as join13 } from "node:path";
+import { join as join14 } from "node:path";
 
 // src/generate/template.ts
 var import_yaml4 = __toESM(require_dist(), 1);
@@ -9220,7 +9376,7 @@ function findHarness(name) {
   return HARNESSES.find((harness) => harness.name === name);
 }
 function detectHarnesses(ctx, root) {
-  const found = (marker) => ctx.fs.lexists(join13(root, marker));
+  const found = (marker) => ctx.fs.lexists(join14(root, marker));
   const detected = [];
   for (const harness of HARNESSES) {
     const marker = harness.markers.find(found);
@@ -9243,10 +9399,10 @@ function targetsFor(harnesses) {
 }
 
 // src/generate/install.ts
-import { dirname as dirname4, join as join16 } from "node:path";
+import { dirname as dirname4, join as join17 } from "node:path";
 
 // src/generate/generate.ts
-import { dirname as dirname2, join as join14 } from "node:path";
+import { dirname as dirname2, join as join15 } from "node:path";
 var MANIFEST = "SKILL.md";
 var normalMode = (mode) => mode & 73 ? 493 : 420;
 function listFiles(ctx, dir, other = () => {
@@ -9257,7 +9413,7 @@ function listFiles(ctx, dir, other = () => {
     if (entry.name.startsWith(".")) continue;
     const rel = `${prefix}${entry.name}`;
     if (entry.isDirectory) {
-      found.push(...listFiles(ctx, join14(dir, entry.name), other, `${rel}/`));
+      found.push(...listFiles(ctx, join15(dir, entry.name), other, `${rel}/`));
     } else {
       if (!entry.isFile) other(rel);
       found.push(rel);
@@ -9293,7 +9449,7 @@ function generateSkills(ctx, templatesDir, adapter, version2, { sourceDir = "tem
   const provided = /* @__PURE__ */ new Set();
   const support = /* @__PURE__ */ new Map();
   for (const skill of skills) {
-    const files = listFiles(ctx, join14(templatesDir, skill), (rel) => {
+    const files = listFiles(ctx, join15(templatesDir, skill), (rel) => {
       throw new DldError(`${sourceDir}/${skill}/${rel}: templates must be regular files`);
     }).filter((file) => file !== MANIFEST);
     support.set(skill, files);
@@ -9305,7 +9461,7 @@ function generateSkills(ctx, templatesDir, adapter, version2, { sourceDir = "tem
   }
   const output = /* @__PURE__ */ new Map();
   for (const skill of skills) {
-    const path = join14(templatesDir, skill, MANIFEST);
+    const path = join15(templatesDir, skill, MANIFEST);
     const source = `${sourceDir}/${skill}/${MANIFEST}`;
     const template = parseTemplate(ctx.fs.readFile(path), skill, source);
     const rendered = renderBody(template, {
@@ -9321,7 +9477,7 @@ function generateSkills(ctx, templatesDir, adapter, version2, { sourceDir = "tem
       });
     }
     for (const file of support.get(skill) ?? []) {
-      const full = join14(templatesDir, skill, file);
+      const full = join15(templatesDir, skill, file);
       output.set(`${skill}/${file}`, {
         content: readSupportingFile(ctx, full, `${sourceDir}/${skill}/${file}`),
         mode: normalMode(ctx.fs.fileMode(full))
@@ -9342,7 +9498,7 @@ function diffOutput(ctx, dir, files) {
   );
   const diff = { changed: [], missing: [], extra: [] };
   for (const [path, file] of files) {
-    const full = join14(dir, path);
+    const full = join15(dir, path);
     if (!existing.has(path) || !ctx.fs.isRegularFile(full)) diff.missing.push(path);
     else if (ctx.fs.readFile(full) !== file.content || normalMode(ctx.fs.fileMode(full)) !== file.mode) {
       diff.changed.push(path);
@@ -9353,12 +9509,12 @@ function diffOutput(ctx, dir, files) {
 }
 function writeOutput(ctx, dir, files) {
   const diff = diffOutput(ctx, dir, files);
-  for (const path of diff.extra) ctx.fs.remove(join14(dir, path));
+  for (const path of diff.extra) ctx.fs.remove(join15(dir, path));
   for (const path of [...diff.missing, ...diff.changed]) {
     const file = files.get(path);
     if (file === void 0) continue;
-    const full = join14(dir, path);
-    ctx.fs.mkdir(join14(full, ".."));
+    const full = join15(dir, path);
+    ctx.fs.mkdir(join15(full, ".."));
     if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
     writeFileAtomic(ctx, full, file.content, file.mode);
   }
@@ -9372,16 +9528,16 @@ function removeEmptyParents(ctx, dir, paths) {
   }
   const deepestFirst = [...parents].sort((a, b) => b.split("/").length - a.split("/").length);
   for (const parent of deepestFirst) {
-    const full = join14(dir, parent);
+    const full = join15(dir, parent);
     if (ctx.fs.isDirectory(full) && ctx.fs.readDir(full).length === 0) ctx.fs.removeDir(full);
   }
 }
 
 // src/generate/rule.ts
-import { dirname as dirname3, join as join15, posix as posix4 } from "node:path";
+import { dirname as dirname3, join as join16, posix as posix4 } from "node:path";
 
 // templates/rules/dld-workflow.md
-var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
+var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated, but don't rewrite the prose below it unless `decision_edits` in `dld.config.yaml` allows it. The default (`block`) means: record an amendment or a superseding decision with the dld-decide skill instead.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
 
 // src/generate/rule.ts
 var RULE_TEXT = dld_workflow_default;
@@ -9461,10 +9617,10 @@ function upsertBlock(content, block, file) {
 }
 function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text = RULE_TEXT) {
   const plan = { writes: [], removals: [], warnings: [] };
-  const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
-  const read = (file) => regular(file) ? ctx.fs.readFile(join15(root, file)) : "";
+  const regular = (file) => ctx.fs.isRegularFile(join16(root, file));
+  const read = (file) => regular(file) ? ctx.fs.readFile(join16(root, file)) : "";
   const resolved = (file) => {
-    const full = join15(root, file);
+    const full = join16(root, file);
     return ctx.fs.exists(full) ? ctx.fs.realPath(full) : full;
   };
   let blockFiles = [AGENTS_MD, CLAUDE_MD].filter(
@@ -9485,7 +9641,7 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   }
   const linkedDir = symlinkedPart(ctx, root, dirname3(CLAUDE_IMPORT_FILE));
   const ownsImport = linkedDir === void 0 && importFileVersion(read(CLAUDE_IMPORT_FILE)) !== void 0;
-  const wantsImport = channels.has("claude-file") && blockFiles.includes(AGENTS_MD) && !SHARED_CLAUDE_FILES.some((file) => ctx.fs.lexists(join15(root, file)));
+  const wantsImport = channels.has("claude-file") && blockFiles.includes(AGENTS_MD) && !SHARED_CLAUDE_FILES.some((file) => ctx.fs.lexists(join16(root, file)));
   if (ownsImport || wantsImport && linkedDir === void 0) {
     const content = renderImportFile(version2);
     pending.set(CLAUDE_IMPORT_FILE, content);
@@ -9522,7 +9678,7 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   for (const channel of ["claude-file", "agents-file"]) {
     const path = RULE_FILES[channel];
     if (loadsBlock(channel)) {
-      if (ctx.fs.lexists(join15(root, path))) plan.removals.push(path);
+      if (ctx.fs.lexists(join16(root, path))) plan.removals.push(path);
     } else if (channels.has(channel)) {
       refuseSymlinkedDir(ctx, root, dirname3(path));
       const content = renderRuleFile(channel, text, version2);
@@ -9534,10 +9690,10 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   return plan;
 }
 function projectView(ctx, root) {
-  const exists = (file) => ctx.fs.exists(join15(root, file));
+  const exists = (file) => ctx.fs.exists(join16(root, file));
   return {
     exists,
-    read: (file) => exists(file) && !ctx.fs.isDirectory(join15(root, file)) ? ctx.fs.readFile(join15(root, file)) : ""
+    read: (file) => exists(file) && !ctx.fs.isDirectory(join16(root, file)) ? ctx.fs.readFile(join16(root, file)) : ""
   };
 }
 function instructionFiles(harness, view) {
@@ -9586,9 +9742,9 @@ function blindWarnings(blockFiles, blind, reads) {
   });
 }
 function blockPlacement(ctx, root, targets) {
-  if (ctx.fs.isRegularFile(join15(root, AGENTS_MD))) return AGENTS_MD;
-  const agentsLinked = ctx.fs.lexists(join15(root, AGENTS_MD));
-  if (ctx.fs.isRegularFile(join15(root, CLAUDE_MD)) && (agentsLinked || targets.every((h) => h.instructions.includes(CLAUDE_MD)))) {
+  if (ctx.fs.isRegularFile(join16(root, AGENTS_MD))) return AGENTS_MD;
+  const agentsLinked = ctx.fs.lexists(join16(root, AGENTS_MD));
+  if (ctx.fs.isRegularFile(join16(root, CLAUDE_MD)) && (agentsLinked || targets.every((h) => h.instructions.includes(CLAUDE_MD)))) {
     return CLAUDE_MD;
   }
   if (agentsLinked) {
@@ -9599,8 +9755,8 @@ function blockPlacement(ctx, root, targets) {
   return AGENTS_MD;
 }
 function switchWarnings(ctx, root, file, targets) {
-  if (file !== AGENTS_MD || ctx.fs.lexists(join15(root, AGENTS_MD))) return [];
-  const claudeMd = join15(root, CLAUDE_MD);
+  if (file !== AGENTS_MD || ctx.fs.lexists(join16(root, AGENTS_MD))) return [];
+  const claudeMd = join16(root, CLAUDE_MD);
   if (!ctx.fs.exists(claudeMd) || ctx.fs.isDirectory(claudeMd)) return [];
   const switching = targets.filter((h) => !h.readsAll && h.instructions.includes(CLAUDE_MD));
   if (switching.length === 0) return [];
@@ -9620,7 +9776,7 @@ function legacyBlockWarnings(claudeMd, ruleInstalled) {
   ];
 }
 function loadsRule(ctx, root, harness) {
-  if (harness.rule !== "block" && ctx.fs.exists(join15(root, RULE_FILES[harness.rule]))) {
+  if (harness.rule !== "block" && ctx.fs.exists(join16(root, RULE_FILES[harness.rule]))) {
     return true;
   }
   const view = projectView(ctx, root);
@@ -9629,16 +9785,16 @@ function loadsRule(ctx, root, harness) {
   );
 }
 function sessionContext(ctx, root, harness, text = RULE_TEXT) {
-  if (!ctx.fs.exists(join15(root, CONFIG_FILE))) return void 0;
+  if (!ctx.fs.exists(join16(root, CONFIG_FILE))) return void 0;
   return loadsRule(ctx, root, harness) ? void 0 : text;
 }
 function symlinkedPart(ctx, root, dir) {
   let current = "";
   for (const part of dir.split("/")) {
     current = current === "" ? part : `${current}/${part}`;
-    const full = join15(root, current);
+    const full = join16(root, current);
     if (!ctx.fs.lexists(full)) return void 0;
-    if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join15(ctx.fs.realPath(root), current)) {
+    if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join16(ctx.fs.realPath(root), current)) {
       return current;
     }
   }
@@ -9655,13 +9811,13 @@ function refuseSymlinkedDir(ctx, root, dir) {
 function installedRuleChannels(ctx, root) {
   const channels = /* @__PURE__ */ new Set();
   for (const channel of ["claude-file", "agents-file"]) {
-    if (ctx.fs.lexists(join15(root, RULE_FILES[channel]))) channels.add(channel);
+    if (ctx.fs.lexists(join16(root, RULE_FILES[channel]))) channels.add(channel);
   }
   if (importFileVersion(projectView(ctx, root).read(CLAUDE_IMPORT_FILE)) !== void 0) {
     channels.add("claude-file");
   }
   for (const file of [AGENTS_MD, CLAUDE_MD]) {
-    const path = join15(root, file);
+    const path = join16(root, file);
     if (ctx.fs.isRegularFile(path) && findBlock(ctx.fs.readFile(path), file) !== void 0) {
       channels.add("block");
     }
@@ -9670,14 +9826,14 @@ function installedRuleChannels(ctx, root) {
 }
 function installedRuleStamps(ctx, root) {
   const stamps = [];
-  const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
+  const regular = (file) => ctx.fs.isRegularFile(join16(root, file));
   for (const file of [CLAUDE_RULE_FILE, AGENTS_RULE_FILE].filter(regular)) {
-    stamps.push({ path: file, version: ruleVersion(ctx.fs.readFile(join15(root, file))) });
+    stamps.push({ path: file, version: ruleVersion(ctx.fs.readFile(join16(root, file))) });
   }
   const imported = importFileVersion(projectView(ctx, root).read(CLAUDE_IMPORT_FILE));
   if (imported !== void 0) stamps.push({ path: CLAUDE_IMPORT_FILE, version: imported });
   for (const file of [AGENTS_MD, CLAUDE_MD].filter(regular)) {
-    const content = ctx.fs.readFile(join15(root, file));
+    const content = ctx.fs.readFile(join16(root, file));
     const span = findBlock(content, file);
     if (span !== void 0) {
       stamps.push({ path: file, version: ruleVersion(content.slice(span.from, span.to)) });
@@ -9687,13 +9843,13 @@ function installedRuleStamps(ctx, root) {
 }
 function applyRulePlan(ctx, root, plan) {
   for (const { path, content } of plan.writes) {
-    const full = join15(root, path);
+    const full = join16(root, path);
     ctx.fs.mkdir(dirname3(full));
     if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
     writeFileAtomic(ctx, full, content);
   }
   for (const path of plan.removals) {
-    const full = join15(root, path);
+    const full = join16(root, path);
     ctx.fs.remove(full);
     if (ctx.fs.isDirectory(dirname3(full)) && ctx.fs.readDir(dirname3(full)).length === 0) {
       ctx.fs.removeDir(dirname3(full));
@@ -9703,7 +9859,7 @@ function applyRulePlan(ctx, root, plan) {
 
 // src/generate/install.ts
 function packageSource(ctx, cliPath2, command) {
-  const templatesDir = join16(dirname4(cliPath2), "..", "templates", "skills");
+  const templatesDir = join17(dirname4(cliPath2), "..", "templates", "skills");
   if (!ctx.fs.isDirectory(templatesDir)) {
     throw new DldError(
       `dld ${command} installs skills from the dld-kit npm package, but this copy of dld (${cliPath2}) has no templates beside it. Run it from the package instead: npx dld-kit@latest ${command}`
@@ -9713,12 +9869,12 @@ function packageSource(ctx, cliPath2, command) {
 }
 var isOwned = (name) => name.startsWith("dld-");
 function ownedSkills(ctx, root, layout) {
-  const dir = join16(root, layout.dir);
+  const dir = join17(root, layout.dir);
   if (!ctx.fs.isDirectory(dir)) return [];
   return ctx.fs.readDir(dir).filter((entry) => !entry.isFile && isOwned(entry.name)).map((entry) => entry.name).sort();
 }
 function refuseSymlinkedSkills(ctx, root, layout) {
-  const dir = join16(root, layout.dir);
+  const dir = join17(root, layout.dir);
   if (!ctx.fs.isDirectory(dir)) return;
   const linked = ctx.fs.readDir(dir).filter((entry) => isOwned(entry.name) && !entry.isDirectory && !entry.isFile).map((entry) => `${layout.dir}/${entry.name}`).sort();
   if (linked.length === 0) return;
@@ -9728,7 +9884,7 @@ function refuseSymlinkedSkills(ctx, root, layout) {
 }
 var SKILLS_LOCK = "skills-lock.json";
 function skillsLockWarning(ctx, root) {
-  const path = join16(root, SKILLS_LOCK);
+  const path = join17(root, SKILLS_LOCK);
   if (!ctx.fs.isRegularFile(path)) return [];
   let skills;
   try {
@@ -9764,8 +9920,8 @@ function installedStamps(ctx, root) {
   for (const layout of LAYOUTS) {
     for (const skill of ownedSkills(ctx, root, layout)) {
       const path = `${layout.dir}/${skill}/SKILL.md`;
-      if (!ctx.fs.isRegularFile(join16(root, path))) continue;
-      stamps.push({ path, version: SKILL_STAMP.exec(ctx.fs.readFile(join16(root, path)))?.[1] });
+      if (!ctx.fs.isRegularFile(join17(root, path))) continue;
+      stamps.push({ path, version: SKILL_STAMP.exec(ctx.fs.readFile(join17(root, path)))?.[1] });
     }
   }
   return [...stamps, ...installedRuleStamps(ctx, root)];
@@ -9834,7 +9990,7 @@ function planInstall(ctx, root, request) {
 }
 function applyInstall(ctx, root, plan) {
   const skills = plan.skills.map(({ layout, files }) => {
-    const diff = writeOutput(ctx, join16(root, layout.dir), files);
+    const diff = writeOutput(ctx, join17(root, layout.dir), files);
     const written = diff.changed.length + diff.missing.length;
     return {
       dir: layout.dir,
@@ -9967,7 +10123,7 @@ ${AGENT_HELP}
       throw new UsageError("--namespaces needs at least one namespace");
     }
     const root = findProjectRoot(ctx);
-    if (ctx.fs.lexists(join17(root, CONFIG_FILE))) {
+    if (ctx.fs.lexists(join18(root, CONFIG_FILE))) {
       throw new DldError(
         `DLD is already set up here (${CONFIG_FILE} exists). Run dld update to refresh the skills and rule, or dld update --agent <name> to add an agent.`
       );
@@ -9993,7 +10149,7 @@ ${AGENT_HELP}
     createDirectories(ctx, project);
     writeIndex(ctx, project.paths, renderIndex([], project.config.mode));
     const report2 = applyInstall(ctx, root, plan);
-    const index = relative8(root, indexPath(project.paths));
+    const index = relative9(root, indexPath(project.paths));
     io.stdout(`Created ${CONFIG_FILE} and ${index}
 `);
     printReport(io, report2);
@@ -10194,6 +10350,43 @@ origin/main.
   }
 };
 
+// src/cli/commands/restore-decision-prose.ts
+var restoreDecisionProseCommand = {
+  name: "restore-decision-prose",
+  summary: "Restore the body of decisions already on the base branch",
+  internal: true,
+  usage: `Usage: dld restore-decision-prose [--base <ref>] <DL-NNN> [DL-NNN ...]
+
+Put back the body of each decision (the text after the frontmatter) as it is at the
+merge-base of the base branch and HEAD, keeping the current frontmatter. A deleted decision
+is restored whole. Fails for a decision that is not on the base branch.
+
+Options:
+  --base <ref>  Base ref (default: the branch's upstream base, else origin/main or main)
+`,
+  run(args, io, ctx) {
+    const { values, positionals: ids } = parseCommandArgs({
+      args: [...args],
+      options: { base: { type: "string" } },
+      allowPositionals: true
+    });
+    if (ids.length === 0) throw new UsageError("expected at least one decision ID");
+    const bad = ids.find((id) => !DECISION_ID.test(id));
+    if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
+    const project = loadProject(ctx);
+    const base = editBase(
+      ctx,
+      project.paths,
+      values.base === void 0 ? void 0 : baseOption(values.base)
+    );
+    for (const path of restoreDecisionProse(ctx, project, base, ids)) {
+      io.stdout(`Restored ${path}
+`);
+    }
+    return EXIT_OK;
+  }
+};
+
 // src/cli/commands/session-context.ts
 var sessionContextCommand = {
   name: "session-context",
@@ -10238,7 +10431,7 @@ Agents: ${HARNESS_NAMES.join(", ")}.
 };
 
 // src/cli/commands/update.ts
-import { join as join18 } from "node:path";
+import { join as join19 } from "node:path";
 var updateCommand = {
   name: "update",
   summary: "Refresh the installed DLD skills and rule to this version",
@@ -10261,7 +10454,7 @@ ${AGENT_HELP}
     });
     const requested = parseAgents(values.agent);
     const root = findProjectRoot(ctx);
-    if (!ctx.fs.lexists(join18(root, CONFIG_FILE))) {
+    if (!ctx.fs.lexists(join19(root, CONFIG_FILE))) {
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
     const installed = installedTargets(ctx, root);
@@ -10402,6 +10595,8 @@ var COMMANDS = [
   updateStatusCommand,
   regenerateIndexCommand,
   verifyAnnotationsCommand,
+  checkDecisionEditsCommand,
+  restoreDecisionProseCommand,
   findAnnotationsCommand,
   findMissingAmendsCommand,
   updateAuditStateCommand,

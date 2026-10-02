@@ -9,6 +9,7 @@ import {
   type Io,
   UsageError,
 } from "./command.ts";
+import { checkDecisionEditsCommand } from "./commands/check-decision-edits.ts";
 import { collectActiveDecisionsCommand } from "./commands/collect-active-decisions.ts";
 import { commitReindexCommand } from "./commands/commit-reindex.ts";
 import { createConfigCommand } from "./commands/create-config.ts";
@@ -28,6 +29,7 @@ import { planRenamesCommand } from "./commands/plan-renames.ts";
 import { regenerateIndexCommand } from "./commands/regenerate-index.ts";
 import { renameDecisionCommand } from "./commands/rename-decision.ts";
 import { resolveBaseCommand } from "./commands/resolve-base.ts";
+import { restoreDecisionProseCommand } from "./commands/restore-decision-prose.ts";
 import { sessionContextCommand } from "./commands/session-context.ts";
 import { updateCommand } from "./commands/update.ts";
 import { updateAuditStateCommand } from "./commands/update-audit-state.ts";
@@ -48,6 +50,8 @@ export const COMMANDS: readonly Command[] = [
   updateStatusCommand,
   regenerateIndexCommand,
   verifyAnnotationsCommand,
+  checkDecisionEditsCommand,
+  restoreDecisionProseCommand,
   findAnnotationsCommand,
   findMissingAmendsCommand,
   updateAuditStateCommand,

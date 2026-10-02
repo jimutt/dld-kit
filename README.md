@@ -73,7 +73,7 @@ function retryWithBackoff(fn: () => Promise<Response>): Promise<Response> {
 
 The **always-on rule** is a short instruction installed for each agent: read the decision behind an annotation before changing that code. If a change would contradict it, the agent checks with you, and a new decision records the change.
 
-- **Accepted decisions aren't rewritten.** Once a decision is `accepted` and shared, you don't edit its reasoning. To change course, record a new decision that supersedes or amends it, so the history stays complete. Only metadata such as `status` and `references` gets updated. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
+- **Merged decisions aren't rewritten.** While a decision is only on your branch, edit it as much as you like. Once it's on the main branch, you don't edit its reasoning: to change course, record a new decision that supersedes or amends it, so the history stays complete. The frontmatter (`status`, `references`, links) can always be updated. `decision_edits` in the config can relax this. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
 - **The docs are generated.** `/dld-snapshot` builds `OVERVIEW.md` and `SNAPSHOT.md` from the decisions. You never edit a spec by hand.
 - **Drift gets caught.** `/dld-audit` finds annotations without a decision, references to files that no longer exist, and annotated code that changed.
 - **Conventions live in one file.** An optional `decisions/PRACTICES.md` holds your testing, style and architecture conventions, and `/dld-implement` follows it.
@@ -150,6 +150,7 @@ Tessl installs and skills copied to other folders need one more step first: see 
 - **`implement_review: false`** skips the review subagent in `/dld-implement`.
 - **`snapshot_artifacts`** adds documents for `/dld-snapshot` to generate, each from a prompt you write.
 - **`annotation_exclude`** lists paths whose `@decision` comments are only examples, such as docs.
+- **`decision_edits`** sets whether agents may edit the prose of decisions already on the main branch: `block` (default), `ask` or `allow`.
 
 All the options: [project configuration](docs/framework/project-configuration.md).
 

@@ -2,6 +2,9 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-068 | Rule line and skill end steps that check edits to integrated decisions | accepted | decision-edits, skills |
+| DL-067 | decision_edits setting: block (default), ask or allow for integrated decision prose | accepted | decision-edits, config |
+| DL-066 | Decision prose locks when the record reaches the base branch; frontmatter stays editable | accepted | decision-edits |
 | DL-065 | Records this branch got from an open PR are not collisions with it | accepted | reindex |
 | DL-064 | Reindex commits the renames on top of the branch; squash only on request | accepted | reindex, git |
 | DL-063 | Restructure the README as a short entry point and move reference material to docs/ | accepted | docs, readme |

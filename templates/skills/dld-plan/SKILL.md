@@ -16,7 +16,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 {{dld-setup}}
 
-This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
+This skill uses: `next-id`, `create-decision`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -109,14 +109,30 @@ If any decision supersedes an existing one, also update the old decision's statu
 
 For each decision, compose a focused body. Keep it concise — the full feature context is captured across the group. Each individual decision should capture its own specific rationale.
 
-### 7. Regenerate INDEX.md
+### 7. Check edits to decisions on the base branch
+
+```bash
+{{dld}} check-decision-edits
+```
+
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter) was changed or deleted on this branch. Drafts (decisions not on the base branch yet, or still `proposed` there) and frontmatter changes are never listed. If it prints nothing, continue.
+
+Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command exits 1 under `block`):
+
+- `block`: put the prose back with `{{dld}} restore-decision-prose DL-NNN ...`, which keeps frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
+- `allow`: keep the edits and list them in your report.
+
+If the command can't find the base branch, tell the user and continue.
+
+### 8. Regenerate INDEX.md
 
 After all decisions are created:
 ```bash
 {{dld}} regenerate-index
 ```
 
-### 8. Suggest next steps
+### 9. Suggest next steps
 
 > Created **N** decisions for feature `<tag>`:
 >

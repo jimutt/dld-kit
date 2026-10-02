@@ -1,6 +1,6 @@
 ---
 name: dld-adjust
-description: Adjust or update existing decision records. Handles permission gating for accepted decisions and correctly interprets adjustment requests.
+description: Adjust or update existing decision records. Edits drafts freely, protects the prose of decisions already on the base branch per the project setting, and correctly interprets adjustment requests.
 compatibility: Requires Node.js 20+ and git.
 ---
 
@@ -16,7 +16,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 {{dld-setup}}
 
-This skill uses: `regenerate-index`.
+This skill uses: `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -40,35 +40,36 @@ Find and read each decision file. If a decision ID is not found, report the erro
 
 ## Step 2: Determine if confirmation is needed
 
-For each decision, check whether editing requires user confirmation:
-
-### Proposed decisions (`status: proposed`)
-
-Edit freely. No confirmation needed — proposed decisions are mutable by convention.
-
-### Accepted decisions (`status: accepted`)
-
-Check if the decision file has been committed and pushed to the remote:
+Check where each decision stands:
 
 ```bash
-# Get the last commit hash for the decision file
-LAST_COMMIT=$(git log --format=%H -1 -- <path-to-decision-file>)
-
-# Check if that commit exists on any remote branch
-git branch -r --contains "$LAST_COMMIT" 2>/dev/null
+{{dld}} check-decision-edits DL-NNN [DL-NNN ...]
 ```
 
-- **Not yet pushed** (commit not on any remote branch, file is uncommitted, or file is untracked) — edit freely. It is still local work-in-progress.
-- **Pushed to remote** — this decision has been published. Use `AskUserQuestion` to present options:
-  1. **Edit anyway** — modify the accepted decision directly (breaks immutability convention)
-  2. **Supersede instead** — record a new decision via `/dld-decide` that supersedes this one
+Each line ends with the decision's state.
+
+### Drafts (`draft`)
+
+The decision is not on the base branch yet, or is still `proposed` there. Edit freely, whatever its status. No confirmation needed.
+
+### On the base branch (`integrated` or `edited`)
+
+The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can always be updated. For the prose (the body below the frontmatter), follow `decision_edits` in `dld.config.yaml` (default `block`):
+
+- `block`: don't edit the prose, even though the user asked. Tell them this project keeps the prose of decisions on the base branch as written, and offer to record the change as a new decision that amends or supersedes this one (`/dld-decide`). Mention that `decision_edits: ask` in `dld.config.yaml` would allow edits after confirmation. Frontmatter-only changes can still be made.
+- `ask`: use `AskUserQuestion` to present options:
+  1. **Edit anyway** — modify the decision's prose directly
+  2. **Amend or supersede instead** — record a new decision via `/dld-decide`
   3. **Cancel** — do nothing
 
-If the user chooses to supersede, direct them to `/dld-decide` and stop. If they cancel, stop. Only proceed with editing if they explicitly choose to edit anyway.
+  If the user chooses a new decision, direct them to `/dld-decide` and stop. If they cancel, stop. Only edit if they choose to edit anyway.
+- `allow`: edit, and mention in your summary that the decision was already on the base branch.
 
-### Deprecated or superseded decisions
+### Deleted (`deleted`)
 
-These are historical records. Ask for confirmation before editing — modifying historical decisions is unusual.
+The decision is on the base branch but its file is gone on this branch. Tell the user and stop.
+
+If the command can't find the base branch, tell the user, and ask for confirmation before editing the prose of any decision that is not `proposed`.
 
 ## Step 3: Collect the adjustment request
 
@@ -121,7 +122,25 @@ User says: *"Remove the part about caching"*
 
 If multiple decisions are being adjusted, process them one at a time.
 
-## Step 5: Regenerate INDEX.md
+## Step 5: Check edits to decisions on the base branch
+
+```bash
+{{dld}} check-decision-edits
+```
+
+Edits the user approved in step 2 count as kept; don't ask about them again.
+
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter) was changed or deleted on this branch. Drafts (decisions not on the base branch yet, or still `proposed` there) and frontmatter changes are never listed. If it prints nothing, continue.
+
+Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command exits 1 under `block`):
+
+- `block`: put the prose back with `{{dld}} restore-decision-prose DL-NNN ...`, which keeps frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
+- `allow`: keep the edits and list them in your report.
+
+If the command can't find the base branch, tell the user and continue.
+
+## Step 6: Regenerate INDEX.md
 
 If any decision titles or metadata changed:
 
@@ -129,7 +148,7 @@ If any decision titles or metadata changed:
 {{dld}} regenerate-index
 ```
 
-## Step 6: Suggest next steps
+## Step 7: Suggest next steps
 
 > Adjusted **DL-NNN**: [brief description of what changed]
 >

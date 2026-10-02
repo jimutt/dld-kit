@@ -64,7 +64,7 @@ Over time, you can expand coverage. You can also use AI to help bootstrap: have 
 
 **What if a decision turns out to be wrong?**
 
-You don't edit or delete the original decision. If the original decision is entirely wrong, you create a new decision that supersedes it, explaining why the previous approach is no longer valid. If only part of it needs to change, you create a new decision that *amends* it — the original stays active, and the amendment clarifies what changed. This preserves the full history — which is valuable both for understanding how the system evolved and for preventing the same mistake from being repeated.
+Once the decision is on the main branch, you don't edit or delete it. (Before that, while it only exists on your branch, it's still a draft and you can change it.) If the original decision is entirely wrong, you create a new decision that supersedes it, explaining why the previous approach is no longer valid. If only part of it needs to change, you create a new decision that *amends* it — the original stays active, and the amendment clarifies what changed. This preserves the full history — which is valuable both for understanding how the system evolved and for preventing the same mistake from being repeated.
 
 ---
 
