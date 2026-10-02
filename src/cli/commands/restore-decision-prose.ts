@@ -9,20 +9,21 @@ export const restoreDecisionProseCommand: Command = {
   name: "restore-decision-prose",
   summary: "Restore the body of decisions already on the base branch",
   internal: true,
-  usage: `Usage: dld restore-decision-prose [--base <ref>] <DL-NNN> [DL-NNN ...]
+  usage: `Usage: dld restore-decision-prose [--base <ref>] [--uncommitted] <DL-NNN> [DL-NNN ...]
 
 Put back the body (the text after the frontmatter), id and timestamp of each decision as
 they are at the merge-base of the base branch and HEAD, keeping the rest of the current
 frontmatter. A deleted decision
-is restored whole. Fails for a decision that is not on the base branch.
+is restored whole and staged. Fails for a draft.
 
 Options:
-  --base <ref>  Base ref (default: the branch's upstream base, else origin/main or main)
+  --base <ref>     Base ref (default: the branch's upstream base, else origin/main or main)
+  --uncommitted    Restore from HEAD instead of the merge-base: undo only uncommitted edits
 `,
   run(args, io, ctx) {
     const { values, positionals: ids } = parseCommandArgs({
       args: [...args],
-      options: { base: { type: "string" } },
+      options: { base: { type: "string" }, uncommitted: { type: "boolean" } },
       allowPositionals: true,
     });
     if (ids.length === 0) throw new UsageError("expected at least one decision ID");
@@ -34,7 +35,8 @@ Options:
       project.paths,
       values.base === undefined ? undefined : baseOption(values.base),
     );
-    for (const path of restoreDecisionProse(ctx, project, base, ids)) {
+    const uncommitted = values.uncommitted === true;
+    for (const path of restoreDecisionProse(ctx, project, base, ids, { uncommitted })) {
       io.stdout(`Restored ${path}\n`);
     }
     return EXIT_OK;

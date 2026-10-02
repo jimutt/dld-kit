@@ -7946,57 +7946,91 @@ function editBase(ctx, paths, base) {
   if (local !== void 0 && exists(local)) return local;
   throw new DldError(`base ref '${resolved}' not found. Fetch first or pass --base.`);
 }
-function checkDecisionEdits(ctx, { paths }, base, ids = []) {
+function checkDecisionEdits(ctx, { paths }, base, ids = [], { uncommitted = false } = {}) {
   const git = gitAt(ctx, paths.root);
-  const { onto, integrated } = integratedRecords(ctx, paths, base);
-  const edit = (path) => {
-    const id = basename4(path, ".md");
-    const before = git("show", `${onto}:${path}`);
-    if (isProposed(before, path)) return { path, id, state: "draft" };
-    const full = join3(paths.root, path);
-    if (!ctx.fs.isRegularFile(full)) return { path, id, state: "deleted" };
-    const same = lockedContent(ctx.fs.readFile(full), path) === lockedContent(before, path);
+  const records = integratedRecords(ctx, paths, base);
+  const stateOf = (id) => {
+    const located = locate(ctx, paths, records, id);
+    if (located === void 0) {
+      const local = findRecordFile(ctx, paths.recordsDir, id);
+      if (local === void 0) throw new DldError(`decision ${id} not found.`);
+      return { path: toPosix(relative2(paths.root, local)), id, state: "draft" };
+    }
+    const path = located.current ?? located.basePath;
+    if (isProposed(located.baseText, located.basePath)) return { path, id, state: "draft" };
+    const reference = uncommitted ? atHead(git, located) : { text: located.baseText, path };
+    if (reference === void 0) return { path, id, state: "integrated" };
+    if (located.current === void 0) return { path, id, state: "deleted" };
+    const now = ctx.fs.readFile(join3(paths.root, located.current));
+    const same = lockedContent(now, path) === lockedContent(reference.text, reference.path);
     return { path, id, state: same ? "integrated" : "edited" };
   };
-  if (ids.length === 0) {
-    const integratedSet = new Set(integrated);
-    const changed = nulSeparated(
-      gitOrEmpty(
-        git,
-        "diff",
-        "-z",
-        "--no-renames",
-        "--name-only",
-        onto,
-        "--",
-        recordsPathspec(paths)
-      )
-    );
-    return changed.filter((path) => integratedSet.has(path)).sort().map(edit).filter(({ state }) => state === "edited" || state === "deleted");
-  }
-  return ids.map((id) => {
-    const path = integrated.find((candidate) => basename4(candidate) === `${id}.md`);
-    if (path !== void 0) return edit(path);
-    const local = findRecordFile(ctx, paths.recordsDir, id);
-    if (local === void 0) throw new DldError(`decision ${id} not found.`);
-    return { path: relative2(paths.root, local).split(sep2).join("/"), id, state: "draft" };
-  });
-}
-function integratedRecords(ctx, paths, base) {
-  const onto = mergeBase(ctx, paths, base);
-  const integrated = nulSeparated(
+  if (ids.length > 0) return ids.map(stateOf);
+  const changed = nulSeparated(
     gitOrEmpty(
-      gitAt(ctx, paths.root),
-      "ls-tree",
-      "-r",
+      git,
+      "diff",
       "-z",
+      "--no-renames",
       "--name-only",
-      onto,
+      uncommitted ? "HEAD" : records.onto,
       "--",
       recordsPathspec(paths)
     )
-  ).filter((path) => RECORD_FILE.test(basename4(path)));
-  return { onto, integrated };
+  );
+  const candidates = new Set(
+    changed.map((path) => basename4(path)).filter((name) => RECORD_FILE.test(name)).map((name) => basename4(name, ".md")).filter((id) => records.byId.has(id))
+  );
+  return [...candidates].map(stateOf).filter(({ state }) => state === "edited" || state === "deleted").sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+}
+function integratedRecords(ctx, paths, base) {
+  const onto = mergeBase(ctx, paths, base);
+  const byId = /* @__PURE__ */ new Map();
+  const listing = gitOrEmpty(
+    gitAt(ctx, paths.root),
+    "ls-tree",
+    "-r",
+    "-z",
+    "--name-only",
+    onto,
+    "--",
+    recordsPathspec(paths)
+  );
+  for (const path of nulSeparated(listing)) {
+    const name = basename4(path);
+    if (RECORD_FILE.test(name)) byId.set(basename4(name, ".md"), path);
+  }
+  return { onto, byId };
+}
+function locate(ctx, paths, { onto, byId }, id) {
+  const basePath = byId.get(id);
+  if (basePath === void 0) return void 0;
+  const baseText = gitAt(ctx, paths.root)("show", `${onto}:${basePath}`);
+  if (ctx.fs.isRegularFile(join3(paths.root, basePath))) {
+    return { id, basePath, baseText, current: basePath };
+  }
+  const moved = findRecordFile(ctx, paths.recordsDir, id);
+  const current = moved === void 0 ? void 0 : toPosix(relative2(paths.root, moved));
+  return { id, basePath, baseText, current };
+}
+function atHead(git, { basePath, current }) {
+  for (const path of /* @__PURE__ */ new Set([current, basePath])) {
+    if (path === void 0) continue;
+    const listed = gitOrEmpty(
+      git,
+      "--literal-pathspecs",
+      "ls-tree",
+      "--name-only",
+      "HEAD",
+      "--",
+      path
+    );
+    if (listed !== "") return { text: git("show", `HEAD:${path}`), path };
+  }
+  return void 0;
+}
+function toPosix(path) {
+  return path.split(sep2).join("/");
 }
 function isProposed(text, source) {
   try {
@@ -8005,24 +8039,33 @@ function isProposed(text, source) {
     return false;
   }
 }
-function restoreDecisionProse(ctx, { paths }, base, ids) {
+function restoreDecisionProse(ctx, { paths }, base, ids, { uncommitted = false } = {}) {
   const git = gitAt(ctx, paths.root);
-  const { onto, integrated } = integratedRecords(ctx, paths, base);
+  const records = integratedRecords(ctx, paths, base);
   const targets = ids.map((id) => {
-    const path = integrated.find((candidate) => basename4(candidate) === `${id}.md`);
-    if (path === void 0) throw new DldError(`${id} is not on the base branch; it is a draft.`);
+    const located = locate(ctx, paths, records, id);
+    if (located === void 0 || isProposed(located.baseText, located.basePath)) {
+      throw new DldError(`${id} is a draft (not on the base branch, or still proposed there).`);
+    }
+    const reference = uncommitted ? atHead(git, located) : { text: located.baseText, path: located.basePath };
+    if (reference === void 0) throw new DldError(`${id} is not in HEAD; nothing to restore.`);
+    return { located, reference };
+  });
+  return targets.map(({ located, reference }) => {
+    const path = located.current ?? reference.path;
+    const full = join3(paths.root, path);
+    const current = located.current === void 0 ? void 0 : recordHead(ctx.fs.readFile(full));
+    const referenceHead = recordHead(reference.text);
+    if (current === void 0 || referenceHead === void 0) {
+      writeFileAtomic(ctx, full, reference.text);
+      if (located.current === void 0) git("--literal-pathspecs", "add", "--", path);
+    } else {
+      const eol = current.includes("\r\n") ? "\r\n" : "\n";
+      const body = recordBody(reference.text).replace(/\r?\n/g, eol);
+      writeFileAtomic(ctx, full, withLockedLines(current, referenceHead, eol) + body);
+    }
     return path;
   });
-  for (const path of targets) {
-    const before = git("show", `${onto}:${path}`);
-    const full = join3(paths.root, path);
-    const current = ctx.fs.isRegularFile(full) ? ctx.fs.readFile(full) : void 0;
-    const head = current === void 0 ? void 0 : recordHead(current);
-    const baseHead = recordHead(before);
-    const text = head === void 0 || baseHead === void 0 ? before : withLockedLines(head, baseHead) + recordBody(before);
-    writeFileAtomic(ctx, full, text);
-  }
-  return targets;
 }
 var LOCKED_KEYS = ["id", "timestamp"];
 function lockedContent(text, source) {
@@ -8035,18 +8078,15 @@ function lockedContent(text, source) {
     fields = recordHead(normalized) ?? "";
   }
   return `${fields}
-${recordBody(normalized)}`;
+${recordBody(normalized).trimEnd()}`;
 }
-function withLockedLines(head, baseHead) {
+function withLockedLines(head, baseHead, eol) {
   let result = head;
   for (const key of LOCKED_KEYS) {
-    const pattern = new RegExp(`^${key}:.*$`, "m");
+    const pattern = new RegExp(`^${key}:[^\\r\\n]*`, "m");
     const line = baseHead.match(pattern)?.[0];
     if (line === void 0) continue;
-    result = pattern.test(result) ? result.replace(pattern, () => line) : result.replace(
-      /^---\r?\n/,
-      (open) => `${open}${line}${open.endsWith("\r\n") ? "\r\n" : "\n"}`
-    );
+    result = pattern.test(result) ? result.replace(pattern, () => line) : result.replace(/^---\r?\n/, (open) => `${open}${line}${eol}`);
   }
   return result;
 }
@@ -8188,28 +8228,29 @@ function skippedNotice(reason) {
 }
 
 // src/cli/commands/check-decision-edits.ts
-var EXIT_BLOCKED = 1;
+var EXIT_BLOCKED = 3;
 var checkDecisionEditsCommand = {
   name: "check-decision-edits",
   summary: "List edits to the prose of decisions already on the base branch",
   internal: true,
-  usage: `Usage: dld check-decision-edits [--base <ref>] [DL-NNN ...]
+  usage: `Usage: dld check-decision-edits [--base <ref>] [--uncommitted] [DL-NNN ...]
 
 A decision is integrated when it exists at the merge-base of the base branch and HEAD;
 otherwise it is a draft (so is one still proposed there). Without IDs, print
 <path>\\t<DL-NNN>\\tedited for each integrated decision whose body (the text after the
 frontmatter), id or timestamp changed, and deleted for each that is gone. With IDs, print one line per ID with its state: draft, integrated, edited or deleted.
 
-Exits 1 when decision_edits is block (the default) and an edited or deleted decision was
-printed, otherwise 0.
+Without IDs, exits 3 when decision_edits is block (the default) and an edited or deleted
+decision was printed. With IDs, and otherwise, exits 0.
 
 Options:
-  --base <ref>  Base ref (default: the branch's upstream base, else origin/main or main)
+  --base <ref>     Base ref (default: the branch's upstream base, else origin/main or main)
+  --uncommitted    Compare with HEAD instead of the merge-base: only uncommitted changes
 `,
   run(args, io, ctx) {
     const { values, positionals: ids } = parseCommandArgs({
       args: [...args],
-      options: { base: { type: "string" } },
+      options: { base: { type: "string" }, uncommitted: { type: "boolean" } },
       allowPositionals: true
     });
     const bad = ids.find((id) => !DECISION_ID.test(id));
@@ -8220,11 +8261,14 @@ Options:
       project.paths,
       values.base === void 0 ? void 0 : baseOption(values.base)
     );
-    const edits = checkDecisionEdits(ctx, project, base, ids);
+    const edits = checkDecisionEdits(ctx, project, base, ids, {
+      uncommitted: values.uncommitted === true
+    });
     for (const edit of edits) io.stdout(`${formatRecordEdit(edit)}
 `);
     const changed = edits.some(({ state }) => state === "edited" || state === "deleted");
-    return changed && project.config.decisionEdits === "block" ? EXIT_BLOCKED : EXIT_OK;
+    const blocked = ids.length === 0 && changed && project.config.decisionEdits === "block";
+    return blocked ? EXIT_BLOCKED : EXIT_OK;
   }
 };
 
@@ -9003,7 +9047,7 @@ Options:
 // src/core/audit.ts
 import { basename as basename7, relative as relative8, sep as sep5 } from "node:path";
 var MENTION = /DL-\d+/g;
-var toPosix = (path) => path.split(sep5).join("/");
+var toPosix2 = (path) => path.split(sep5).join("/");
 var idNumber2 = (id) => Number.parseInt(id.slice(3), 10);
 function recordsChangedSinceAudit(ctx, { paths }) {
   const git = gitAt(ctx, paths.root);
@@ -9024,7 +9068,7 @@ function findMissingAmends(ctx, project, { all }) {
     (a, b) => recordNumber(a) - recordNumber(b)
   );
   for (const file of files) {
-    const rel = toPosix(relative8(paths.root, file));
+    const rel = toPosix2(relative8(paths.root, file));
     if (changed !== void 0 && !changed.has(rel)) continue;
     const text = ctx.fs.readFile(file);
     const record = parseRecord(text, rel);
@@ -9561,7 +9605,7 @@ function removeEmptyParents(ctx, dir, paths) {
 import { dirname as dirname3, join as join16, posix as posix4 } from "node:path";
 
 // templates/rules/dld-workflow.md
-var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated (except `id` and `timestamp`), but don't rewrite the prose below it unless `decision_edits` in `dld.config.yaml` allows it. The default (`block`) means: record an amendment or a superseding decision with the dld-decide skill instead.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
+var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated (except `id` and `timestamp`), but change the prose below it only through the dld-adjust skill, which follows `decision_edits` in `dld.config.yaml`: `block` (the default) never edits it and records an amendment or superseding decision instead, `ask` edits after the user confirms, `allow` edits.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
 
 // src/generate/rule.ts
 var RULE_TEXT = dld_workflow_default;
@@ -10379,20 +10423,21 @@ var restoreDecisionProseCommand = {
   name: "restore-decision-prose",
   summary: "Restore the body of decisions already on the base branch",
   internal: true,
-  usage: `Usage: dld restore-decision-prose [--base <ref>] <DL-NNN> [DL-NNN ...]
+  usage: `Usage: dld restore-decision-prose [--base <ref>] [--uncommitted] <DL-NNN> [DL-NNN ...]
 
 Put back the body (the text after the frontmatter), id and timestamp of each decision as
 they are at the merge-base of the base branch and HEAD, keeping the rest of the current
 frontmatter. A deleted decision
-is restored whole. Fails for a decision that is not on the base branch.
+is restored whole and staged. Fails for a draft.
 
 Options:
-  --base <ref>  Base ref (default: the branch's upstream base, else origin/main or main)
+  --base <ref>     Base ref (default: the branch's upstream base, else origin/main or main)
+  --uncommitted    Restore from HEAD instead of the merge-base: undo only uncommitted edits
 `,
   run(args, io, ctx) {
     const { values, positionals: ids } = parseCommandArgs({
       args: [...args],
-      options: { base: { type: "string" } },
+      options: { base: { type: "string" }, uncommitted: { type: "boolean" } },
       allowPositionals: true
     });
     if (ids.length === 0) throw new UsageError("expected at least one decision ID");
@@ -10404,7 +10449,8 @@ Options:
       project.paths,
       values.base === void 0 ? void 0 : baseOption(values.base)
     );
-    for (const path of restoreDecisionProse(ctx, project, base, ids)) {
+    const uncommitted = values.uncommitted === true;
+    for (const path of restoreDecisionProse(ctx, project, base, ids, { uncommitted })) {
       io.stdout(`Restored ${path}
 `);
     }

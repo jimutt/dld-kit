@@ -59,7 +59,7 @@ The decision is not on the base branch yet, or is still `proposed` there. Edit f
 
 The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can always be updated, except `id` and `timestamp`, which never change. For the prose (the body below the frontmatter), follow `decision_edits` in `dld.config.yaml` (default `block`):
 
-- `block`: don't edit the prose, even though the user asked. Tell them this project keeps the prose of decisions on the base branch as written, and offer to record the change as a new decision that amends or supersedes this one (`/dld-decide`). Mention that `decision_edits: ask` in `dld.config.yaml` would allow edits after confirmation. Frontmatter-only changes can still be made.
+- `block`: don't edit the prose, even though the user asked. Tell them this project keeps the prose of decisions on the base branch as written, and offer to record the change as a new decision that amends or supersedes this one (`/dld-decide`). Mention that `decision_edits: ask` in `dld.config.yaml` would allow edits after confirmation. If the request also changes frontmatter fields, make only those changes; then skip to step 6.
 - `ask`: use `AskUserQuestion` to present options:
   1. **Edit anyway** — modify the decision's prose directly
   2. **Amend or supersede instead** — record a new decision via `/dld-decide`
@@ -128,16 +128,14 @@ If multiple decisions are being adjusted, process them one at a time.
 ## Step 5: Check edits to decisions on the base branch
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" check-decision-edits
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" check-decision-edits --uncommitted
 ```
 
-Edits the user approved in step 2 count as kept; don't ask about them again.
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter), `id` or `timestamp` has uncommitted changes, or that were deleted. Drafts (decisions not on the base branch yet, or still `proposed` there), changes to other frontmatter fields and edits already committed are never listed. If it prints nothing, continue. If a listed edit isn't yours (the user made it by hand), leave it alone and mention it. Edits the user approved in step 2 count as kept; don't ask about them again.
 
-This lists decisions that are already on the base branch and whose prose (the body below the frontmatter), `id` or `timestamp` was changed on this branch, or that were deleted. Drafts (decisions not on the base branch yet, or still `proposed` there) and changes to other frontmatter fields are never listed. If it prints nothing, continue.
+Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command then exits 3):
 
-Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command exits 1 under `block`):
-
-- `block`: put the prose back with `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" restore-decision-prose DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `block`: put the prose back with `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" restore-decision-prose --uncommitted DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
 - `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
 - `allow`: keep the edits and list them in your report.
 

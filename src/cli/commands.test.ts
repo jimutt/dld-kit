@@ -666,12 +666,15 @@ describe("check-decision-edits", () => {
     );
     const line = "decisions/records/DL-001.md\tDL-001\tedited\n";
     expect(dld(p, "check-decision-edits", "--base", "main")).toEqual({
-      code: 1,
+      code: 3,
       out: line,
       err: "",
     });
-    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\ndecision_edits: ask\n");
+    expect(dld(p, "check-decision-edits", "--uncommitted").code).toBe(3);
+    // Querying IDs never fails, so dld-adjust can read the state.
     expect(dld(p, "check-decision-edits", "DL-001")).toEqual({ code: EXIT_OK, out: line, err: "" });
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\ndecision_edits: ask\n");
+    expect(dld(p, "check-decision-edits").code).toBe(EXIT_OK);
   });
 
   test("rejects arguments that are not decision IDs", () => {
@@ -688,7 +691,7 @@ describe("check-decision-edits", () => {
     const p = branchedProject();
     project = p;
     p.write("decisions/records/DL-001.md", recordText("DL-001").replace("Test context", "New"));
-    expect(dld(p, "restore-decision-prose", "DL-001")).toEqual({
+    expect(dld(p, "restore-decision-prose", "--uncommitted", "DL-001")).toEqual({
       code: EXIT_OK,
       out: "Restored decisions/records/DL-001.md\n",
       err: "",

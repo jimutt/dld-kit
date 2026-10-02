@@ -112,14 +112,14 @@ For each decision, compose a focused body. Keep it concise — the full feature 
 ### 7. Check edits to decisions on the base branch
 
 ```bash
-{{dld}} check-decision-edits
+{{dld}} check-decision-edits --uncommitted
 ```
 
-This lists decisions that are already on the base branch and whose prose (the body below the frontmatter), `id` or `timestamp` was changed on this branch, or that were deleted. Drafts (decisions not on the base branch yet, or still `proposed` there) and changes to other frontmatter fields are never listed. If it prints nothing, continue.
+This lists decisions that are already on the base branch and whose prose (the body below the frontmatter), `id` or `timestamp` has uncommitted changes, or that were deleted. Drafts (decisions not on the base branch yet, or still `proposed` there), changes to other frontmatter fields and edits already committed are never listed. If it prints nothing, continue. If a listed edit isn't yours (the user made it by hand), leave it alone and mention it.
 
-Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command exits 1 under `block`):
+Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the command then exits 3):
 
-- `block`: put the prose back with `{{dld}} restore-decision-prose DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
+- `block`: put the prose back with `{{dld}} restore-decision-prose --uncommitted DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change is still needed, record it as a new decision that amends or supersedes the old one (`/dld-decide`), and tell the user.
 - `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
 - `allow`: keep the edits and list them in your report.
 

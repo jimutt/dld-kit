@@ -63,9 +63,9 @@ If unreachable (e.g., after rebase or shallow clone), skip check (4) and note it
 
 Apply fixes for each issue category. Use judgment on what can be safely fixed automatically vs. what should only be flagged in the PR description.
 
-### Hard rule: never edit the body of an accepted decision
+### Hard rule: never edit the body of an integrated decision
 
-The narrative body of an accepted decision (Context, Decision, Rationale, Consequences, and any other prose sections) is **immutable**. An audit must never rewrite, refine, "clean up", or otherwise modify it. This holds whatever `decision_edits` in `dld.config.yaml` says: an unattended audit has nobody to ask.
+The narrative body of an accepted decision that is already on the base branch (Context, Decision, Rationale, Consequences, and any other prose sections) is **immutable**. An audit must never rewrite, refine, "clean up", or otherwise modify it. This holds whatever `decision_edits` in `dld.config.yaml` says: an unattended audit has nobody to ask.
 
 The only changes an audit may make to an accepted decision are housekeeping updates to specific frontmatter fields — `references`, `amends`, `superseded_by`, and similar relational metadata — plus adding or fixing `@decision` annotations in code.
 
@@ -103,10 +103,10 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 Before regenerating the index, confirm the hard rule held:
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" check-decision-edits
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" check-decision-edits --uncommitted
 ```
 
-If it lists any decision (exit code 1 under the default `decision_edits: block`; under other settings it still prints the list), put the prose back with `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" restore-decision-prose DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change was needed, record a new decision as described above instead.
+If it lists any decision (exit code 3 under the default `decision_edits: block`; under other settings it still prints the list), put the prose back with `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" restore-decision-prose --uncommitted DL-NNN ...`, which also restores `id` and `timestamp` and keeps other frontmatter changes. If the change was needed, record a new decision as described above instead.
 
 ## Step 4: Regenerate INDEX.md
 
