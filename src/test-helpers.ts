@@ -83,6 +83,11 @@ export function memoryFs(files: Record<string, string>): FileSystem & {
       if (content === undefined) throw missing("read", path);
       return content;
     },
+    fileSize: (path) => {
+      const content = files[path];
+      if (content === undefined) throw missing("read", path);
+      return new TextEncoder().encode(content).length;
+    },
     readBytes: (path) => {
       const content = files[path];
       if (content === undefined) throw missing("read", path);

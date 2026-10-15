@@ -1,6 +1,14 @@
 // Runs each ported command through the dispatcher against a temporary project.
 import { afterEach, describe, expect, test } from "bun:test";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, join } from "node:path";
 import { version } from "../../package.json";
 import type { Context } from "../core/context.ts";
@@ -204,6 +212,26 @@ describe("verify-annotations", () => {
   test("needs at least one ID", () => {
     project = tempProject();
     expect(dld(project, "verify-annotations").code).toBe(EXIT_USAGE);
+  });
+
+  // @decision(DL-069)
+  test("warns about a file over the size cap and still checks the rest", () => {
+    project = tempProject();
+    project.write("src/a.ts", "// @decision(DL-001)\n");
+    project.write("big.tar.gz", "");
+    truncateSync(join(project.root, "big.tar.gz"), 600 * 1024 * 1024);
+    const warning =
+      "Warning: skipped big.tar.gz (larger than 16 MB); annotations in it are not counted\n";
+    expect(dld(project, "verify-annotations", "DL-001")).toEqual({
+      code: EXIT_OK,
+      out: "All decisions have code annotations.\n",
+      err: warning,
+    });
+    expect(dld(project, "find-annotations")).toEqual({
+      code: EXIT_OK,
+      out: "src/a.ts:1:DL-001\n",
+      err: warning,
+    });
   });
 });
 
