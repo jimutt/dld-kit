@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { rmSync, symlinkSync } from "node:fs";
+import { rmSync, symlinkSync, truncateSync } from "node:fs";
 import { type TempProject, tempProject } from "../test-helpers.ts";
 import {
   formatAnnotation,
+  formatSkipped,
+  MAX_SCAN_BYTES,
   missingAnnotations,
   type ScanOptions,
+  type SkippedFile,
   scanAnnotations,
 } from "./annotations.ts";
+import type { Context } from "./context.ts";
+import { FsError } from "./errors.ts";
 
 let project: TempProject | undefined;
 afterEach(() => {
@@ -96,6 +101,82 @@ describe("scanAnnotations", () => {
     project?.git("add", "gone.ts");
     rmSync(`${options.root}/gone.ts`);
     expect(scanAnnotations(ctx, options)).toEqual([]);
+  });
+});
+
+// @decision(DL-069)
+describe("files the scan cannot read", () => {
+  test("skips a file over the size cap without reading it, and reports it", () => {
+    const { ctx, options } = setup({ "big.tar.gz": "", "src/a.ts": "// @decision(DL-001)" });
+    // Sparse, so it takes no disk space.
+    truncateSync(`${options.root}/big.tar.gz`, MAX_SCAN_BYTES + 1);
+    const read: string[] = [];
+    const tracking: Context = {
+      ...ctx,
+      fs: {
+        ...ctx.fs,
+        readFile: (path) => {
+          read.push(path);
+          return ctx.fs.readFile(path);
+        },
+      },
+    };
+    const skipped: SkippedFile[] = [];
+    expect(scanAnnotations(tracking, options, (s) => skipped.push(s)).map((a) => a.id)).toEqual([
+      "DL-001",
+    ]);
+    expect(skipped).toEqual([{ file: "big.tar.gz", reason: "larger than 16 MB" }]);
+    expect(read).not.toContain(`${options.root}/big.tar.gz`);
+  });
+
+  test("reads a file at exactly the size cap", () => {
+    const { ctx, options } = setup({ "a.ts": "// @decision(DL-001)" });
+    truncateSync(`${options.root}/a.ts`, MAX_SCAN_BYTES);
+    const skipped: SkippedFile[] = [];
+    // The padding is NUL bytes, so the file now reads as binary: read, but not reported.
+    expect(scanAnnotations(ctx, options, (s) => skipped.push(s))).toEqual([]);
+    expect(skipped).toEqual([]);
+  });
+
+  test("reports a file that fails to read and scans the rest", () => {
+    const { ctx, options } = setup({ "a.ts": "// @decision(DL-001)", "b.ts": "// x" });
+    const failing: Context = {
+      ...ctx,
+      fs: {
+        ...ctx.fs,
+        readFile: (path) => {
+          if (path.endsWith("b.ts")) throw new FsError("read", path, "ERR_STRING_TOO_LONG");
+          return ctx.fs.readFile(path);
+        },
+      },
+    };
+    const skipped: SkippedFile[] = [];
+    expect(missingAnnotations(failing, options, ["DL-001"], (s) => skipped.push(s))).toEqual([]);
+    expect(skipped).toEqual([
+      { file: "b.ts", reason: `cannot read ${options.root}/b.ts: ERR_STRING_TOO_LONG` },
+    ]);
+    // Without a callback the skip is silent.
+    expect(scanAnnotations(failing, options).map((a) => a.id)).toEqual(["DL-001"]);
+  });
+
+  test("still fails on errors that are not filesystem failures", () => {
+    const { ctx, options } = setup({ "a.ts": "" });
+    const broken: Context = {
+      ...ctx,
+      fs: {
+        ...ctx.fs,
+        readFile: () => {
+          throw new Error("bug");
+        },
+      },
+    };
+    expect(() => scanAnnotations(broken, options)).toThrow("bug");
+  });
+
+  test("formatSkipped names the file and the reason", () => {
+    expect(formatSkipped({ file: "big.bin", reason: "larger than 16 MB" })).toBe(
+      "Warning: skipped big.bin (larger than 16 MB); annotations in it are not counted",
+    );
   });
 });
 

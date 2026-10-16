@@ -33,6 +33,7 @@ export const nodeFileSystem: FileSystem = {
   isRegularFile: (path) =>
     fsCall("read", path, () => lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false),
   readFile: (path) => fsCall("read", path, () => readFileSync(path, "utf8")),
+  fileSize: (path) => fsCall("read", path, () => lstatSync(path).size),
   readBytes: (path) => fsCall("read", path, () => readFileSync(path)),
   readDir: (path) =>
     fsCall("read", path, () =>

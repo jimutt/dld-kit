@@ -1,4 +1,9 @@
-import { formatAnnotation, scanAnnotations, scanOptionsFor } from "../../core/annotations.ts";
+import {
+  formatAnnotation,
+  formatSkipped,
+  scanAnnotations,
+  scanOptionsFor,
+} from "../../core/annotations.ts";
 import { loadProject } from "../../core/project.ts";
 import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 
@@ -10,7 +15,10 @@ export const findAnnotationsCommand: Command = {
     "Usage: dld find-annotations\n\nPrint <file>:<line>:<DL-NNN> for every annotation, one per line.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
-    for (const annotation of scanAnnotations(ctx, scanOptionsFor(loadProject(ctx)))) {
+    const annotations = scanAnnotations(ctx, scanOptionsFor(loadProject(ctx)), (skipped) =>
+      io.stderr(`${formatSkipped(skipped)}\n`),
+    );
+    for (const annotation of annotations) {
       io.stdout(`${formatAnnotation(annotation)}\n`);
     }
     return EXIT_OK;

@@ -18,6 +18,9 @@ export interface FileSystem {
   /** True only for a regular file; symlinks, devices and FIFOs are not followed or counted. */
   isRegularFile(path: string): boolean;
   readFile(path: string): string;
+  // @decision(DL-069)
+  /** Size in bytes, not following symlinks. */
+  fileSize(path: string): number;
   /** The file's bytes, for rewrites that must leave everything but the replaced text unchanged. */
   readBytes(path: string): Uint8Array;
   readDir(path: string): DirEntry[];

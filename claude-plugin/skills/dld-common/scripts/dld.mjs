@@ -8945,6 +8945,7 @@ var EXCLUDED_DIRS = /* @__PURE__ */ new Set([
 ]);
 var EXCLUDED_FILE = /(\.lock|\.min\.js|\.min\.css|\.map)$/;
 var BINARY_SNIFF_BYTES = 8192;
+var MAX_SCAN_BYTES = 16 * 1024 * 1024;
 function scanOptionsFor({ config, paths }) {
   return {
     root: paths.root,
@@ -8980,14 +8981,30 @@ function listScannableFiles(ctx, options) {
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
-function scanAnnotations(ctx, options) {
+function readScannable(ctx, root, file, onSkip) {
+  const path = join12(root, file);
+  let text;
+  try {
+    if (!ctx.fs.isRegularFile(path)) return void 0;
+    if (ctx.fs.fileSize(path) > MAX_SCAN_BYTES) {
+      onSkip({ file, reason: `larger than ${MAX_SCAN_BYTES / 1024 / 1024} MB` });
+      return void 0;
+    }
+    text = ctx.fs.readFile(path);
+  } catch (error) {
+    if (!(error instanceof FsError)) throw error;
+    onSkip({ file, reason: error.message });
+    return void 0;
+  }
+  return text.slice(0, BINARY_SNIFF_BYTES).includes("\0") ? void 0 : text;
+}
+function scanAnnotations(ctx, options, onSkip = () => {
+}) {
   const pattern = new RegExp(`${escapeRegExp(options.prefix)}\\((DL-\\d+)\\)`, "g");
   const found = [];
   for (const file of listScannableFiles(ctx, options)) {
-    const path = join12(options.root, file);
-    if (!ctx.fs.isRegularFile(path)) continue;
-    const text = ctx.fs.readFile(path);
-    if (text.slice(0, BINARY_SNIFF_BYTES).includes("\0")) continue;
+    const text = readScannable(ctx, options.root, file, onSkip);
+    if (text === void 0) continue;
     text.split("\n").forEach((content, index) => {
       for (const match of content.matchAll(pattern)) {
         if (match[1] !== void 0) found.push({ file, line: index + 1, id: match[1] });
@@ -8996,9 +9013,14 @@ function scanAnnotations(ctx, options) {
   }
   return found;
 }
-function missingAnnotations(ctx, options, ids) {
-  const annotated = new Set(scanAnnotations(ctx, options).map((annotation) => annotation.id));
+function missingAnnotations(ctx, options, ids, onSkip) {
+  const annotated = new Set(
+    scanAnnotations(ctx, options, onSkip).map((annotation) => annotation.id)
+  );
   return ids.filter((id) => !annotated.has(id));
+}
+function formatSkipped({ file, reason }) {
+  return `Warning: skipped ${file} (${reason}); annotations in it are not counted`;
 }
 function formatAnnotation({ file, line, id }) {
   return `${file}:${line}:${id}`;
@@ -9012,7 +9034,13 @@ var findAnnotationsCommand = {
   usage: "Usage: dld find-annotations\n\nPrint <file>:<line>:<DL-NNN> for every annotation, one per line.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
-    for (const annotation of scanAnnotations(ctx, scanOptionsFor(loadProject(ctx)))) {
+    const annotations = scanAnnotations(
+      ctx,
+      scanOptionsFor(loadProject(ctx)),
+      (skipped) => io.stderr(`${formatSkipped(skipped)}
+`)
+    );
+    for (const annotation of annotations) {
       io.stdout(`${formatAnnotation(annotation)}
 `);
     }
@@ -10637,7 +10665,13 @@ var verifyAnnotationsCommand = {
     if (ids.length === 0) throw new UsageError("expected at least one decision ID");
     const options = scanOptionsFor(loadProject(ctx));
     const prefix = options.prefix;
-    const missing = missingAnnotations(ctx, options, ids);
+    const missing = missingAnnotations(
+      ctx,
+      options,
+      ids,
+      (skipped) => io.stderr(`${formatSkipped(skipped)}
+`)
+    );
     if (missing.length > 0) {
       io.stdout(`MISSING annotations in source code for: ${missing.join(" ")}
 `);
@@ -10780,6 +10814,7 @@ var nodeFileSystem = {
   lexists: (path) => fsCall("read", path, () => lstatSync(path, { throwIfNoEntry: false }) !== void 0),
   isRegularFile: (path) => fsCall("read", path, () => lstatSync(path, { throwIfNoEntry: false })?.isFile() ?? false),
   readFile: (path) => fsCall("read", path, () => readFileSync(path, "utf8")),
+  fileSize: (path) => fsCall("read", path, () => lstatSync(path).size),
   readBytes: (path) => fsCall("read", path, () => readFileSync(path)),
   readDir: (path) => fsCall(
     "read",
