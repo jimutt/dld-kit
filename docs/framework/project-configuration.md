@@ -114,7 +114,7 @@ Without `--uncommitted`, the command checks the whole branch against the base, a
 
 ### Snapshot Artifacts
 
-The optional `snapshot_artifacts` key lets you define custom documentation artifacts that are generated alongside `SNAPSHOT.md` and `OVERVIEW.md` when running `/dld-snapshot`. Each artifact is synthesized from the current set of accepted decisions using a prompt you provide.
+The optional `snapshot_artifacts` key lets you define custom documentation artifacts that are generated alongside `SNAPSHOT.md` and `OVERVIEW.md` when running `/dld-snapshot`. Each artifact is synthesized from the current set of accepted decisions using a prompt you provide. Proposed decisions are passed along too, as planned work, and are marked as proposed wherever an artifact mentions them.
 
 Each entry has two fields:
 

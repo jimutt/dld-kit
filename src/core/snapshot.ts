@@ -26,27 +26,35 @@ interface RecordFile {
   path: string;
   number: number;
   text: string;
-  accepted: boolean;
+  status: string;
 }
+
+/** Statuses a snapshot covers: accepted, and proposed shown apart as planned work. */
+const isSnapshotted = (status: string) => status === "accepted" || status === "proposed";
 
 function readRecords(ctx: Context, { paths }: Project): RecordFile[] {
   return listRecordFiles(ctx, paths.recordsDir)
     .map((path) => {
       const text = ctx.fs.readFile(path);
       const record = parseRecord(text, relative(paths.root, path));
-      return { path, number: recordNumber(path), text, accepted: record.status === "accepted" };
+      return { path, number: recordNumber(path), text, status: record.status };
     })
     .sort((a, b) => a.number - b.number);
 }
 
-// @decision(DL-025)
-/** Every accepted record's content, ascending by ID, separated by boundary lines. */
-export function collectActiveDecisions(ctx: Context, project: Project): string {
+// @decision(DL-025) @decision(DL-070)
+/** Every accepted record's content (and proposed, if asked), ascending by ID, separated by boundary lines. */
+export function collectActiveDecisions(
+  ctx: Context,
+  project: Project,
+  { includeProposed = false }: { includeProposed?: boolean } = {},
+): string {
   if (!ctx.fs.isDirectory(project.paths.recordsDir)) {
     throw new DldError(`records directory not found at ${project.paths.recordsDir}`);
   }
+  const wanted = includeProposed ? isSnapshotted : (status: string) => status === "accepted";
   return readRecords(ctx, project)
-    .filter((record) => record.accepted)
+    .filter((record) => wanted(record.status))
     .map((record) => record.text)
     .join(`${DECISION_BOUNDARY}\n`);
 }
@@ -60,7 +68,7 @@ export type SnapshotChanges =
       commitRange: string;
     };
 
-// @decision(DL-025)
+// @decision(DL-025) @decision(DL-070)
 /** What changed since the last snapshot, as detect-snapshot-changes.sh reported it. */
 export function detectSnapshotChanges(ctx: Context, project: Project): SnapshotChanges {
   const { paths } = project;
@@ -73,8 +81,14 @@ export function detectSnapshotChanges(ctx: Context, project: Project): SnapshotC
   if (included === undefined || !/^\d+$/.test(included)) return { mode: "full" };
   const includedNumber = Number.parseInt(included, 10);
 
+  // A snapshot from before DL-070 left every proposed record out, wherever it is numbered.
+  const proposedIncluded = stateString(state, "includes_proposed") === "true";
   const newDecisions = readRecords(ctx, project)
-    .filter((record) => record.number > includedNumber && record.accepted)
+    .filter(
+      (record) =>
+        (record.number > includedNumber && isSnapshotted(record.status)) ||
+        (!proposedIncluded && record.status === "proposed"),
+    )
     .map((record) => formatId(record.number));
 
   const git = gitAt(ctx, paths.root);
@@ -113,8 +127,8 @@ export function formatSnapshotChanges(changes: SnapshotChanges): string {
   ].join("\n");
 }
 
-// @decision(DL-025) @decision(DL-021)
-/** Records the snapshot run, the highest accepted ID and artifact timestamps. */
+// @decision(DL-025) @decision(DL-021) @decision(DL-070)
+/** Records the snapshot run, the highest accepted or proposed ID and artifact timestamps. */
 export function updateSnapshotState(
   ctx: Context,
   project: Project,
@@ -124,7 +138,7 @@ export function updateSnapshotState(
   const timestamp = formatTimestamp(ctx.now());
   const commit = shortHead(ctx, paths.root);
   const highest = readRecords(ctx, project)
-    .filter((record) => record.accepted)
+    .filter((record) => isSnapshotted(record.status))
     .reduce((max, record) => Math.max(max, record.number), 0);
   // A null-prototype object, so an artifact named `__proto__` is stored like any other.
   const artifacts: SectionValue = Object.create(null);
@@ -133,6 +147,7 @@ export function updateSnapshotState(
     last_run: timestamp,
     commit_hash: commit,
     decisions_included: String(highest),
+    includes_proposed: "true",
     artifacts,
   });
   return { timestamp, commit, highest };

@@ -8319,18 +8319,20 @@ function shortHead(ctx, root) {
 // src/core/snapshot.ts
 var DECISION_BOUNDARY = "===DLD_DECISION_BOUNDARY===";
 var BUILT_IN_ARTIFACTS = ["SNAPSHOT.md", "OVERVIEW.md"];
+var isSnapshotted = (status) => status === "accepted" || status === "proposed";
 function readRecords(ctx, { paths }) {
   return listRecordFiles(ctx, paths.recordsDir).map((path) => {
     const text = ctx.fs.readFile(path);
     const record = parseRecord(text, relative4(paths.root, path));
-    return { path, number: recordNumber(path), text, accepted: record.status === "accepted" };
+    return { path, number: recordNumber(path), text, status: record.status };
   }).sort((a, b) => a.number - b.number);
 }
-function collectActiveDecisions(ctx, project) {
+function collectActiveDecisions(ctx, project, { includeProposed = false } = {}) {
   if (!ctx.fs.isDirectory(project.paths.recordsDir)) {
     throw new DldError(`records directory not found at ${project.paths.recordsDir}`);
   }
-  return readRecords(ctx, project).filter((record) => record.accepted).map((record) => record.text).join(`${DECISION_BOUNDARY}
+  const wanted = includeProposed ? isSnapshotted : (status) => status === "accepted";
+  return readRecords(ctx, project).filter((record) => wanted(record.status)).map((record) => record.text).join(`${DECISION_BOUNDARY}
 `);
 }
 function detectSnapshotChanges(ctx, project) {
@@ -8343,7 +8345,10 @@ function detectSnapshotChanges(ctx, project) {
   const included = stateString(state, "decisions_included");
   if (included === void 0 || !/^\d+$/.test(included)) return { mode: "full" };
   const includedNumber = Number.parseInt(included, 10);
-  const newDecisions = readRecords(ctx, project).filter((record) => record.number > includedNumber && record.accepted).map((record) => formatId(record.number));
+  const proposedIncluded = stateString(state, "includes_proposed") === "true";
+  const newDecisions = readRecords(ctx, project).filter(
+    (record) => record.number > includedNumber && isSnapshotted(record.status) || !proposedIncluded && record.status === "proposed"
+  ).map((record) => formatId(record.number));
   const git = gitAt(ctx, paths.root);
   let stored = stateString(state, "commit_hash");
   const lastRun = stateString(state, "last_run");
@@ -8376,13 +8381,14 @@ function updateSnapshotState(ctx, project, customArtifacts) {
   const { paths } = project;
   const timestamp = formatTimestamp(ctx.now());
   const commit2 = shortHead(ctx, paths.root);
-  const highest = readRecords(ctx, project).filter((record) => record.accepted).reduce((max, record) => Math.max(max, record.number), 0);
+  const highest = readRecords(ctx, project).filter((record) => isSnapshotted(record.status)).reduce((max, record) => Math.max(max, record.number), 0);
   const artifacts = /* @__PURE__ */ Object.create(null);
   for (const name of [...BUILT_IN_ARTIFACTS, ...customArtifacts]) artifacts[name] = timestamp;
   writeStateSection(ctx, paths, "snapshot", {
     last_run: timestamp,
     commit_hash: commit2,
     decisions_included: String(highest),
+    includes_proposed: "true",
     artifacts
   });
   return { timestamp, commit: commit2, highest };
@@ -8393,10 +8399,23 @@ var collectActiveDecisionsCommand = {
   name: "collect-active-decisions",
   summary: "Print every accepted decision record",
   internal: true,
-  usage: "Usage: dld collect-active-decisions\n\nPrint each accepted record in ID order, separated by ===DLD_DECISION_BOUNDARY=== lines.\n",
+  usage: `Usage: dld collect-active-decisions [--include-proposed]
+
+Print each accepted record in ID order, separated by ===DLD_DECISION_BOUNDARY=== lines.
+
+Options:
+  --include-proposed  Print proposed records too, in the same ID order
+`,
   run(args, io, ctx) {
-    parseCommandArgs({ args: [...args], options: {} });
-    io.stdout(collectActiveDecisions(ctx, loadProject(ctx)));
+    const { values } = parseCommandArgs({
+      args: [...args],
+      options: { "include-proposed": { type: "boolean" } }
+    });
+    io.stdout(
+      collectActiveDecisions(ctx, loadProject(ctx), {
+        includeProposed: values["include-proposed"] === true
+      })
+    );
     return EXIT_OK;
   }
 };
