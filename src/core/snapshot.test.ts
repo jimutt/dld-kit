@@ -49,6 +49,26 @@ describe("collectActiveDecisions", () => {
     );
   });
 
+  test("adds proposed records in ID order when asked, and never superseded or deprecated", () => {
+    const p = tempProject();
+    project = p;
+    writeRecord(p, "DL-004", "proposed");
+    writeRecord(p, "DL-001");
+    writeRecord(p, "DL-002", "superseded");
+    writeRecord(p, "DL-003", "deprecated");
+    writeRecord(p, "DL-005");
+    const collect = (includeProposed?: boolean) =>
+      collectActiveDecisions(p.ctx, loadProject(p.ctx), { includeProposed });
+    expect(collect(true)).toBe(
+      [recordText("DL-001"), recordText("DL-004", "proposed"), recordText("DL-005")].join(
+        "===DLD_DECISION_BOUNDARY===\n",
+      ),
+    );
+    expect(collect(false)).toBe(
+      `${recordText("DL-001")}===DLD_DECISION_BOUNDARY===\n${recordText("DL-005")}`,
+    );
+  });
+
   test("fails without a records directory", () => {
     project = tempProject();
     const ctx = project.ctx;
@@ -149,7 +169,7 @@ describe("detectSnapshotChanges", () => {
     expect(changes.mode === "incremental" && changes.commitRange).toBe(`${stateCommit}..HEAD`);
   });
 
-  test("reports new accepted and modified earlier decisions in ascending order", () => {
+  test("reports new accepted, new proposed and modified earlier decisions in ascending order", () => {
     project = tempProject();
     snapshotted(project);
     expect(formatSnapshotChanges(detect(project))).toBe(
@@ -165,12 +185,55 @@ describe("detectSnapshotChanges", () => {
     const changes = detect(project);
     expect(changes).toMatchObject({
       mode: "incremental",
-      newDecisions: ["DL-004", "DL-011"],
+      newDecisions: ["DL-004", "DL-005", "DL-011"],
       modifiedDecisions: ["DL-001", "DL-002"],
     });
     expect(formatSnapshotChanges(changes)).toMatch(
-      /^mode: incremental\nnew_decisions: DL-004, DL-011\nmodified_decisions: DL-001, DL-002\ncommit_range: [0-9a-f]+\.\.HEAD\n$/,
+      /^mode: incremental\nnew_decisions: DL-004, DL-005, DL-011\nmodified_decisions: DL-001, DL-002\ncommit_range: [0-9a-f]+\.\.HEAD\n$/,
     );
+  });
+
+  test("reports proposed records that were accepted, edited or deleted as modified", () => {
+    project = tempProject();
+    writeRecord(project, "DL-003", "proposed");
+    writeRecord(project, "DL-004", "proposed");
+    writeRecord(project, "DL-005", "proposed");
+    snapshotted(project);
+    expect(detect(project)).toMatchObject({ newDecisions: [], modifiedDecisions: [] });
+    writeRecord(project, "DL-003");
+    project.write("decisions/records/DL-004.md", `${recordText("DL-004", "proposed")}More.\n`);
+    project.git("rm", "-q", "decisions/records/DL-005.md");
+    project.git("add", ".");
+    project.git("commit", "-qm", "changes");
+    expect(detect(project)).toMatchObject({
+      newDecisions: [],
+      modifiedDecisions: ["DL-003", "DL-004", "DL-005"],
+    });
+  });
+
+  test("reports every proposed record as new after a snapshot that left them out", () => {
+    project = tempProject();
+    writeRecord(project, "DL-001");
+    writeRecord(project, "DL-002", "proposed");
+    writeRecord(project, "DL-003");
+    writeRecord(project, "DL-004", "superseded");
+    writeRecord(project, "DL-006", "proposed");
+    project.write("decisions/SNAPSHOT.md");
+    project.write("decisions/OVERVIEW.md");
+    const state =
+      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 3\n  artifacts:\n    SNAPSHOT.md: 2026-01-15T10:00:00Z\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n";
+    project.write("decisions/.dld-state.yaml", state);
+    expect(detect(project)).toMatchObject({ newDecisions: ["DL-002", "DL-006"] });
+    project.write(
+      "decisions/.dld-state.yaml",
+      state.replace("  artifacts:", '  includes_proposed: "false"\n  artifacts:'),
+    );
+    expect(detect(project)).toMatchObject({ newDecisions: ["DL-002", "DL-006"] });
+    project.write(
+      "decisions/.dld-state.yaml",
+      state.replace("  artifacts:", '  includes_proposed: "true"\n  artifacts:'),
+    );
+    expect(detect(project)).toMatchObject({ newDecisions: ["DL-006"] });
   });
 
   test("falls back to the commit at last_run when commit_hash is missing", () => {
@@ -218,9 +281,10 @@ describe("detectSnapshotChanges", () => {
 });
 
 describe("updateSnapshotState", () => {
-  test("records zero when no decision is accepted", () => {
+  test("records zero when no decision is accepted or proposed", () => {
     project = tempProject();
-    writeRecord(project, "DL-001", "proposed");
+    writeRecord(project, "DL-001", "superseded");
+    writeRecord(project, "DL-002", "deprecated");
     const result = updateSnapshotState(project.ctx, loadProject(project.ctx), []);
     expect(result.highest).toBe(0);
     expect(readFileSync(join(project.root, "decisions/.dld-state.yaml"), "utf8")).toContain(
@@ -228,22 +292,24 @@ describe("updateSnapshotState", () => {
     );
   });
 
-  test("records the highest accepted ID and artifact timestamps", () => {
+  test("records the highest accepted or proposed ID and artifact timestamps", () => {
     project = tempProject();
     writeRecord(project, "DL-001");
     writeRecord(project, "DL-003");
     writeRecord(project, "DL-004", "proposed");
+    writeRecord(project, "DL-005", "superseded");
     const result = updateSnapshotState(project.ctx, loadProject(project.ctx), [
       "ONBOARDING.md",
       "__proto__",
     ]);
-    expect(result.highest).toBe(3);
+    expect(result.highest).toBe(4);
     const head = project.git("rev-parse", "--short", "HEAD").trim();
     expect(readFileSync(join(project.root, "decisions/.dld-state.yaml"), "utf8")).toBe(
       `snapshot:
   last_run: 2026-01-15T10:00:00Z
   commit_hash: ${head}
-  decisions_included: 3
+  decisions_included: 4
+  includes_proposed: true
   artifacts:
     SNAPSHOT.md: 2026-01-15T10:00:00Z
     OVERVIEW.md: 2026-01-15T10:00:00Z

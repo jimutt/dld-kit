@@ -270,13 +270,16 @@ describe("snapshot commands", () => {
     project.write("decisions/records/DL-001.md", recordText("DL-001"));
     project.write("decisions/records/DL-002.md", recordText("DL-002", "proposed"));
     expect(dld(project, "collect-active-decisions").out).toBe(recordText("DL-001"));
+    expect(dld(project, "collect-active-decisions", "--include-proposed").out).toBe(
+      `${recordText("DL-001")}===DLD_DECISION_BOUNDARY===\n${recordText("DL-002", "proposed")}`,
+    );
     expect(dld(project, "detect-snapshot-changes").out).toBe("mode: full\n");
 
     project.write("decisions/SNAPSHOT.md");
     project.write("decisions/OVERVIEW.md");
     const head = project.git("rev-parse", "--short", "HEAD").trim();
     expect(dld(project, "update-snapshot-state", "ONBOARDING.md").out).toBe(
-      `Snapshot state updated: 2026-01-15T10:00:00Z at ${head} (through DL-001)\n`,
+      `Snapshot state updated: 2026-01-15T10:00:00Z at ${head} (through DL-002)\n`,
     );
     expect(dld(project, "detect-snapshot-changes").out).toBe(
       "mode: incremental\nnew_decisions: \nmodified_decisions: \ncommit_range: \n",

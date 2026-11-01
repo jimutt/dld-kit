@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-070 | Include proposed decisions in the snapshot, apart from accepted ones | accepted | snapshot, state |
 | DL-069 | Skip oversized and unreadable files in the annotation scan, and report them | accepted | annotations, audit |
 | DL-068 | Rule line and skill end steps that check edits to integrated decisions | accepted | decision-edits, skills |
 | DL-067 | decision_edits setting: block (default), ask or allow for integrated decision prose | accepted | decision-edits, config |
