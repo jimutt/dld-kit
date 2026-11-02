@@ -118,7 +118,7 @@ For each decision, compose a focused body. Keep it concise — the full feature 
 Each line is `<source-id>:<referenced-id><TAB><tier>`. If it prints nothing, continue.
 
 - `explicit`: the body says the new decision amends or supersedes DL-XXX. If it does, add DL-XXX to the record's `amends` or `supersedes` list (the record is a new draft, so edit its frontmatter directly), and for `supersedes` also run `{{dld}} update-status DL-XXX superseded`. If the sentence doesn't describe a real relationship, reword it.
-- `cue`: the body mentions DL-XXX in a sentence with a change word such as "replaces" or "no longer". Ask the user with `AskUserQuestion` whether the new decision amends DL-XXX, supersedes it, or only cites it, and update the frontmatter to match.
+- `cue`: the body mentions DL-XXX (possibly another decision from this plan) in a sentence with a change word such as "replaces" or "no longer". Ask the user with `AskUserQuestion` whether the new decision amends DL-XXX, supersedes it, or only cites it, and update the frontmatter to match. For supersedes, also run `{{dld}} update-status DL-XXX superseded`.
 
 ### 7. Check edits to decisions on the base branch
 

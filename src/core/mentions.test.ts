@@ -19,6 +19,15 @@ describe("statedRelations", () => {
     ["The approach DL-012 amends is kept.", []],
     ["This amended DL-005 and supersedes nothing.", []],
     ["The `amends` list names DL-005.", []],
+    ["Amends DL-001, while DL-002 supersedes DL-003.", ["amends DL-001"]],
+    ["Amends DL-001 and DL-002, which DL-003 amends.", ["amends DL-001", "amends DL-002"]],
+    ["Amends DL-001, and DL-002's supersedes DL-003.", ["amends DL-001"]],
+    ["Amends DL-001 and supersedes DL-002.", ["amends DL-001", "supersedes DL-002"]],
+    ["A record (one that supersedes DL-005) is kept.", []],
+    ["This decision (following DL-003) amends DL-004.", ["amends DL-004"]],
+    ["The find-missing-amends check lists DL-005.", []],
+    ["Pass --amends DL-031 to the command.", []],
+    ["This decision amends the following: DL-001 and DL-002.", ["amends DL-001", "amends DL-002"]],
     ['A body that says "Amends DL-031" with no flag.', []],
     ["Such as a negated one (\u201cthis never supersedes DL-005\u201d).", []],
   ])("%s", (body, expected) => {
@@ -29,6 +38,25 @@ describe("statedRelations", () => {
     expect(
       stated("See DL-001. Amends DL-002; DL-003 amends DL-004\nAmends DL-002 and DL-005"),
     ).toEqual(["amends DL-002", "amends DL-005"]);
+  });
+
+  test("a sentence ending in amends: passes the relation to the next sentence or list", () => {
+    expect(
+      stated("This decision amends:\n\n- DL-001 (the parser)\n- DL-002. Its tests.\n\nSee DL-003."),
+    ).toEqual(["amends DL-001", "amends DL-002"]);
+    expect(stated("It supersedes:\nDL-001 and DL-002.\nDL-003 too.")).toEqual([
+      "supersedes DL-001",
+      "supersedes DL-002",
+    ]);
+    expect(stated("It amends:\n- DL-001\n- DL-002 amends DL-003\n- DL-004")).toEqual([
+      "amends DL-001",
+      "amends DL-004",
+    ]);
+    expect(stated("## Decision\n\nIt amends:\n\n## Consequences\n\n- DL-001")).toEqual([]);
+    expect(stated("It amends: DL-001. Then supersedes:\n- DL-002")).toEqual([
+      "amends DL-001",
+      "supersedes DL-002",
+    ]);
   });
 
   test("skips fenced code blocks", () => {

@@ -8877,7 +8877,8 @@ import { join as join10, relative as relative6 } from "node:path";
 
 // src/core/mentions.ts
 var ID = /DL-\d+/g;
-var RELATION_WORD = /\b(amends|supersedes)\b/gi;
+var RELATION_WORD = /(?<![\w-])(amends|supersedes)\b/gi;
+var SUBJECT = /DL-\d+(?:'s)?\s*$/;
 var CHANGE_CUE = /\b(?:replac|supersed|amend|extend|overrid|relax|narrow|revert)\w*|\bno longer\b|\binstead of\b/i;
 var CUE_SECTIONS = /* @__PURE__ */ new Set(["decision", "consequences"]);
 var SENTENCE_END = /(?<=[.;:!?])\s+/;
@@ -8885,31 +8886,32 @@ var FENCE = /^ {0,3}(`{3,}|~{3,})/;
 var CODE_SPAN = /(`+)[^\n]*?\1/g;
 var QUOTED = /"[^"\n]*"|“[^”\n]*”/g;
 var HEADING = /^##[ \t]+(.*?)[ \t#]*$/;
+var LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
 var RANK = { mention: 0, cue: 1, explicit: 2 };
 var ids = (text) => text.match(ID) ?? [];
 function sentences(body) {
   const out = [];
   let section = "";
   let fence;
-  for (const line of body.split(/\r?\n/)) {
-    const marker = FENCE.exec(line)?.[1];
+  for (const text of body.split(/\r?\n/)) {
+    const marker = FENCE.exec(text)?.[1];
     if (fence !== void 0) {
-      if (marker !== void 0 && marker[0] === fence[0] && marker.length >= fence.length) {
-        fence = void 0;
-      }
+      const closes = marker !== void 0 && marker[0] === fence[0] && marker.length >= fence.length;
+      if (closes && text.trim() === marker) fence = void 0;
       continue;
     }
     if (marker !== void 0) {
       fence = marker;
       continue;
     }
-    const heading = HEADING.exec(line);
+    const heading = HEADING.exec(text);
     if (heading !== null) {
       section = (heading[1] ?? "").trim().toLowerCase();
       continue;
     }
-    for (const text of line.replace(CODE_SPAN, "").replace(QUOTED, "").split(SENTENCE_END)) {
-      if (text.trim() !== "") out.push({ section, text });
+    const item = LIST_ITEM.test(text);
+    for (const part of text.replace(CODE_SPAN, "").replace(QUOTED, "").split(SENTENCE_END)) {
+      if (part.trim() !== "") out.push({ section, item, text: part });
     }
   }
   return out;
@@ -8922,22 +8924,61 @@ function withoutParentheses(text) {
     current = next;
   }
 }
+var relationOf = (word) => word.toLowerCase() === "amends" ? "amends" : "supersedes";
 function sentenceRelations(text) {
-  const words = [...text.matchAll(RELATION_WORD)];
+  const prose = withoutParentheses(text);
+  const words = [...prose.matchAll(RELATION_WORD)];
   const first = words[0];
-  if (first === void 0 || ids(text.slice(0, first.index)).length > 0) return [];
-  return words.flatMap((word, i) => {
+  if (first === void 0) return { hasWord: false, relations: [] };
+  if (ids(prose.slice(0, first.index)).length > 0) return { hasWord: true, relations: [] };
+  const relations = [];
+  let opens;
+  words.forEach((word, i) => {
+    if (i > 0 && SUBJECT.test(prose.slice(0, word.index))) return;
     const start = word.index + word[0].length;
-    const end = words[i + 1]?.index ?? text.length;
-    const relation = word[0].toLowerCase() === "amends" ? "amends" : "supersedes";
-    return ids(withoutParentheses(text.slice(start, end))).map((id) => ({ id, relation }));
+    const next = words[i + 1];
+    let end = prose.length;
+    if (next !== void 0) {
+      const subject = SUBJECT.exec(prose.slice(start, next.index));
+      end = subject === null ? next.index : start + subject.index;
+    }
+    const relation = relationOf(word[0]);
+    const found = ids(prose.slice(start, end));
+    for (const id of found) relations.push({ id, relation });
+    if (next === void 0 && found.length === 0 && prose.trimEnd().endsWith(":")) {
+      opens = relation;
+    }
   });
+  return { hasWord: true, relations, ...opens === void 0 ? {} : { opens } };
+}
+function statedBySentence(body) {
+  const out = [];
+  let open;
+  for (const sentence of sentences(body)) {
+    if (open !== void 0 && (open.section !== sentence.section || open.list && !sentence.item)) {
+      open = void 0;
+    }
+    const own = sentenceRelations(sentence.text);
+    if (own.opens !== void 0) {
+      open = { relation: own.opens, section: sentence.section, list: false };
+      out.push({ sentence, relations: own.relations });
+    } else if (open !== void 0 && !own.hasWord) {
+      const { relation } = open;
+      const relations = ids(withoutParentheses(sentence.text)).map((id) => ({ id, relation }));
+      out.push({ sentence, relations });
+      open = sentence.item ? { ...open, list: true } : void 0;
+    } else {
+      out.push({ sentence, relations: own.relations });
+      if (open !== void 0 && !open.list) open = void 0;
+    }
+  }
+  return out;
 }
 function statedRelations(body) {
   const seen = /* @__PURE__ */ new Set();
   const out = [];
-  for (const { text } of sentences(body)) {
-    for (const stated of sentenceRelations(text)) {
+  for (const { relations } of statedBySentence(body)) {
+    for (const stated of relations) {
       if (seen.has(stated.id)) continue;
       seen.add(stated.id);
       out.push(stated);
@@ -8952,10 +8993,10 @@ function mentionTiers(body) {
     if (current === void 0 || RANK[tier] > RANK[current]) tiers.set(id, tier);
   };
   for (const id of ids(body)) raise(id, "mention");
-  for (const { section, text } of sentences(body)) {
-    for (const { id } of sentenceRelations(text)) raise(id, "explicit");
-    if (CUE_SECTIONS.has(section) && CHANGE_CUE.test(text)) {
-      for (const id of ids(text)) raise(id, "cue");
+  for (const { sentence, relations } of statedBySentence(body)) {
+    for (const { id } of relations) raise(id, "explicit");
+    if (CUE_SECTIONS.has(sentence.section) && CHANGE_CUE.test(sentence.text)) {
+      for (const id of ids(sentence.text)) raise(id, "cue");
     }
   }
   return tiers;
