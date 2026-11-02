@@ -40,7 +40,7 @@ dld-kit's skills run their mechanical operations through a TypeScript CLI and li
 
 ## Decision records
 
-- Decision content is immutable once `accepted`. Metadata (`status`, `references`, relational fields) can be updated mechanically; the narrative body cannot be rewritten. Corrections happen through a new decision that supersedes or amends the old one.
+- A decision's prose is immutable once the record is on `main`, whatever its status (DL-066); until then, on the branch that adds it, it is a draft and can be edited freely. Frontmatter (`status`, `references`, relational fields, `tags`, `title`) can always be updated, except `id` and `timestamp`. This repository uses the default `decision_edits: block` (DL-067): corrections to merged prose happen through a new decision that supersedes or amends the old one.
 - Every implemented decision has at least one `@decision(DL-NNN)` annotation in the code it explains. The annotation is a pointer, not a summary — do not restate the decision's rationale in comments.
 
 ## Documentation

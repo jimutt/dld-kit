@@ -1,6 +1,6 @@
 # System Overview
 
-> Auto-generated narrative synthesis from 69 active decisions and 0 proposed decisions. Last updated 2026-11-01.
+> Auto-generated narrative synthesis from 80 active decisions and 0 proposed decisions. Last updated 2026-11-02.
 > This document is derived from individual decision records — do not edit manually.
 > Use `/dld-snapshot` to regenerate.
 
@@ -34,15 +34,15 @@ Testing has two layers: colocated `bun test` unit tests over library functions w
 
 ## CLI and Core Library
 
-The code splits into `src/core`, a library that never writes to stdout or touches `process`, and `src/cli`, a thin layer with one module per command (DL-007). Core reaches the filesystem, git, `gh`, standard input and the clock through an injected `Context`, so failure branches can be unit-tested without a real repository (DL-008, DL-015, DL-016, DL-026). Writes that must not be seen half-finished go through a temp file and rename, and new files are created exclusively (DL-015).
+The code splits into `src/core`, a library that never writes to stdout or touches `process`, and `src/cli`, a thin layer with one module per command (DL-007). Core reaches the filesystem, git, `gh`, standard input, the clock and a warning channel through an injected `Context`, so failure branches can be unit-tested without a real repository (DL-008, DL-015, DL-016, DL-026, DL-079). Writes that must not be seen half-finished go through a temp file and rename, and new files are created exclusively (DL-015).
 
-Commands parse arguments with Node's built-in `parseArgs`, handle `--help` centrally (DL-017), and report errors on stderr with exit 1, usage errors with exit 2, and tolerate closed pipes (DL-012). The project root is found with `git rev-parse --show-toplevel` (DL-010), and `dld.config.yaml` is parsed with the `yaml` package into a validated config (DL-009). Command names began as the names of the bash scripts they replaced (DL-011). The semver contract now covers only the setup commands (`init`, `update`, `install-rule`, `session-context`); the commands the skills run are internal and listed separately in `--help` (DL-056).
+Commands parse arguments with Node's built-in `parseArgs`, handle `--help` centrally (DL-017), and report errors on stderr with exit 1, usage errors with exit 2, and tolerate closed pipes (DL-012). The project root is found with `git rev-parse --show-toplevel` (DL-010), and `dld.config.yaml` is parsed with the `yaml` package into a validated config (DL-009). Keys the config does not know produce a warning with a did-you-mean hint, printed once per run; they stay warnings throughout 1.x, so later releases can add keys (DL-079). Command names began as the names of the bash scripts they replaced (DL-011). The semver contract covers the setup and CI commands (`init`, `update`, `install-rule`, `session-context` and `check-decision-edits`); the commands the skills run are internal and listed separately in `--help` (DL-056, DL-073).
 
 ## Decision Records, Index and Annotations
 
-Records are Markdown files with YAML frontmatter. Core parses them with a real YAML parser, but edits metadata line by line so a status change touches only one line of a hand-edited file, and renders new records from a fixed template (DL-014). `INDEX.md` comes from a single renderer (DL-018).
+Records are Markdown files with YAML frontmatter. Core parses them with a real YAML parser, but edits metadata line by line so a status change touches only one line of a hand-edited file, and renders new records from a fixed template (DL-014). An ID is `DL-` plus a decimal number of at least three digits, compared by number, so the log grows past DL-999; its canonical spelling is its identity, and `create-decision` rejects any other (DL-078). IDs are unique across namespaces: creating one that exists anywhere fails, only configured namespaces are accepted, and a lookup by ID refuses to pick between duplicates (DL-080). `INDEX.md` comes from a single renderer (DL-018), and `.gitattributes` merges it with git's union driver, so two branches that both add decisions do not conflict on it (DL-075). `related-decisions` computes the reverse links the format does not store: which later decisions amend or supersede a given one (DL-077).
 
-All annotation checks share one scanner. It walks git's file list (tracked and untracked, not ignored), skips the decisions directory and a built-in list of directories (DL-019), including agent configuration directories that hold installed skills (DL-060). It also skips files over 16 MB and unreadable files, reporting them rather than failing (DL-069). Projects exclude further paths with `annotation_exclude` git pathspecs (DL-023). `find-annotations` reports only IDs inside `@decision(...)` annotations, not plain mentions, so prose such as "replaces DL-005" is never mistaken for a code link (DL-022).
+All annotation checks share one scanner. It walks git's file list (tracked and untracked, not ignored), skips the decisions directory and a built-in list of directories (DL-019), including agent configuration directories that hold installed skills (DL-060). It also skips files over 16 MB and unreadable files, reporting them rather than failing (DL-069). Projects exclude further paths with `annotation_exclude` git pathspecs (DL-023). `find-annotations` reports only IDs inside `@decision(...)` annotations, not plain mentions, so prose such as "replaces DL-005" is never mistaken for a code link (DL-022). An annotation is the configured prefix, one canonical ID in parentheses and nothing else; text that looks like one but is not, such as spaces or two IDs inside the parentheses, gets a warning instead of being silently ignored, and `/dld-audit` lists it (DL-074).
 
 ## Audit and Snapshot
 
@@ -52,7 +52,7 @@ The audit and snapshot commands keep the output formats of the scripts they repl
 
 ## Reindex
 
-Decision IDs are sequential, so parallel branches can collide. `/dld-reindex` finds local records whose IDs are taken on the base branch or in open PRs, and plans renames to free IDs (DL-027). Open PRs are scanned through `Context.gh`, and a skipped scan is always reported, because it is the one case where the user could be misled about how safe the IDs are (DL-026). A record the branch inherited from an open PR below it (by git ancestry) is not a collision with that PR, though its ID still counts as taken (DL-065).
+Decision IDs are sequential, so parallel branches can collide. Reindex and the decision-edit checks compare against a base branch resolved from `base_branch` in the config, the upstream, `origin/HEAD`, `origin/main` or `main`, using only a ref that exists and failing with what it tried otherwise (DL-071). `/dld-reindex` finds local records whose IDs are taken on the base branch or in open PRs, and plans renames to free IDs (DL-027). Open PRs are scanned through `Context.gh`, and a skipped scan is always reported, because it is the one case where the user could be misled about how safe the IDs are (DL-026). A record the branch inherited from an open PR below it (by git ancestry) is not a collision with that PR, though its ID still counts as taken (DL-065).
 
 Every command that consumes the rename plan validates all of its lines before doing any work (DL-028). Renames rewrite annotations and mentions byte for byte through the scanner's file filter, and mentions in excluded files are surfaced for the agent to judge (DL-029). The result is committed on top of the branch with literal staging and a full rollback on failure, and the branch is squashed only when the user asks (DL-030, DL-064).
 
@@ -66,7 +66,7 @@ flowchart LR
 
 ## Decision Edits
 
-A record's prose locks when the record reaches the base branch, not when it is accepted. Drafts, including records still `proposed` at the merge-base, can be edited freely, and frontmatter other than `id` and `timestamp` stays editable at all times. `check-decision-edits` detects edits to integrated records exactly, through a git diff against the merge-base (DL-066). The `decision_edits` setting decides what agents do about them: `block` (the default) records an amendment or superseding decision instead, `ask` edits after confirmation, and `allow` edits (DL-067). The always-on rule states this, and the editing skills run the check as their last step, restoring prose with `restore-decision-prose` under `block` (DL-068).
+A record's prose locks when the record reaches the base branch, not when it is accepted. Drafts, including records still `proposed` at the merge-base, can be edited freely, and frontmatter other than `id` and `timestamp` stays editable at all times. `check-decision-edits` detects edits to integrated records exactly, through a git diff against the merge-base (DL-066). The `decision_edits` setting decides what agents do about them: `block` (the default) records an amendment or superseding decision instead, `ask` edits after confirmation, and `allow` edits (DL-067). The always-on rule states this, and the editing skills run the check as their last step, restoring prose with `restore-decision-prose` under `block` (DL-068). The same command is a supported CI gate: it exits 3 under `block` when a pull request edits merged prose, and a `Decision-Edit: DL-NNN` commit trailer marks a deliberate fix as `allowed` (DL-073).
 
 ## Skills: Templates, Generation and the Bundled CLI
 
@@ -74,17 +74,19 @@ Skill content exists only in `templates/skills/`. A small placeholder syntax abs
 
 Generated output is committed and checked byte for byte, and `check:generated` fails on hand edits, missing regeneration or orphaned files (DL-033). Every generated file carries one notice that holds wherever it is installed (DL-044). Each skill set ships a single copy of the bundled CLI in `dld-common/scripts/dld.mjs`, and building happens before generating, so a stale bundle cannot be committed (DL-035). Tessl packaging and the hand-maintained skill copy were retired (DL-034), and the development docs describe the CLI-only toolkit (DL-038).
 
+Two skill behaviours guard against acting on the wrong decision. `/dld-lookup` lists the decisions that amend or supersede the one it reads, follows chains of superseded amendments, and tells the agent to follow the newest accepted decision (DL-077). `/dld-implement` without arguments asks which proposed decisions to implement, offering only those added on the current branch by default (DL-076).
+
 ## Project Setup and the Always-On Rule
 
-`dld init` sets up DLD in a project without an agent session: config, directories, index, skills and the always-on rule. It refuses to run twice, and `dld update` refreshes everything afterwards (DL-040). Harnesses are targeted by name (`claude`, `antigravity`, `codex`, `cursor`, `opencode`, `pi`), detected from markers in the project and confirmed interactively, or given with `--agent` (DL-041). The CLI renders the skills from its bundled templates and copies itself into `dld-common`, so installed skills match the CLI that installed them (DL-042). `update` owns the `dld-*` directories: it overwrites and prunes them, and refuses to downgrade skills a newer version installed (DL-043). It coexists with `npx skills` and `gh skill` installs, refusing symlinked copies it cannot safely own, and CI checks both installers (DL-051).
+`dld init` sets up DLD in a project without an agent session: config, directories, index, skills and the always-on rule. It refuses to run twice, and `dld update` refreshes everything afterwards (DL-040). Harnesses are targeted by name (`claude`, `antigravity`, `codex`, `cursor`, `opencode`, `pi`), detected from markers in the project and confirmed interactively, or given with `--agent` (DL-041). The CLI renders the skills from its bundled templates and copies itself into `dld-common`, so installed skills match the CLI that installed them (DL-042). `update` owns dld-kit's `dld-*` directories: it overwrites and prunes them, and refuses to downgrade skills a newer version installed (DL-043). It counts a directory as dld-kit's only by a shipped skill name, or by a stamp whose generated notice names that same directory, so a user's own `dld-*` skill and an edited `.claude/CLAUDE.md` are left in place with a warning, and every removed file is named (DL-072). `init` and `update` also add the union-merge line for `INDEX.md` to `.gitattributes` (DL-075). It coexists with `npx skills` and `gh skill` installs, refusing symlinked copies it cannot safely own, and CI checks both installers (DL-051).
 
-The always-on rule has one source, `templates/rules/dld-workflow.md`. It is delivered through files dld-kit owns where a harness supports them (`.claude/rules/`, `.agents/rules/`), and otherwise through a marked block in AGENTS.md or CLAUDE.md, so that each harness loads it exactly once (DL-045). Which instruction files each harness reads, and where a new block goes, follows the harnesses' documented behaviour: Cursor reads both files, OpenCode only AGENTS.md, and a new block goes where every target harness can see it (DL-054, DL-061). Claude Code gets an AGENTS.md block through a dld-kit `.claude/CLAUDE.md` import (DL-055). The dld-init skill installs the rule through the CLI, and this repository uses the same channel (DL-047).
+The always-on rule has one source, `templates/rules/dld-workflow.md`, rendered with the project's `annotation_prefix` (DL-074). It is delivered through files dld-kit owns where a harness supports them (`.claude/rules/`, `.agents/rules/`), and otherwise through a marked block in AGENTS.md or CLAUDE.md, so that each harness loads it exactly once (DL-045). Which instruction files each harness reads, and where a new block goes, follows the harnesses' documented behaviour: Cursor reads both files, OpenCode only AGENTS.md, and a new block goes where every target harness can see it (DL-054, DL-061). Claude Code gets an AGENTS.md block through a dld-kit `.claude/CLAUDE.md` import (DL-055). The dld-init skill installs the rule through the CLI, and this repository uses the same channel (DL-047).
 
 ## Distribution and Releases
 
 Users install dld-kit through several channels. The npm package provides `dld init`. The portable `skills/` directory serves `npx skills`, `gh skill`, and Codex and Copilot CLI through an Agent Plugins manifest and their own marketplace files; Pi installs it as a package (DL-050). A Claude Code plugin is generated into `claude-plugin/` with a marketplace in the same repository (DL-048). The plugin's SessionStart hook prints the rule through `dld session-context`, unless the project already loads it, and it stays silent on failure (DL-049).
 
-`package.json` holds the only version. `npm version` regenerates every stamp and manifest into one commit and tag, and the tag triggers a release workflow that publishes to npm with trusted publishing and creates the GitHub release (DL-052). 1.0 is going out as release candidates, and 1.0.0 is released only once they run clean (DL-058). `v1` has been merged into `main`, which is now the release branch, and each candidate becomes the default install (DL-062). Pre-1.0 installs migrate with `dld update` (DL-057). The README is a short entry point organised around the install channels, with reference material under `docs/` (DL-053, DL-063).
+`package.json` holds the only version (DL-052). Releases go through Changesets: every pull request adds a changeset, which CI enforces, and pending changesets on `main` open a "Version Packages" pull request that bumps the version and regenerates every stamp and manifest. Merging it publishes: a read-only job checks and packs the release, a job in the `npm` environment publishes that tarball through trusted publishing without running project code, and a third creates the tag and the GitHub release from the changelog (DL-081). 1.0 is going out as release candidates from `main`, in Changesets pre mode, and 1.0.0 is released only once they run clean (DL-058). Each candidate is the default install, npm `latest` and the latest GitHub release, without manual steps (DL-062, DL-081). Pre-1.0 installs migrate with `dld update` (DL-057). The README is a short entry point organised around the install channels, with reference material under `docs/` (DL-053, DL-063).
 
 ## Decision Relationships
 
@@ -129,9 +131,26 @@ graph LR
     DL062["DL-062"] -.->|"amends"| DL058
     DL063["DL-063"] -.->|"amends"| DL053["DL-053"]
     DL063 -.->|"amends"| DL057["DL-057"]
+    DL071["DL-071"] -.->|"amends"| DL027
+    DL071 -.->|"amends"| DL066["DL-066"]
+    DL071 -.->|"amends"| DL009
+    DL073["DL-073"] -.->|"amends"| DL066
+    DL073 -.->|"amends"| DL056
+    DL079["DL-079"] -.->|"amends"| DL009
+    DL072["DL-072"] -.->|"amends"| DL043
+    DL072 -.->|"amends"| DL055
+    DL074["DL-074"] -.->|"amends"| DL019
+    DL074 -.->|"amends"| DL022["DL-022"]
+    DL074 -.->|"amends"| DL045
+    DL075["DL-075"] -.->|"amends"| DL018["DL-018"]
+    DL075 -.->|"amends"| DL040["DL-040"]
+    DL078["DL-078"] -.->|"amends"| DL014["DL-014"]
+    DL081["DL-081"] -.->|"amends"| DL052
+    DL081 -.->|"amends"| DL062
+    DL081 -.->|"amends"| DL005
 ```
 
-The densest cluster is rule delivery: DL-045's channels were refined four times as real harness behaviour was tested (DL-049, DL-054, DL-055, DL-061). The annotation scanner (DL-019) and the generator decisions (DL-031 to DL-033) also gathered amendments as the toolkit moved from a port of the bash scripts to a CLI with its own install paths.
+The densest cluster is rule delivery: DL-045's channels were refined four times as real harness behaviour was tested (DL-049, DL-054, DL-055, DL-061). The annotation scanner (DL-019) and the generator decisions (DL-031 to DL-033) also gathered amendments as the toolkit moved from a port of the bash scripts to a CLI with its own install paths. The pre-1.0 hardening decisions (DL-071 to DL-080) mostly amend earlier ones, tightening behaviour the 1.0 contract freezes, and the release process went from tags to Changesets (DL-052, DL-062, DL-081).
 
 ## Key Technical Choices
 
@@ -143,5 +162,6 @@ The densest cluster is rule delivery: DL-045's channels were refined four times 
 - `.dld-state.yaml` read with the failsafe schema, one section at a time (DL-021)
 - The always-on rule reaches each harness exactly once, through owned files or a managed block (DL-045)
 - Decision prose locks on the base branch; frontmatter stays editable (DL-066)
-- `package.json` is the only version source; releases publish from tags with npm trusted publishing (DL-052)
-- Only the setup commands are under semver; the commands the skills run are internal (DL-056)
+- `package.json` is the only version source; releases go through a Changesets Version Packages pull request and npm trusted publishing (DL-052, DL-081)
+- Only the setup and CI commands are under semver; the commands the skills run are internal (DL-056, DL-073)
+- Decision IDs are `DL-` plus at least three digits, compared by number, unique across namespaces (DL-078, DL-080)
