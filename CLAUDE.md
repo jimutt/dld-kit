@@ -68,7 +68,7 @@ npm run check:pack   # npm pack dry-run against the files allowlist
 npm run check:installers  # install the skills with a pinned npx skills (needs network; after build)
 ```
 
-Releases: `npm version <x>` and push the tag; `.github/workflows/release.yml` publishes. See `docs/releasing.md`.
+Releases (DL-081): every PR adds a changeset (`npx changeset`, or `npx changeset --empty` when nothing shipped changes); merging the "Version Packages" PR that `.github/workflows/release.yml` opens publishes. See `docs/releasing.md`.
 
 Adding a command (DL-011): put its logic in `src/core/` with unit tests, add a module under `src/cli/commands/`, register it in `src/cli/index.ts`, cover it in `src/cli/commands.test.ts`, then call it from templates with `{{dld}} <command>` and run `npm run generate`.
 

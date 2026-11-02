@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-081 | Release through Changesets: a Version Packages pull request, then the verify, publish and release jobs | accepted | release, ci, github-actions |
 | DL-080 | Decision IDs are unique across namespaces, and create-decision accepts only configured namespaces | accepted | v1-hardening, records, namespaces |
 | DL-079 | Warn about unknown keys in dld.config.yaml | accepted | v1-hardening, config |
 | DL-078 | Decision IDs are DL- plus a decimal number of at least three digits, compared by number | accepted | v1-hardening, records |
