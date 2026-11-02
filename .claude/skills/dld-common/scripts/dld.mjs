@@ -4000,10 +4000,10 @@ var require_resolve_block_map = __commonJS({
       let offset = bm.offset;
       let commentEnd = null;
       for (const collItem of bm.items) {
-        const { start, key, sep: sep7, value } = collItem;
+        const { start, key, sep: sep9, value } = collItem;
         const keyProps = resolveProps.resolveProps(start, {
           indicator: "explicit-key-ind",
-          next: key ?? sep7?.[0],
+          next: key ?? sep9?.[0],
           offset,
           onError,
           parentIndent: bm.indent,
@@ -4017,7 +4017,7 @@ var require_resolve_block_map = __commonJS({
             else if ("indent" in key && key.indent !== bm.indent)
               onError(offset, "BAD_INDENT", startColMsg);
           }
-          if (!keyProps.anchor && !keyProps.tag && !sep7) {
+          if (!keyProps.anchor && !keyProps.tag && !sep9) {
             commentEnd = keyProps.end;
             if (keyProps.comment) {
               if (map.comment)
@@ -4041,7 +4041,7 @@ var require_resolve_block_map = __commonJS({
         ctx.atKey = false;
         if (utilMapIncludes.mapIncludes(ctx, map.items, keyNode))
           onError(keyStart, "DUPLICATE_KEY", "Map keys must be unique");
-        const valueProps = resolveProps.resolveProps(sep7 ?? [], {
+        const valueProps = resolveProps.resolveProps(sep9 ?? [], {
           indicator: "map-value-ind",
           next: value,
           offset: keyNode.range[2],
@@ -4057,7 +4057,7 @@ var require_resolve_block_map = __commonJS({
             if (ctx.options.strict && keyProps.start < valueProps.found.offset - 1024)
               onError(keyNode.range, "KEY_OVER_1024_CHARS", "The : indicator must be at most 1024 chars after the start of an implicit block mapping key");
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep7, null, valueProps, onError);
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : composeEmptyNode(ctx, offset, sep9, null, valueProps, onError);
           if (ctx.schema.compat)
             utilFlowIndentCheck.flowIndentCheck(bm.indent, value, onError);
           offset = valueNode.range[2];
@@ -4148,7 +4148,7 @@ var require_resolve_end = __commonJS({
       let comment = "";
       if (end) {
         let hasSpace = false;
-        let sep7 = "";
+        let sep9 = "";
         for (const token of end) {
           const { source, type } = token;
           switch (type) {
@@ -4162,13 +4162,13 @@ var require_resolve_end = __commonJS({
               if (!comment)
                 comment = cb;
               else
-                comment += sep7 + cb;
-              sep7 = "";
+                comment += sep9 + cb;
+              sep9 = "";
               break;
             }
             case "newline":
               if (comment)
-                sep7 += source;
+                sep9 += source;
               hasSpace = true;
               break;
             default:
@@ -4211,18 +4211,18 @@ var require_resolve_flow_collection = __commonJS({
       let offset = fc.offset + fc.start.source.length;
       for (let i = 0; i < fc.items.length; ++i) {
         const collItem = fc.items[i];
-        const { start, key, sep: sep7, value } = collItem;
+        const { start, key, sep: sep9, value } = collItem;
         const props = resolveProps.resolveProps(start, {
           flow: fcName,
           indicator: "explicit-key-ind",
-          next: key ?? sep7?.[0],
+          next: key ?? sep9?.[0],
           offset,
           onError,
           parentIndent: fc.indent,
           startOnNewline: false
         });
         if (!props.found) {
-          if (!props.anchor && !props.tag && !sep7 && !value) {
+          if (!props.anchor && !props.tag && !sep9 && !value) {
             if (i === 0 && props.comma)
               onError(props.comma, "UNEXPECTED_TOKEN", `Unexpected , in ${fcName}`);
             else if (i < fc.items.length - 1)
@@ -4276,8 +4276,8 @@ var require_resolve_flow_collection = __commonJS({
             }
           }
         }
-        if (!isMap2 && !sep7 && !props.found) {
-          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep7, null, props, onError);
+        if (!isMap2 && !sep9 && !props.found) {
+          const valueNode = value ? composeNode(ctx, value, props, onError) : composeEmptyNode(ctx, props.end, sep9, null, props, onError);
           coll.items.push(valueNode);
           offset = valueNode.range[2];
           if (isBlock(value))
@@ -4289,7 +4289,7 @@ var require_resolve_flow_collection = __commonJS({
           if (isBlock(key))
             onError(keyNode.range, "BLOCK_IN_FLOW", blockMsg);
           ctx.atKey = false;
-          const valueProps = resolveProps.resolveProps(sep7 ?? [], {
+          const valueProps = resolveProps.resolveProps(sep9 ?? [], {
             flow: fcName,
             indicator: "map-value-ind",
             next: value,
@@ -4300,8 +4300,8 @@ var require_resolve_flow_collection = __commonJS({
           });
           if (valueProps.found) {
             if (!isMap2 && !props.found && ctx.options.strict) {
-              if (sep7)
-                for (const st of sep7) {
+              if (sep9)
+                for (const st of sep9) {
                   if (st === valueProps.found)
                     break;
                   if (st.type === "newline") {
@@ -4318,7 +4318,7 @@ var require_resolve_flow_collection = __commonJS({
             else
               onError(valueProps.start, "MISSING_CHAR", `Missing , or : between ${fcName} items`);
           }
-          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep7, null, valueProps, onError) : null;
+          const valueNode = value ? composeNode(ctx, value, valueProps, onError) : valueProps.found ? composeEmptyNode(ctx, valueProps.end, sep9, null, valueProps, onError) : null;
           if (valueNode) {
             if (isBlock(value))
               onError(valueNode.range, "BLOCK_IN_FLOW", blockMsg);
@@ -4498,7 +4498,7 @@ var require_resolve_block_scalar = __commonJS({
           chompStart = i + 1;
       }
       let value = "";
-      let sep7 = "";
+      let sep9 = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
@@ -4515,24 +4515,24 @@ var require_resolve_block_scalar = __commonJS({
           indent = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep7 + indent.slice(trimIndent) + content;
-          sep7 = "\n";
+          value += sep9 + indent.slice(trimIndent) + content;
+          sep9 = "\n";
         } else if (indent.length > trimIndent || content[0] === "	") {
-          if (sep7 === " ")
-            sep7 = "\n";
-          else if (!prevMoreIndented && sep7 === "\n")
-            sep7 = "\n\n";
-          value += sep7 + indent.slice(trimIndent) + content;
-          sep7 = "\n";
+          if (sep9 === " ")
+            sep9 = "\n";
+          else if (!prevMoreIndented && sep9 === "\n")
+            sep9 = "\n\n";
+          value += sep9 + indent.slice(trimIndent) + content;
+          sep9 = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
-          if (sep7 === "\n")
+          if (sep9 === "\n")
             value += "\n";
           else
-            sep7 = "\n";
+            sep9 = "\n";
         } else {
-          value += sep7 + content;
-          sep7 = " ";
+          value += sep9 + content;
+          sep9 = " ";
           prevMoreIndented = false;
         }
       }
@@ -4715,25 +4715,25 @@ var require_resolve_flow_scalar = __commonJS({
         trimBoth = /^[ \t]+|[ \t]+$/g;
       }
       let res = match[1].replace(trimEnd, "");
-      let sep7 = " ";
+      let sep9 = " ";
       let pos = line.lastIndex;
       while (match = line.exec(source)) {
         const lm = match[1].replace(trimBoth, "");
         if (lm === "") {
-          if (sep7 === "\n")
-            res += sep7;
+          if (sep9 === "\n")
+            res += sep9;
           else
-            sep7 = "\n";
+            sep9 = "\n";
         } else {
-          res += sep7 + lm;
-          sep7 = " ";
+          res += sep9 + lm;
+          sep9 = " ";
         }
         pos = line.lastIndex;
       }
       const last = /[ \t]*(.*)/sy;
       last.lastIndex = pos;
       match = last.exec(source);
-      return res + sep7 + (match?.[1] ?? "");
+      return res + sep9 + (match?.[1] ?? "");
     }
     function doubleQuotedValue(source, onError) {
       let res = "";
@@ -5543,14 +5543,14 @@ var require_cst_stringify = __commonJS({
         }
       }
     }
-    function stringifyItem({ start, key, sep: sep7, value }) {
+    function stringifyItem({ start, key, sep: sep9, value }) {
       let res = "";
       for (const st of start)
         res += st.source;
       if (key)
         res += stringifyToken(key);
-      if (sep7)
-        for (const st of sep7)
+      if (sep9)
+        for (const st of sep9)
           res += st.source;
       if (value)
         res += stringifyToken(value);
@@ -6717,18 +6717,18 @@ var require_parser = __commonJS({
         if (this.type === "map-value-ind") {
           const prev = getPrevProps(this.peek(2));
           const start = getFirstKeyStartProps(prev);
-          let sep7;
+          let sep9;
           if (scalar.end) {
-            sep7 = scalar.end;
-            sep7.push(this.sourceToken);
+            sep9 = scalar.end;
+            sep9.push(this.sourceToken);
             delete scalar.end;
           } else
-            sep7 = [this.sourceToken];
+            sep9 = [this.sourceToken];
           const map = {
             type: "block-map",
             offset: scalar.offset,
             indent: scalar.indent,
-            items: [{ start, key: scalar, sep: sep7 }]
+            items: [{ start, key: scalar, sep: sep9 }]
           };
           this.onKeyLine = true;
           this.stack[this.stack.length - 1] = map;
@@ -6881,15 +6881,15 @@ var require_parser = __commonJS({
                 } else if (isFlowToken(it.key) && !includesToken(it.sep, "newline")) {
                   const start2 = getFirstKeyStartProps(it.start);
                   const key = it.key;
-                  const sep7 = it.sep;
-                  sep7.push(this.sourceToken);
+                  const sep9 = it.sep;
+                  sep9.push(this.sourceToken);
                   delete it.key;
                   delete it.sep;
                   this.stack.push({
                     type: "block-map",
                     offset: this.offset,
                     indent: this.indent,
-                    items: [{ start: start2, key, sep: sep7 }]
+                    items: [{ start: start2, key, sep: sep9 }]
                   });
                 } else if (start.length > 0) {
                   it.sep = it.sep.concat(start, this.sourceToken);
@@ -7083,13 +7083,13 @@ var require_parser = __commonJS({
             const prev = getPrevProps(parent);
             const start = getFirstKeyStartProps(prev);
             fixFlowSeqItems(fc);
-            const sep7 = fc.end.splice(1, fc.end.length);
-            sep7.push(this.sourceToken);
+            const sep9 = fc.end.splice(1, fc.end.length);
+            sep9.push(this.sourceToken);
             const map = {
               type: "block-map",
               offset: fc.offset,
               indent: fc.indent,
-              items: [{ start, key: fc, sep: sep7 }]
+              items: [{ start, key: fc, sep: sep9 }]
             };
             this.onKeyLine = true;
             this.stack[this.stack.length - 1] = map;
@@ -7991,7 +7991,10 @@ function editBase(ctx, project, base) {
 function checkDecisionEdits(ctx, { paths }, base, ids = [], { uncommitted = false } = {}) {
   const git = gitAt(ctx, paths.root);
   const records = integratedRecords(ctx, paths, base);
-  const stateOf = (id) => {
+  const allowed = uncommitted ? /* @__PURE__ */ new Set() : trailerIds(git, records.onto);
+  const allow = (edit) => (edit.state === "edited" || edit.state === "deleted") && allowed.has(edit.id) ? { ...edit, state: "allowed" } : edit;
+  const stateOf = (id) => allow(rawStateOf(id));
+  const rawStateOf = (id) => {
     const located = locate(ctx, paths, records, id);
     if (located === void 0) {
       const local = findRecordFile(ctx, paths.recordsDir, id, paths.root);
@@ -8023,7 +8026,17 @@ function checkDecisionEdits(ctx, { paths }, base, ids = [], { uncommitted = fals
   const candidates = new Set(
     changed.map((path) => basename4(path)).filter((name) => RECORD_FILE.test(name)).map((name) => basename4(name, ".md")).filter((id) => records.byId.has(id))
   );
-  return [...candidates].map(stateOf).filter(({ state }) => state === "edited" || state === "deleted").sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  return [...candidates].map(stateOf).filter(({ state }) => state === "edited" || state === "deleted" || state === "allowed").sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+}
+var EDIT_TRAILER = "Decision-Edit";
+function trailerIds(git, onto) {
+  const values = gitOrEmpty(
+    git,
+    "log",
+    `--format=%(trailers:key=${EDIT_TRAILER},valueonly)`,
+    `${onto}..HEAD`
+  );
+  return new Set(values.split(/[\s,]+/).filter((value) => DECISION_ID.test(value)));
 }
 function integratedRecords(ctx, paths, base) {
   const onto = mergeBase(ctx, paths, base);
@@ -8333,17 +8346,20 @@ function skippedNotice(reason) {
 var EXIT_BLOCKED = 3;
 var checkDecisionEditsCommand = {
   name: "check-decision-edits",
-  summary: "List edits to the prose of decisions already on the base branch",
-  internal: true,
+  summary: "List edits to the prose of decisions already on the base branch (CI gate)",
   usage: `Usage: dld check-decision-edits [--base <ref>] [--uncommitted] [DL-NNN ...]
 
 A decision is integrated when it exists at the merge-base of the base branch and HEAD;
 otherwise it is a draft (so is one still proposed there). Without IDs, print
-<path>\\t<DL-NNN>\\tedited for each integrated decision whose body (the text after the
-frontmatter), id or timestamp changed, and deleted for each that is gone. With IDs, print one line per ID with its state: draft, integrated, edited or deleted.
+<path>\\t<DL-NNN>\\t<state> for each integrated decision whose body (the text after the
+frontmatter), id or timestamp changed (edited), or that is gone (deleted). With IDs, print
+one line per ID with its state: draft, integrated, edited, deleted or allowed.
+
+A commit on the branch with a "Decision-Edit: DL-NNN[, DL-NNN ...]" trailer allows edits to
+the decisions it names: they are printed as allowed. Trailers do not apply with --uncommitted.
 
 Without IDs, exits 3 when decision_edits is block (the default) and an edited or deleted
-decision was printed. With IDs, and otherwise, exits 0.
+decision was printed. With IDs, and otherwise, exits 0. Errors exit 1, usage errors 2.
 
 Options:
   --base <ref>     Base ref (${DEFAULT_BASE_HELP})
@@ -10617,6 +10633,49 @@ ${AGENT_HELP}
   }
 };
 
+// src/core/proposed.ts
+import { basename as basename8, relative as relative12, sep as sep7 } from "node:path";
+function listProposed(ctx, project, base) {
+  const { paths } = project;
+  const atBase = integratedRecords(ctx, paths, base).byId;
+  return listRecordFiles(ctx, paths.recordsDir).map((file) => {
+    const path = relative12(paths.root, file).split(sep7).join("/");
+    return { file, path, record: parseRecord(ctx.fs.readFile(file), path) };
+  }).filter(({ record }) => record.status === "proposed").sort((a, b) => recordNumber(a.file) - recordNumber(b.file)).map(({ file, path, record }) => {
+    const id = basename8(file, ".md");
+    return { id, title: record.title, path, addedOnBranch: !atBase.has(id) };
+  });
+}
+function formatProposed({ id, title, addedOnBranch }) {
+  return `${id}	${addedOnBranch ? "branch" : "base"}	${title}`;
+}
+
+// src/cli/commands/list-proposed.ts
+var listProposedCommand = {
+  name: "list-proposed",
+  summary: "List proposed decisions, marking those added on this branch",
+  internal: true,
+  usage: `Usage: dld list-proposed [--base <ref>]
+
+Print <DL-NNN>\\t<branch|base>\\t<title> for each proposed decision, ascending by ID: branch
+when its file does not exist at the merge-base with the base branch (added on this branch,
+committed or not), base otherwise.
+
+Options:
+  --base <ref>  Base ref (${DEFAULT_BASE_HELP})
+`,
+  run(args, io, ctx) {
+    const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    for (const proposed of listProposed(ctx, project, base)) {
+      io.stdout(`${formatProposed(proposed)}
+`);
+    }
+    return EXIT_OK;
+  }
+};
+
 // src/cli/commands/list-taken-ids.ts
 var listTakenIdsCommand = {
   name: "list-taken-ids",
@@ -10683,7 +10742,7 @@ Options:
 };
 
 // src/cli/commands/regenerate-index.ts
-import { basename as basename8, relative as relative12 } from "node:path";
+import { basename as basename9, relative as relative13 } from "node:path";
 var regenerateIndexCommand = {
   name: "regenerate-index",
   summary: "Rebuild INDEX.md from the decision records",
@@ -10705,13 +10764,82 @@ Options:
       throw new DldError(`records directory not found at ${paths.recordsDir}`);
     }
     for (const files of duplicateRecordFiles(ctx, paths.recordsDir)) {
-      const ids = [...new Set(files.map((path) => basename8(path, ".md")))].join(" / ");
-      const shown = files.map((path) => relative12(paths.root, path)).join(", ");
+      const ids = [...new Set(files.map((path) => basename9(path, ".md")))].join(" / ");
+      const shown = files.map((path) => relative13(paths.root, path)).join(", ");
       ctx.warn(`${ids} is in more than one file: ${shown}`);
     }
     const rows = collectIndexRows(ctx, paths, values["include-base"]);
     writeIndex(ctx, paths, renderIndex(rows, config.mode));
     io.stdout(rows.length === 0 ? "INDEX.md regenerated (empty).\n" : "INDEX.md regenerated.\n");
+    return EXIT_OK;
+  }
+};
+
+// src/core/related.ts
+import { basename as basename10, relative as relative14, sep as sep8 } from "node:path";
+var RELATIONS = ["amends", "supersedes", "amended-by", "superseded-by"];
+var idNumber3 = (id) => Number.parseInt(id.slice(3), 10);
+function relatedDecisions(ctx, project, id) {
+  const { paths } = project;
+  const targetFile = findRecordFile(ctx, paths.recordsDir, id, paths.root);
+  if (targetFile === void 0) throw new DldError(`decision ${id} not found.`);
+  const records = listRecordFiles(ctx, paths.recordsDir).map((file) => {
+    const path = relative14(paths.root, file).split(sep8).join("/");
+    return { file, id: basename10(file, ".md"), record: parseRecord(ctx.fs.readFile(file), path) };
+  });
+  const byId = new Map(records.map((entry) => [entry.id, entry.record]));
+  const target = parseRecord(ctx.fs.readFile(targetFile), relative14(paths.root, targetFile));
+  const related = [];
+  const add = (relation, other) => {
+    const record = byId.get(other);
+    related.push({
+      relation,
+      id: other,
+      status: record?.status ?? "missing",
+      title: record?.title ?? ""
+    });
+  };
+  for (const other of target.amends) add("amends", other);
+  for (const other of target.supersedes) add("supersedes", other);
+  for (const entry of records) {
+    if (entry.file === targetFile) continue;
+    if (entry.record.amends.includes(id)) add("amended-by", entry.id);
+    if (entry.record.supersedes.includes(id)) add("superseded-by", entry.id);
+  }
+  return related.sort(
+    (a, b) => idNumber3(a.id) - idNumber3(b.id) || RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation)
+  );
+}
+function formatRelated({ relation, id, status, title }) {
+  return `${relation}	${id}	${status}	${title}`;
+}
+
+// src/cli/commands/related-decisions.ts
+var relatedDecisionsCommand = {
+  name: "related-decisions",
+  summary: "List the decisions a decision amends or supersedes, and those that amend or supersede it",
+  internal: true,
+  usage: `Usage: dld related-decisions <DL-NNN>
+
+Print <relation>\\t<DL-NNN>\\t<status>\\t<title> for each related decision, ascending by ID.
+Relations: amends and supersedes (from the decision's own frontmatter), amended-by and
+superseded-by (records whose amends or supersedes list it). A listed ID with no record has
+status missing. Exits 1 if the decision does not exist.
+`,
+  run(args, io, ctx) {
+    const { positionals } = parseCommandArgs({
+      args: [...args],
+      options: {},
+      allowPositionals: true
+    });
+    const [id, ...extra] = positionals;
+    if (id === void 0 || !DECISION_ID.test(id))
+      throw new UsageError("expected one decision ID like DL-001");
+    if (extra.length > 0) throw new UsageError(`unexpected argument '${extra[0]}'`);
+    for (const related of relatedDecisions(ctx, loadProject(ctx), id)) {
+      io.stdout(`${formatRelated(related)}
+`);
+    }
     return EXIT_OK;
   }
 };
@@ -11027,15 +11155,17 @@ var COMMANDS = [
   updateCommand,
   installRuleCommand,
   sessionContextCommand,
+  checkDecisionEditsCommand,
   createConfigCommand,
   createDirectoriesCommand,
   createEmptyIndexCommand,
   nextIdCommand,
   createDecisionCommand,
   updateStatusCommand,
+  listProposedCommand,
+  relatedDecisionsCommand,
   regenerateIndexCommand,
   verifyAnnotationsCommand,
-  checkDecisionEditsCommand,
   restoreDecisionProseCommand,
   findAnnotationsCommand,
   findMissingAmendsCommand,
@@ -11057,7 +11187,7 @@ function usage(commands) {
   const list = (group) => group.map((c) => `  ${c.name.padEnd(25)} ${c.summary}`).join("\n");
   const setup = commands.filter((c) => !c.internal);
   const internal = commands.filter((c) => c.internal);
-  const sections = [`Setup commands:
+  const sections = [`Setup and CI commands:
 ${list(setup)}`];
   if (internal.length > 0) sections.push(`${INTERNAL_HEADING}:
 ${list(internal)}`);

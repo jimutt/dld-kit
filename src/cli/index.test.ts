@@ -35,7 +35,13 @@ describe("run", () => {
       "Commands the skills run (internal; may change in minor releases):\n",
     );
     const names = (text = "") => [...text.matchAll(/^ {2}([a-z-]+) /gm)].map((m) => m[1]);
-    expect(names(setup)).toEqual(["init", "update", "install-rule", "session-context"]);
+    expect(names(setup)).toEqual([
+      "init",
+      "update",
+      "install-rule",
+      "session-context",
+      "check-decision-edits",
+    ]);
     expect(names(internal)).toEqual(
       COMMANDS.filter((command) => command.internal).map((command) => command.name),
     );

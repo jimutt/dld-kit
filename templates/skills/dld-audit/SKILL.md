@@ -12,7 +12,7 @@ You are scanning the codebase for drift between decision records and code annota
 
 {{dld-setup}}
 
-This skill uses: `find-annotations`, `find-missing-amends`, `update-audit-state`.
+This skill uses: `find-annotations`, `related-decisions`, `find-missing-amends`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -54,7 +54,7 @@ Annotations referencing decisions with status `deprecated` or `superseded`. Code
 
 #### b2) Annotations referencing amended decisions
 
-Annotations referencing decisions that have been amended by a newer decision (check all decisions for `amends` fields that reference this ID). This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
+Annotations referencing decisions that have been amended by a newer decision: `{{dld}} related-decisions DL-NNN` prints an `amended-by` line for each. This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
 
 #### c) Stale references in decisions
 

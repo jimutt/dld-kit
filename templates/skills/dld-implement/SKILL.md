@@ -12,7 +12,7 @@ You are implementing one or more `proposed` decisions by making code changes, ad
 
 {{dld-setup}}
 
-This skill uses: `update-status`, `check-decision-edits`, `restore-decision-prose`, `verify-annotations`, `regenerate-index`.
+This skill uses: `list-proposed`, `related-decisions`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `verify-annotations`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -20,7 +20,11 @@ This skill uses: `update-status`, `check-decision-edits`, `restore-decision-pros
 2. Parse the user's input to identify which decision(s) to implement:
    - Specific IDs: `DL-005`, `DL-005 DL-006`
    - By tag: `tag:payment-gateway`
-   - **No arguments:** If the user runs `/dld-implement` without specifying decisions, find all decisions with `status: proposed` in the records subdirectory (`decisions/records/`) and implement all of them.
+   - **No arguments:** list the proposed decisions:
+     ```bash
+     {{dld}} list-proposed
+     ```
+     Each line is `<DL-NNN>\t<branch|base>\t<title>`: `branch` marks a decision added on this branch, `base` one that was already on the base branch (often someone else's plan). Ask with `AskUserQuestion` which to implement. Offer this branch's decisions as the default, and list the others separately, never selected by default. If there are none on this branch, show the others and ask. Never start implementing without the user confirming the list. If there are no proposed decisions, tell the user and stop. If the command can't find the base branch, show every proposed decision and ask the same way.
 3. Read each referenced decision file. Verify they exist and have `status: proposed`. If a decision is already `accepted`, tell the user and skip it. If it doesn't exist, report the error.
 
 ## Read project context
@@ -46,7 +50,7 @@ Read each decision record carefully. Understand:
 - What was decided
 - The rationale and constraints
 - The code areas referenced
-- Any superseded or amended decisions (read those too for context on what changed)
+- Any superseded or amended decisions (read those too for context on what changed). `{{dld}} related-decisions DL-NNN` lists them in both directions, including later decisions that already amend the one you are implementing
 
 ### 2. Make code changes
 

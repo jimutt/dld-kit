@@ -15,7 +15,7 @@ You are scanning the codebase for drift between decision records and code annota
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `find-annotations`, `find-missing-amends`, `update-audit-state`.
+This skill uses: `find-annotations`, `related-decisions`, `find-missing-amends`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -57,7 +57,7 @@ Annotations referencing decisions with status `deprecated` or `superseded`. Code
 
 #### b2) Annotations referencing amended decisions
 
-Annotations referencing decisions that have been amended by a newer decision (check all decisions for `amends` fields that reference this ID). This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
+Annotations referencing decisions that have been amended by a newer decision: `node "<skill-dir>/../dld-common/scripts/dld.mjs" related-decisions DL-NNN` prints an `amended-by` line for each. This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
 
 #### c) Stale references in decisions
 

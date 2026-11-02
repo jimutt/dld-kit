@@ -16,7 +16,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 {{dld-setup}}
 
-This skill uses: `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
+This skill uses: `related-decisions`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ The user may specify decision IDs explicitly (e.g., `/dld-adjust DL-005`), but o
 - **Explicit IDs provided** — use those directly.
 - **No IDs provided** — infer which decision(s) the user is referring to from the conversation context. If decisions were recently created or discussed in this session, assume those are the target. If it's still ambiguous, ask using `AskUserQuestion`.
 
-Find and read each decision file. If a decision ID is not found, report the error and continue with any remaining valid IDs.
+Find and read each decision file. If a decision ID is not found, report the error and continue with any remaining valid IDs. Run `{{dld}} related-decisions DL-NNN` for each, so you know which decisions it amends or supersedes and which later decisions already amend or supersede it.
 
 ## Step 2: Determine if confirmation is needed
 
@@ -52,7 +52,7 @@ Each line ends with the decision's state.
 
 The decision is not on the base branch yet, or is still `proposed` there. Edit freely, whatever its status. No confirmation needed.
 
-### On the base branch (`integrated` or `edited`)
+### On the base branch (`integrated`, `edited` or `allowed`)
 
 The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can always be updated, except `id` and `timestamp`, which never change. For the prose (the body below the frontmatter), follow `decision_edits` in `dld.config.yaml` (default `block`):
 

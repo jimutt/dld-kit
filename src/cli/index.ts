@@ -23,10 +23,12 @@ import { findMissingAmendsCommand } from "./commands/find-missing-amends.ts";
 import { findStaleMentionsCommand } from "./commands/find-stale-mentions.ts";
 import { initCommand } from "./commands/init.ts";
 import { installRuleCommand } from "./commands/install-rule.ts";
+import { listProposedCommand } from "./commands/list-proposed.ts";
 import { listTakenIdsCommand } from "./commands/list-taken-ids.ts";
 import { nextIdCommand } from "./commands/next-id.ts";
 import { planRenamesCommand } from "./commands/plan-renames.ts";
 import { regenerateIndexCommand } from "./commands/regenerate-index.ts";
+import { relatedDecisionsCommand } from "./commands/related-decisions.ts";
 import { renameDecisionCommand } from "./commands/rename-decision.ts";
 import { resolveBaseCommand } from "./commands/resolve-base.ts";
 import { restoreDecisionProseCommand } from "./commands/restore-decision-prose.ts";
@@ -37,20 +39,23 @@ import { updateSnapshotStateCommand } from "./commands/update-snapshot-state.ts"
 import { updateStatusCommand } from "./commands/update-status.ts";
 import { verifyAnnotationsCommand } from "./commands/verify-annotations.ts";
 
+// @decision(DL-056) @decision(DL-073)
 export const COMMANDS: readonly Command[] = [
   initCommand,
   updateCommand,
   installRuleCommand,
   sessionContextCommand,
+  checkDecisionEditsCommand,
   createConfigCommand,
   createDirectoriesCommand,
   createEmptyIndexCommand,
   nextIdCommand,
   createDecisionCommand,
   updateStatusCommand,
+  listProposedCommand,
+  relatedDecisionsCommand,
   regenerateIndexCommand,
   verifyAnnotationsCommand,
-  checkDecisionEditsCommand,
   restoreDecisionProseCommand,
   findAnnotationsCommand,
   findMissingAmendsCommand,
@@ -77,7 +82,7 @@ function usage(commands: readonly Command[]): string {
     group.map((c) => `  ${c.name.padEnd(25)} ${c.summary}`).join("\n");
   const setup = commands.filter((c) => !c.internal);
   const internal = commands.filter((c) => c.internal);
-  const sections = [`Setup commands:\n${list(setup)}`];
+  const sections = [`Setup and CI commands:\n${list(setup)}`];
   if (internal.length > 0) sections.push(`${INTERNAL_HEADING}:\n${list(internal)}`);
   return `Usage: dld <command> [options]
 

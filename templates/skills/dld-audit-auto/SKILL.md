@@ -67,7 +67,7 @@ Apply fixes for each issue category. Use judgment on what can be safely fixed au
 
 The narrative body of an accepted decision that is already on the base branch (Context, Decision, Rationale, Consequences, and any other prose sections) is **immutable**. An audit must never rewrite, refine, "clean up", or otherwise modify it. This holds whatever `decision_edits` in `dld.config.yaml` says: an unattended audit has nobody to ask.
 
-The only changes an audit may make to an accepted decision are housekeeping updates to specific frontmatter fields — `references`, `amends`, `superseded_by`, and similar relational metadata — plus adding or fixing `@decision` annotations in code.
+The only changes an audit may make to an accepted decision are housekeeping updates to specific frontmatter fields — `references`, `amends`, `supersedes` and `status` — plus adding or fixing `@decision` annotations in code.
 
 If drift suggests the substance of an accepted decision is no longer accurate, or that code has evolved beyond what the decision describes, **do not modify the original record**. Instead, create a **new decision** (status `accepted`, since the code already exists) that captures the new rationale and uses `supersedes` or `amends` to link back to the prior one. The original stays as-is to preserve the historical record of why things were done that way at the time.
 

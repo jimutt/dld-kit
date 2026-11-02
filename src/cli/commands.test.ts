@@ -796,6 +796,66 @@ describe("session-context", () => {
   });
 });
 
+// @decision(DL-076)
+describe("list-proposed", () => {
+  test("marks proposed decisions added on this branch, and resolves the base itself", () => {
+    const p = branchedProject();
+    project = p;
+    p.onMain("main: proposed DL-003", () =>
+      p.write("decisions/records/DL-003.md", recordText("DL-003", "proposed")),
+    );
+    p.git("merge", "-q", "main");
+    p.write("decisions/records/DL-004.md", recordText("DL-004", "proposed"));
+    p.write("decisions/records/DL-005.md", recordText("DL-005"));
+    expect(dld(p, "list-proposed")).toEqual({
+      code: EXIT_OK,
+      out: "DL-003\tbase\tTest decision DL-003\nDL-004\tbranch\tTest decision DL-004\n",
+      err: "",
+    });
+    p.git("branch", "-m", "main", "trunk");
+    expect(dld(p, "list-proposed").err).toStartWith("Error: no base branch found");
+    expect(dld(p, "list-proposed", "--base", "trunk").code).toBe(EXIT_OK);
+  });
+});
+
+// @decision(DL-077)
+describe("related-decisions", () => {
+  test("prints relations in both directions, and fails for an unknown or missing ID", () => {
+    project = tempProject();
+    const write = (id: string, extra: { amends?: string; supersedes?: string; status?: string }) =>
+      project?.write(
+        `decisions/records/${id}.md`,
+        recordText(id, extra.status ?? "accepted")
+          .replace("amends: []", `amends: [${extra.amends ?? ""}]`)
+          .replace("supersedes: []", `supersedes: [${extra.supersedes ?? ""}]`),
+      );
+    write("DL-001", { status: "superseded" });
+    write("DL-002", { supersedes: "DL-001", amends: "DL-099" });
+    write("DL-003", { amends: "DL-002" });
+    write("DL-010", { supersedes: "DL-002", status: "proposed" });
+    expect(dld(project, "related-decisions", "DL-002")).toEqual({
+      code: EXIT_OK,
+      out: [
+        "supersedes\tDL-001\tsuperseded\tTest decision DL-001",
+        "amended-by\tDL-003\taccepted\tTest decision DL-003",
+        "superseded-by\tDL-010\tproposed\tTest decision DL-010",
+        "amends\tDL-099\tmissing\t",
+        "",
+      ].join("\n"),
+      err: "",
+    });
+    expect(dld(project, "related-decisions", "DL-003").out).toBe(
+      "amends\tDL-002\taccepted\tTest decision DL-002\n",
+    );
+    expect(dld(project, "related-decisions", "DL-050")).toMatchObject({
+      code: 1,
+      err: "Error: decision DL-050 not found.\n",
+    });
+    expect(dld(project, "related-decisions").code).toBe(EXIT_USAGE);
+    expect(dld(project, "related-decisions", "DL-002", "DL-003").code).toBe(EXIT_USAGE);
+  });
+});
+
 // @decision(DL-066) @decision(DL-067)
 describe("check-decision-edits", () => {
   test("lists edited decisions and fails only under decision_edits: block", () => {
@@ -817,6 +877,24 @@ describe("check-decision-edits", () => {
     expect(dld(p, "check-decision-edits", "DL-001")).toEqual({ code: EXIT_OK, out: line, err: "" });
     p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\ndecision_edits: ask\n");
     expect(dld(p, "check-decision-edits").code).toBe(EXIT_OK);
+  });
+
+  // @decision(DL-073)
+  test("a committed Decision-Edit trailer lets the gate pass, and the command is public", () => {
+    const p = branchedProject();
+    project = p;
+    p.write("decisions/records/DL-001.md", recordText("DL-001").replace("Test context", "Fixed"));
+    p.commitAll("Fix a typo\n\nDecision-Edit: DL-001");
+    expect(dld(p, "check-decision-edits")).toEqual({
+      code: EXIT_OK,
+      out: "decisions/records/DL-001.md\tDL-001\tallowed\n",
+      err: "",
+    });
+    const help = captureIo();
+    run(["--help"], help, p.ctx);
+    const [setup] = help.out.split("Commands the skills run");
+    expect(setup).toContain("check-decision-edits");
+    expect(dld(p, "check-decision-edits", "--help").out).not.toContain("Internal:");
   });
 
   test("rejects arguments that are not decision IDs", () => {

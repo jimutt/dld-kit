@@ -1,6 +1,7 @@
 ---
 name: dld-lookup
 description: Look up decisions by ID, tag, code path, or keyword. IMPORTANT — use this proactively whenever you encounter `@decision` annotations in code you are about to read or modify.
+allowed-tools: Bash(node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" *)
 metadata:
   dld-kit-version: "1.0.0-rc.4"
 ---
@@ -11,6 +12,12 @@ metadata:
 You are looking up decision records. This skill is used in two ways:
 1. **Proactively by you (the AI agent)** — whenever you encounter `@decision(DL-XXX)` annotations in code you're reading or about to modify, look up the decision to understand the rationale before proceeding. This is not optional.
 2. **On request by the developer** — to query decisions by ID, tag, code path, or keyword.
+
+## Commands
+
+`${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
+
+This skill uses: `related-decisions`.
 
 ## Prerequisites
 
@@ -26,7 +33,23 @@ Parse the user's input to determine the query type:
 
 Find and read the decision file `DL-047.md`. Search the records subdirectory (`decisions/records/`, including namespace subdirectories) for the file.
 
-Display the full decision record.
+Then list the decisions related to it:
+
+```bash
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" related-decisions DL-047
+```
+
+Each line is `<relation>\t<DL-NNN>\t<status>\t<title>`. `amended-by` and `superseded-by` lines are later decisions that change this one; `amends` and `supersedes` lines are the earlier decisions it changes. A status of `missing` means no record has that ID.
+
+If the decision has been amended or superseded (any `amended-by` or `superseded-by` line whose status is `accepted`):
+
+1. Say so **before** the record's content, naming the newer decisions.
+2. Read each of them, and summarise what its Decision section changes about this one.
+3. Where they differ, follow the newest accepted decision, not this one.
+
+A `proposed` amending or superseding decision is planned, not in effect: mention it, but keep following the accepted decisions.
+
+Then display the full decision record, followed by its other relations (the decisions it amends or supersedes) if there are any.
 
 ### By tag: `/dld-lookup tag:payment-gateway`
 
@@ -65,7 +88,7 @@ Display results the same way as tag lookup.
 
 When you encounter `@decision(DL-XXX)` in code — whether you are reading, modifying, or reviewing it — you MUST look up the referenced decision before proceeding. This applies to all interactions with annotated code, not just when explicitly asked.
 
-After reading the decision:
+After reading the decision, and the decisions that amend or supersede it (see "By ID" above):
 
 1. **Understand** the rationale behind the annotated code
 2. **Assess** whether your planned changes are compatible with the decision

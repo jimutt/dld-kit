@@ -54,6 +54,26 @@ describe("checkDecisionEdits", () => {
     ]);
   });
 
+  // @decision(DL-073)
+  test("a Decision-Edit trailer allows committed edits to the decisions it names", () => {
+    const p = branched();
+    p.onMain("main: DL-003", () => p.write("decisions/records/DL-003.md", recordText("DL-003")));
+    p.git("merge", "-q", "main");
+    p.write(DL001, recordText("DL-001").replace("Test context", "Fixed typo"));
+    p.write("decisions/records/DL-003.md", recordText("DL-003").replace("Test context", "Other"));
+    p.commitAll("Fix typos\n\nDecision-Edit: DL-001, DL-009");
+    expect(check(p)).toEqual([
+      { path: DL001, id: "DL-001", state: "allowed" },
+      { path: "decisions/records/DL-003.md", id: "DL-003", state: "edited" },
+    ]);
+    expect(check(p, ["DL-001"])).toEqual([{ path: DL001, id: "DL-001", state: "allowed" }]);
+    p.write(DL001, recordText("DL-001").replace("Test context", "Uncommitted"));
+    const uncommitted = checkDecisionEdits(p.ctx, loadProject(p.ctx), "main", [], {
+      uncommitted: true,
+    });
+    expect(uncommitted).toEqual([{ path: DL001, id: "DL-001", state: "edited" }]);
+  });
+
   // @decision(DL-080)
   test("fails when an unmoved integrated record has a second copy", () => {
     const p = branched();

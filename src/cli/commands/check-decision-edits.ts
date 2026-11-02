@@ -7,20 +7,23 @@ import { baseOption, DEFAULT_BASE_HELP } from "./base-option.ts";
 /** Distinct from errors (1) and usage errors (2), so CI can tell "blocked" apart. */
 export const EXIT_BLOCKED = 3;
 
-// @decision(DL-066) @decision(DL-067)
+// @decision(DL-066) @decision(DL-067) @decision(DL-073)
 export const checkDecisionEditsCommand: Command = {
   name: "check-decision-edits",
-  summary: "List edits to the prose of decisions already on the base branch",
-  internal: true,
+  summary: "List edits to the prose of decisions already on the base branch (CI gate)",
   usage: `Usage: dld check-decision-edits [--base <ref>] [--uncommitted] [DL-NNN ...]
 
 A decision is integrated when it exists at the merge-base of the base branch and HEAD;
 otherwise it is a draft (so is one still proposed there). Without IDs, print
-<path>\\t<DL-NNN>\\tedited for each integrated decision whose body (the text after the
-frontmatter), id or timestamp changed, and deleted for each that is gone. With IDs, print one line per ID with its state: draft, integrated, edited or deleted.
+<path>\\t<DL-NNN>\\t<state> for each integrated decision whose body (the text after the
+frontmatter), id or timestamp changed (edited), or that is gone (deleted). With IDs, print
+one line per ID with its state: draft, integrated, edited, deleted or allowed.
+
+A commit on the branch with a "Decision-Edit: DL-NNN[, DL-NNN ...]" trailer allows edits to
+the decisions it names: they are printed as allowed. Trailers do not apply with --uncommitted.
 
 Without IDs, exits 3 when decision_edits is block (the default) and an edited or deleted
-decision was printed. With IDs, and otherwise, exits 0.
+decision was printed. With IDs, and otherwise, exits 0. Errors exit 1, usage errors 2.
 
 Options:
   --base <ref>     Base ref (${DEFAULT_BASE_HELP})

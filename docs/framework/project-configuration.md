@@ -100,7 +100,7 @@ Set `implement_review: false` to skip the step entirely — appropriate if the p
 
 ### Decision edits
 
-A decision record is a **draft** until it reaches the base branch (`origin/main`, or the branch your branch tracks; `main` itself when there is no `origin/main`, so in a local-only repository a record is integrated once it is committed to `main`): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter), `id` and `timestamp` are protected. `decision_edits` sets how strictly:
+A decision record is a **draft** until it reaches the base branch (see [Base branch](#base-branch); in a local-only repository that is usually `main`, so a record is integrated once it is committed there): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter), `id` and `timestamp` are protected. `decision_edits` sets how strictly:
 
 - `block` (default): agents never edit it, even when asked. They record a new decision that amends or supersedes it instead. People can still edit by hand.
 - `ask`: agents edit it after you confirm.
@@ -116,6 +116,18 @@ Without `--uncommitted`, the command checks the whole branch against the base, a
     fetch-depth: 0
 - run: npx dld-kit@latest check-decision-edits --base origin/${{ github.base_ref }}
 ```
+
+`check-decision-edits` is part of the CLI's semver contract: its options, its output lines (`<path>`, a tab, `<DL-NNN>`, a tab, the state) and its exit codes (0 nothing blocked, 1 error, 2 usage error, 3 blocked) only change in a major version.
+
+To land a deliberate edit under `block`, such as fixing a typo, add a `Decision-Edit:` trailer naming the decisions to a commit on the branch:
+
+```
+Fix a typo in DL-012
+
+Decision-Edit: DL-012
+```
+
+The gate then prints those decisions as `allowed` and does not fail for them. Several IDs can share a trailer, separated by commas. The trailer is visible in review and in the history, which is the point: it stops accidental edits, not deliberate ones.
 
 ### Base branch
 
