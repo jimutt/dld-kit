@@ -7909,8 +7909,8 @@ function takenIds(ctx, paths, base) {
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths))
   ).flatMap((path) => path.match(DECISION_MENTION) ?? []);
   const scan = openPrIds(ctx, paths, base);
-  const ids = [.../* @__PURE__ */ new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
-  const taken = { ids, onBase: new Set(onBase), claims: scan.claims };
+  const ids2 = [.../* @__PURE__ */ new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
+  const taken = { ids: ids2, onBase: new Set(onBase), claims: scan.claims };
   return scan.skipped === void 0 ? taken : { ...taken, skipped: scan.skipped };
 }
 function isAncestor(git, ancestor, commit2) {
@@ -7945,8 +7945,8 @@ function collides(git, base, { path, id }, taken) {
 }
 function listTakenIds(ctx, { paths }, base) {
   verifyBase(ctx, paths, base, " Fetch first or pass --base.");
-  const { ids, skipped } = takenIds(ctx, paths, base);
-  return skipped === void 0 ? { ids } : { ids, skipped };
+  const { ids: ids2, skipped } = takenIds(ctx, paths, base);
+  return skipped === void 0 ? { ids: ids2 } : { ids: ids2, skipped };
 }
 function collisionsOf(ctx, paths, base) {
   const git = gitAt(ctx, paths.root);
@@ -7988,7 +7988,7 @@ function editBase(ctx, project, base) {
   }
   return resolveBase(ctx, project.config.baseBranch);
 }
-function checkDecisionEdits(ctx, { paths }, base, ids = [], { uncommitted = false } = {}) {
+function checkDecisionEdits(ctx, { paths }, base, ids2 = [], { uncommitted = false } = {}) {
   const git = gitAt(ctx, paths.root);
   const records = integratedRecords(ctx, paths, base);
   const allowed = uncommitted ? /* @__PURE__ */ new Set() : trailerIds(git, records.onto);
@@ -8010,7 +8010,7 @@ function checkDecisionEdits(ctx, { paths }, base, ids = [], { uncommitted = fals
     const same = lockedContent(now, path) === lockedContent(reference.text, reference.path);
     return { path, id, state: same ? "integrated" : "edited" };
   };
-  if (ids.length > 0) return ids.map(stateOf);
+  if (ids2.length > 0) return ids2.map(stateOf);
   const changed = nulSeparated(
     gitOrEmpty(
       git,
@@ -8094,10 +8094,10 @@ function isProposed(text, source) {
     return false;
   }
 }
-function restoreDecisionProse(ctx, { paths }, base, ids, { uncommitted = false } = {}) {
+function restoreDecisionProse(ctx, { paths }, base, ids2, { uncommitted = false } = {}) {
   const git = gitAt(ctx, paths.root);
   const records = integratedRecords(ctx, paths, base);
-  const targets = ids.map((id) => {
+  const targets = ids2.map((id) => {
     const located = locate(ctx, paths, records, id);
     if (located === void 0 || isProposed(located.baseText, located.basePath)) {
       throw new DldError(`${id} is a draft (not on the base branch, or still proposed there).`);
@@ -8368,12 +8368,12 @@ Options:
   --uncommitted    Compare with HEAD instead of the merge-base: only uncommitted changes
 `,
   run(args, io, ctx) {
-    const { values, positionals: ids } = parseCommandArgs({
+    const { values, positionals: ids2 } = parseCommandArgs({
       args: [...args],
       options: { base: { type: "string" }, uncommitted: { type: "boolean" } },
       allowPositionals: true
     });
-    const bad = ids.find((id) => !DECISION_ID.test(id));
+    const bad = ids2.find((id) => !DECISION_ID.test(id));
     if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
     const project = loadProject(ctx);
     const base = editBase(
@@ -8381,13 +8381,13 @@ Options:
       project,
       values.base === void 0 ? void 0 : baseOption(values.base)
     );
-    const edits = checkDecisionEdits(ctx, project, base, ids, {
+    const edits = checkDecisionEdits(ctx, project, base, ids2, {
       uncommitted: values.uncommitted === true
     });
     for (const edit of edits) io.stdout(`${formatRecordEdit(edit)}
 `);
     const changed = edits.some(({ state }) => state === "edited" || state === "deleted");
-    const blocked = ids.length === 0 && changed && project.config.decisionEdits === "block";
+    const blocked = ids2.length === 0 && changed && project.config.decisionEdits === "block";
     return blocked ? EXIT_BLOCKED : EXIT_OK;
   }
 };
@@ -8438,7 +8438,7 @@ function shortHead(ctx, root) {
 
 // src/core/snapshot.ts
 var DECISION_BOUNDARY = "===DLD_DECISION_BOUNDARY===";
-var BUILT_IN_ARTIFACTS = ["SNAPSHOT.md", "OVERVIEW.md"];
+var BUILT_IN_ARTIFACTS = ["OVERVIEW.md"];
 var isSnapshotted = (status) => status === "accepted" || status === "proposed";
 function readRecords(ctx, { paths }) {
   return listRecordFiles(ctx, paths.recordsDir).map((path) => {
@@ -8875,6 +8875,135 @@ var createConfigCommand = {
 
 // src/core/decisions.ts
 import { join as join10, relative as relative6 } from "node:path";
+
+// src/core/mentions.ts
+var ID = /DL-\d+/g;
+var RELATION_WORD = /(?<![\w-])(amends|supersedes)\b/gi;
+var SUBJECT = /DL-\d+(?:'s)?\s*$/;
+var CHANGE_CUE = /\b(?:replac|supersed|amend|extend|overrid|relax|narrow|revert)\w*|\bno longer\b|\binstead of\b/i;
+var CUE_SECTIONS = /* @__PURE__ */ new Set(["decision", "consequences"]);
+var SENTENCE_END = /(?<=[.;:!?])\s+/;
+var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+var CODE_SPAN = /(`+)[^\n]*?\1/g;
+var QUOTED = /"[^"\n]*"|“[^”\n]*”/g;
+var HEADING = /^##[ \t]+(.*?)[ \t#]*$/;
+var LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
+var RANK = { mention: 0, cue: 1, explicit: 2 };
+var ids = (text) => text.match(ID) ?? [];
+function sentences(body) {
+  const out = [];
+  let section = "";
+  let fence;
+  for (const text of body.split(/\r?\n/)) {
+    const marker = FENCE.exec(text)?.[1];
+    if (fence !== void 0) {
+      const closes = marker !== void 0 && marker[0] === fence[0] && marker.length >= fence.length;
+      if (closes && text.trim() === marker) fence = void 0;
+      continue;
+    }
+    if (marker !== void 0) {
+      fence = marker;
+      continue;
+    }
+    const heading = HEADING.exec(text);
+    if (heading !== null) {
+      section = (heading[1] ?? "").trim().toLowerCase();
+      continue;
+    }
+    const item = LIST_ITEM.test(text);
+    for (const part of text.replace(CODE_SPAN, "").replace(QUOTED, "").split(SENTENCE_END)) {
+      if (part.trim() !== "") out.push({ section, item, text: part });
+    }
+  }
+  return out;
+}
+function withoutParentheses(text) {
+  let current = text;
+  for (; ; ) {
+    const next = current.replace(/\([^()]*\)/g, "");
+    if (next === current) return current;
+    current = next;
+  }
+}
+var relationOf = (word) => word.toLowerCase() === "amends" ? "amends" : "supersedes";
+function sentenceRelations(text) {
+  const prose = withoutParentheses(text);
+  const words = [...prose.matchAll(RELATION_WORD)];
+  const first = words[0];
+  if (first === void 0) return { hasWord: false, relations: [] };
+  if (ids(prose.slice(0, first.index)).length > 0) return { hasWord: true, relations: [] };
+  const relations = [];
+  let opens;
+  words.forEach((word, i) => {
+    if (i > 0 && SUBJECT.test(prose.slice(0, word.index))) return;
+    const start = word.index + word[0].length;
+    const next = words[i + 1];
+    let end = prose.length;
+    if (next !== void 0) {
+      const subject = SUBJECT.exec(prose.slice(start, next.index));
+      end = subject === null ? next.index : start + subject.index;
+    }
+    const relation = relationOf(word[0]);
+    const found = ids(prose.slice(start, end));
+    for (const id of found) relations.push({ id, relation });
+    if (next === void 0 && found.length === 0 && prose.trimEnd().endsWith(":")) {
+      opens = relation;
+    }
+  });
+  return { hasWord: true, relations, ...opens === void 0 ? {} : { opens } };
+}
+function statedBySentence(body) {
+  const out = [];
+  let open;
+  for (const sentence of sentences(body)) {
+    if (open !== void 0 && (open.section !== sentence.section || open.list && !sentence.item)) {
+      open = void 0;
+    }
+    const own = sentenceRelations(sentence.text);
+    if (own.opens !== void 0) {
+      open = { relation: own.opens, section: sentence.section, list: false };
+      out.push({ sentence, relations: own.relations });
+    } else if (open !== void 0 && !own.hasWord) {
+      const { relation } = open;
+      const relations = ids(withoutParentheses(sentence.text)).map((id) => ({ id, relation }));
+      out.push({ sentence, relations });
+      open = sentence.item ? { ...open, list: true } : void 0;
+    } else {
+      out.push({ sentence, relations: own.relations });
+      if (open !== void 0 && !open.list) open = void 0;
+    }
+  }
+  return out;
+}
+function statedRelations(body) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const { relations } of statedBySentence(body)) {
+    for (const stated of relations) {
+      if (seen.has(stated.id)) continue;
+      seen.add(stated.id);
+      out.push(stated);
+    }
+  }
+  return out;
+}
+function mentionTiers(body) {
+  const tiers = /* @__PURE__ */ new Map();
+  const raise = (id, tier) => {
+    const current = tiers.get(id);
+    if (current === void 0 || RANK[tier] > RANK[current]) tiers.set(id, tier);
+  };
+  for (const id of ids(body)) raise(id, "mention");
+  for (const { sentence, relations } of statedBySentence(body)) {
+    for (const { id } of relations) raise(id, "explicit");
+    if (CUE_SECTIONS.has(sentence.section) && CHANGE_CUE.test(sentence.text)) {
+      for (const id of ids(sentence.text)) raise(id, "cue");
+    }
+  }
+  return tiers;
+}
+
+// src/core/decisions.ts
 function updateStatus(ctx, project, id, status) {
   const path = findRecordFile(ctx, project.paths.recordsDir, id, project.paths.root);
   if (path === void 0) throw new DldError(`decision ${id} not found.`);
@@ -8926,7 +9055,17 @@ function createDecision(ctx, project, input) {
     body: input.body
   });
   createFileExclusive(ctx, path, content, `${path} already exists.`);
+  warnUnstatedRelations(ctx, input);
   return path;
+}
+function warnUnstatedRelations(ctx, input) {
+  const declared = new Set(
+    `${input.amends},${input.supersedes}`.split(/[\s,]+/).filter((id) => id !== "")
+  );
+  for (const { id, relation } of statedRelations(input.body)) {
+    if (id === input.id || declared.has(id)) continue;
+    ctx.warn(`${input.id}: the body says it ${relation} ${id}, but --${relation} does not list it`);
+  }
 }
 
 // src/cli/commands/create-decision.ts
@@ -9352,7 +9491,7 @@ function targetsFor(harnesses) {
 import { dirname as dirname2, join as join14, posix as posix3 } from "node:path";
 
 // templates/rules/dld-workflow.md
-var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated (except `id` and `timestamp`), but change the prose below it only through the dld-adjust skill, which follows `decision_edits` in `dld.config.yaml`: `block` (the default) never edits it and records an amendment or superseding decision instead, `ask` edits after the user confirms, `allow` edits.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
+var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated (except `id` and `timestamp`), but change the prose below it only through the dld-adjust skill, which follows `decision_edits` in `dld.config.yaml`: `block` (the default) never edits it and records an amendment or superseding decision instead, `ask` edits after the user confirms, `allow` edits.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate OVERVIEW.md, and any custom artifacts, from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
 
 // src/generate/rule.ts
 var RULE_TEXT = dld_workflow_default;
@@ -9548,12 +9687,12 @@ function instructionFiles(harness, view) {
   const imported = files.some((file) => importsAgentsMd(view.read(file), file));
   return imported && view.exists(AGENTS_MD) ? [...files, AGENTS_MD] : files;
 }
-var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+var FENCE2 = /^ {0,3}(`{3,}|~{3,})/;
 function importsAgentsMd(content, file) {
   const dir = posix3.dirname(file);
   let fence;
   for (const line of content.split(/\r?\n/)) {
-    const marker = FENCE.exec(line)?.[1];
+    const marker = FENCE2.exec(line)?.[1];
     if (marker !== void 0) {
       if (fence === void 0) fence = marker;
       else if (marker[0] === fence[0] && marker.length >= fence.length) fence = void 0;
@@ -9930,11 +10069,11 @@ function scanAnnotations(ctx, options, onSkip = () => {
 function formatNearMiss({ file, line, text }) {
   return `${file}:${line}: not an annotation: ${text}`;
 }
-function missingAnnotations(ctx, options, ids, onSkip, onNearMiss) {
+function missingAnnotations(ctx, options, ids2, onSkip, onNearMiss) {
   const annotated = new Set(
     scanAnnotations(ctx, options, onSkip, onNearMiss).map((annotation) => annotation.id)
   );
-  return ids.filter((id) => !annotated.has(id));
+  return ids2.filter((id) => !annotated.has(id));
 }
 function formatSkipped({ file, reason }) {
   return `Warning: skipped ${file} (${reason}); annotations in it are not counted`;
@@ -9994,7 +10133,6 @@ Options:
 
 // src/core/audit.ts
 import { basename as basename7, relative as relative10, sep as sep6 } from "node:path";
-var MENTION = /DL-\d+/g;
 var toPosix2 = (path) => path.split(sep6).join("/");
 var idNumber2 = (id) => Number.parseInt(id.slice(3), 10);
 function recordsChangedSinceAudit(ctx, { paths }) {
@@ -10008,23 +10146,36 @@ function recordsChangedSinceAudit(ctx, { paths }) {
     ...nulSeparated(git("ls-files", "-z", "--others", "--exclude-standard", "--", records))
   ]);
 }
-function findMissingAmends(ctx, project, { all }) {
+function findMissingAmends(ctx, project, { all = false, mentions = false, ids: ids2 }) {
   const { paths } = project;
-  const changed = all ? void 0 : recordsChangedSinceAudit(ctx, project);
-  const found = [];
   const files = listRecordFiles(ctx, paths.recordsDir).sort(
     (a, b) => recordNumber(a) - recordNumber(b)
   );
+  let include = () => true;
+  if (ids2 !== void 0) {
+    const wanted = new Set(ids2);
+    for (const id of wanted) {
+      if (!files.some((file) => basename7(file, ".md") === id)) {
+        throw new DldError(`decision ${id} not found.`);
+      }
+    }
+    include = (file) => wanted.has(basename7(file, ".md"));
+  } else if (!all) {
+    const changed = recordsChangedSinceAudit(ctx, project);
+    if (changed !== void 0) include = (_, rel) => changed.has(rel);
+  }
+  const found = [];
   for (const file of files) {
     const rel = toPosix2(relative10(paths.root, file));
-    if (changed !== void 0 && !changed.has(rel)) continue;
+    if (!include(file, rel)) continue;
     const text = ctx.fs.readFile(file);
     const record = parseRecord(text, rel);
     const source = basename7(file, ".md");
     const declared = /* @__PURE__ */ new Set([...record.supersedes, ...record.amends]);
-    const mentioned = new Set(recordBody(text).match(MENTION) ?? []);
-    const refs = [...mentioned].filter((id) => id !== source && !declared.has(id)).sort((a, b) => idNumber2(a) - idNumber2(b));
-    for (const referenced of refs) found.push({ source, referenced });
+    const refs = [...mentionTiers(recordBody(text))].filter(
+      ([id, tier]) => id !== source && !declared.has(id) && (mentions || tier !== "mention")
+    ).sort(([a], [b]) => idNumber2(a) - idNumber2(b));
+    for (const [referenced, tier] of refs) found.push({ source, referenced, tier });
   }
   return found;
 }
@@ -10040,19 +10191,38 @@ var findMissingAmendsCommand = {
   name: "find-missing-amends",
   summary: "List decision IDs mentioned in a body but not declared",
   internal: true,
-  usage: `Usage: dld find-missing-amends [--all]
+  usage: `Usage: dld find-missing-amends [--all] [--mentions] [DL-NNN ...]
 
-Print <source-id>:<referenced-id> for each decision ID a record's body mentions without
-listing it in supersedes or amends. Only records changed since the last audit are checked.
+Print <source-id>:<referenced-id><TAB><tier> for each decision ID a record's body mentions
+without listing it in supersedes or amends. Tiers:
+
+  explicit  a sentence says the record amends or supersedes it
+  cue       a sentence in Decision or Consequences mentions it with a change word
+  mention   any other mention (only with --mentions)
+
+Only records changed since the last audit are checked, unless --all or IDs are given.
 
 Options:
-  --all  Check every record
+  --all       Check every record
+  --mentions  Also list plain mentions
 `,
   run(args, io, ctx) {
-    const { values } = parseCommandArgs({ args: [...args], options: { all: { type: "boolean" } } });
-    const found = findMissingAmends(ctx, loadProject(ctx), { all: values.all === true });
-    for (const { source, referenced } of found) io.stdout(`${source}:${referenced}
+    const { values, positionals: ids2 } = parseCommandArgs({
+      args: [...args],
+      options: { all: { type: "boolean" }, mentions: { type: "boolean" } },
+      allowPositionals: true
+    });
+    const all = values.all === true;
+    if (all && ids2.length > 0) throw new UsageError("--all cannot be combined with decision IDs.");
+    const found = findMissingAmends(ctx, loadProject(ctx), {
+      all,
+      mentions: values.mentions === true,
+      ...ids2.length > 0 ? { ids: ids2 } : {}
+    });
+    for (const { source, referenced, tier } of found) {
+      io.stdout(`${source}:${referenced}	${tier}
 `);
+    }
     return EXIT_OK;
   }
 };
@@ -10696,8 +10866,8 @@ Options:
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
     const project = loadProject(ctx);
     const base = baseOption(values.base, { ctx, project });
-    const { ids, skipped } = listTakenIds(ctx, project, base);
-    for (const id of ids) io.stdout(`${id}
+    const { ids: ids2, skipped } = listTakenIds(ctx, project, base);
+    for (const id of ids2) io.stdout(`${id}
 `);
     if (skipped !== void 0) io.stderr(skippedNotice(skipped));
     return EXIT_OK;
@@ -10767,9 +10937,9 @@ Options:
       throw new DldError(`records directory not found at ${paths.recordsDir}`);
     }
     for (const files of duplicateRecordFiles(ctx, paths.recordsDir)) {
-      const ids = [...new Set(files.map((path) => basename9(path, ".md")))].join(" / ");
+      const ids2 = [...new Set(files.map((path) => basename9(path, ".md")))].join(" / ");
       const shown = files.map((path) => relative13(paths.root, path)).join(", ");
-      ctx.warn(`${ids} is in more than one file: ${shown}`);
+      ctx.warn(`${ids2} is in more than one file: ${shown}`);
     }
     const rows = collectIndexRows(ctx, paths, values["include-base"]);
     writeIndex(ctx, paths, renderIndex(rows, config.mode));
@@ -10924,13 +11094,13 @@ Options:
   --uncommitted    Restore from HEAD instead of the merge-base: undo only uncommitted edits
 `,
   run(args, io, ctx) {
-    const { values, positionals: ids } = parseCommandArgs({
+    const { values, positionals: ids2 } = parseCommandArgs({
       args: [...args],
       options: { base: { type: "string" }, uncommitted: { type: "boolean" } },
       allowPositionals: true
     });
-    if (ids.length === 0) throw new UsageError("expected at least one decision ID");
-    const bad = ids.find((id) => !DECISION_ID.test(id));
+    if (ids2.length === 0) throw new UsageError("expected at least one decision ID");
+    const bad = ids2.find((id) => !DECISION_ID.test(id));
     if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
     const project = loadProject(ctx);
     const base = editBase(
@@ -10939,7 +11109,7 @@ Options:
       values.base === void 0 ? void 0 : baseOption(values.base)
     );
     const uncommitted = values.uncommitted === true;
-    for (const path of restoreDecisionProse(ctx, project, base, ids, { uncommitted })) {
+    for (const path of restoreDecisionProse(ctx, project, base, ids2, { uncommitted })) {
       io.stdout(`Restored ${path}
 `);
     }
@@ -11068,7 +11238,7 @@ var updateSnapshotStateCommand = {
   usage: `Usage: dld update-snapshot-state [artifact ...]
 
 Record the snapshot time, HEAD commit and highest accepted decision, with timestamps for
-SNAPSHOT.md, OVERVIEW.md and any custom artifacts named.
+OVERVIEW.md and any custom artifacts named.
 `,
   run(args, io, ctx) {
     const { positionals } = parseCommandArgs({
@@ -11122,18 +11292,18 @@ var verifyAnnotationsCommand = {
   internal: true,
   usage: "Usage: dld verify-annotations <DL-NNN> [DL-NNN ...]\n\nExit 0 if every decision has at least one annotation, 1 if any are missing.\n",
   run(args, io, ctx) {
-    const { positionals: ids } = parseCommandArgs({
+    const { positionals: ids2 } = parseCommandArgs({
       args: [...args],
       options: {},
       allowPositionals: true
     });
-    if (ids.length === 0) throw new UsageError("expected at least one decision ID");
+    if (ids2.length === 0) throw new UsageError("expected at least one decision ID");
     const options = scanOptionsFor(loadProject(ctx));
     const prefix = options.prefix;
     const missing = missingAnnotations(
       ctx,
       options,
-      ids,
+      ids2,
       (skipped) => io.stderr(`${formatSkipped(skipped)}
 `),
       // @decision(DL-074)

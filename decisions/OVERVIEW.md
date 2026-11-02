@@ -1,6 +1,6 @@
 # System Overview
 
-> Auto-generated narrative synthesis from 80 active decisions and 0 proposed decisions. Last updated 2026-11-02.
+> Auto-generated narrative synthesis from 81 active decisions and 0 proposed decisions. Last updated 2026-11-02.
 > This document is derived from individual decision records — do not edit manually.
 > Use `/dld-snapshot` to regenerate.
 
@@ -48,7 +48,7 @@ All annotation checks share one scanner. It walks git's file list (tracked and u
 
 The audit and snapshot commands keep the output formats of the scripts they replaced, with deterministic ordering (DL-024, DL-025). `find-missing-amends` lists IDs mentioned in a record's body but not declared, filtered to records changed since the last audit (DL-024). Run state lives in `.dld-state.yaml`, read with the failsafe YAML schema so short commit hashes keep their leading zeros, and updated one top-level section at a time (DL-021).
 
-`/dld-snapshot` projects the log into `SNAPSHOT.md` and `OVERVIEW.md`. Accepted decisions describe the current system, and proposed decisions are listed apart as planned direction (DL-070). `detect-snapshot-changes` compares the log with the recorded state to choose a full or incremental update. Proposed records count towards `decisions_included`, so a new plan is always picked up, and an upgrade marker lets the first run after an upgrade add proposed records an older snapshot left out (DL-025, DL-070).
+`/dld-snapshot` projects the log into `OVERVIEW.md` and any custom artifacts a project defines in `snapshot_artifacts`. A per-decision `SNAPSHOT.md` is no longer generated: it repeated the records in shortened form without applying amendments, and agents skipped it, so an existing one is offered for deletion unless a custom artifact claims the name (DL-084). Accepted decisions describe the current system, and proposed decisions are kept apart as planned direction (DL-070). `detect-snapshot-changes` compares the log with the recorded state to choose a full or incremental update. Proposed records count towards `decisions_included`, so a new plan is always picked up, and an upgrade marker lets the first run after an upgrade add proposed records an older snapshot left out (DL-025, DL-070).
 
 ## Reindex
 
@@ -107,6 +107,8 @@ graph LR
     DL060["DL-060"] -.->|"amends"| DL019
     DL069["DL-069"] -.->|"amends"| DL019
     DL070["DL-070"] -.->|"amends"| DL025["DL-025"]
+    DL084["DL-084"] -.->|"amends"| DL025
+    DL084 -.->|"amends"| DL070
     DL070 -.->|"amends"| DL021["DL-021"]
     DL065["DL-065"] -.->|"amends"| DL026["DL-026"]
     DL065 -.->|"amends"| DL027["DL-027"]
