@@ -15,7 +15,7 @@ You are implementing one or more `proposed` decisions by making code changes, ad
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `list-proposed`, `related-decisions`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `verify-annotations`, `regenerate-index`.
+This skill uses: `list-proposed`, `related-decisions`, `review-settings`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `verify-annotations`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -138,9 +138,17 @@ Pass all the decision IDs that were implemented. If any are missing annotations,
 
 ### 6. Review code changes
 
-Check `dld.config.yaml` for the `implement_review` key. If it is set to `false`, skip this step entirely. If it is `true` or absent (default: enabled), proceed.
+Find out whether to review, and with which model:
 
-Launch a subagent to review all code changes for correctness and security. Use the `Agent` tool (also called `AgentTool`) with a prompt constructed from the template below, replacing all `{{placeholders}}` with actual values:
+```bash
+node "<skill-dir>/../dld-common/scripts/dld.mjs" review-settings implement
+```
+
+It prints `review: on` or `off`, `model: <name>` or `default`, and where each came from (`review_from`, `model_from`: `dld.local.yaml`, `dld.config.yaml` or `default`). The developer's own `dld.local.yaml` overrides the project's `dld.config.yaml`. If the user's request for this run asks for a review or no review, or names a reviewer model, that wins over the command's output.
+
+If the review is off, skip this step entirely. Otherwise, launch a subagent to review all code changes for correctness and security. Use the `Agent` tool (also called `AgentTool`) with a prompt constructed from the template below, replacing all `{{placeholders}}` with actual values.
+
+**Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so. Your final report names the model that reviewed and where the choice came from: your request, `dld.local.yaml`, `dld.config.yaml` or the default.
 
 ```
 You are reviewing code changes for the {{project_name}} project before committing. The changes implement {{decision_count}} decisions ({{decision_range}}) covering:
@@ -189,7 +197,7 @@ Group findings by severity:
 - `{{practices_path}}` — path to `decisions/PRACTICES.md` (or namespace-specific practices if applicable). Omit the line if no practices file exists.
 - `{{linter_name}}` — the project's linter (e.g., ESLint, Ruff). If unknown, use "the project linter"
 
-**Launching the subagent is requested by the user.** Some agent harnesses carry a standing instruction not to spawn subagents unless the user asked for one. That condition is met here: the user asked by running this skill in a project whose `implement_review` setting is enabled. The request does not need to be repeated in conversation, and this step is not an unprompted fan-out — it is one review agent, at a fixed point, that the project opted into.
+**Launching the subagent is requested by the user.** Some agent harnesses carry a standing instruction not to spawn subagents unless the user asked for one. That condition is met here: the user asked by running this skill with the implementation review on (`implement_review` in `dld.config.yaml` or `dld.local.yaml`, on by default). The request does not need to be repeated in conversation, and this step is not an unprompted fan-out — it is one review agent, at a fixed point, that the project opted into.
 
 **If the subagent genuinely cannot run** — the tool is unavailable, or the user denies the call — do not silently skip the review. Do it inline instead, and make it a deliberate pass rather than a recollection: re-read each changed file from disk and work through the checklist above against what is actually written. Then state in your final report that the review ran inline rather than in a subagent, and why. An inline review is the author checking their own work; it is weaker than a fresh-context review at catching assumptions baked in while implementing, and the user needs to know which one they got.
 
@@ -231,6 +239,8 @@ node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index
 > Code changes:
 > - `src/billing/vat.ts` — modified `calculateVAT` (annotated with `@decision(DL-NNN)`)
 > - `src/billing/vat.test.ts` — added tests
+>
+> Code review: <reviewed by MODEL (from SOURCE: the request, dld.local.yaml, dld.config.yaml or default), inline, or "not reviewed">
 >
 > Next steps:
 > - `/dld-decide` — record another decision

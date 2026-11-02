@@ -17,6 +17,7 @@ import {
   AGENT_HELP,
   cliPath,
   ensureIndexMergeAttribute,
+  ensureLocalSettingsIgnored,
   parseAgents,
   printReport,
 } from "../install.ts";
@@ -73,6 +74,7 @@ ${AGENT_HELP}
     printReport(io, report);
     // @decision(DL-075)
     ensureIndexMergeAttribute(io, ctx, project);
+    ensureLocalSettingsIgnored(io, ctx, project);
     return EXIT_OK;
   },
 };

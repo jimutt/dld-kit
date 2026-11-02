@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { fakeContext, memoryFs } from "../test-helpers.ts";
-import { loadConfig, parseConfig } from "./config.ts";
+import { loadConfig, parseConfig, parseLocalSettings } from "./config.ts";
 import { DldError } from "./errors.ts";
 
 function parseError(text: string): string {
@@ -21,9 +21,9 @@ describe("parseConfig", () => {
       namespaces: [],
       annotationPrefix: "@decision",
       annotationExclude: [],
-      implementReview: true,
       decisionEdits: "block",
       snapshotArtifacts: [],
+      personal: {},
     });
   });
 
@@ -56,7 +56,7 @@ snapshot_artifacts:
 `);
     expect(config.mode).toBe("namespaced");
     expect(config.namespaces).toEqual(["billing", "auth"]);
-    expect(config.implementReview).toBe(false);
+    expect(config.personal).toEqual({ implementReview: false });
     expect(config.decisionEdits).toBe("ask");
     expect(config.annotationExclude).toEqual(["docs/**", "*.md"]);
     expect(config.snapshotArtifacts).toEqual([
@@ -198,5 +198,61 @@ describe("loadConfig", () => {
     });
     loadConfig(ctx, "/project");
     expect(warnings).toEqual(["dld.config.yaml: unknown key 'mdoe'; did you mean 'mode'?"]);
+  });
+});
+
+// @decision(DL-087) @decision(DL-088) @decision(DL-089)
+describe("review settings", () => {
+  test("dld.config.yaml sets them, and leaves unset ones out", () => {
+    const config = parseConfig(
+      "decisions_dir: d\nmode: flat\nplan_review: true\nreview_model: sonnet\nplan_review_model: opus\n",
+    );
+    expect(config.personal).toEqual({
+      planReview: true,
+      reviewModel: "sonnet",
+      planReviewModel: "opus",
+    });
+    expect(parseError("decisions_dir: d\nmode: flat\nreview_model: ''\n")).toBe(
+      "dld.config.yaml: 'review_model' must be a non-empty string",
+    );
+    for (const name of ['" opus"', '"opus\\nreview: off"']) {
+      expect(parseError(`decisions_dir: d\nmode: flat\nplan_review_model: ${name}\n`)).toBe(
+        "dld.config.yaml: 'plan_review_model' must be a model name on one line, without surrounding spaces",
+      );
+    }
+    expect(
+      parseConfig("decisions_dir: d\nmode: flat\nreview_model: claude opus 5\n").personal,
+    ).toEqual({ reviewModel: "claude opus 5" });
+  });
+
+  test("dld.local.yaml takes only personal settings and x- keys", () => {
+    const warnings: string[] = [];
+    const settings = parseLocalSettings(
+      "implement_review: false\nimplement_review_model: gpt-sol-6.1\ndecision_edits: allow\nreview_modle: x\nx-mine: 1\n",
+      (message) => warnings.push(message),
+    );
+    expect(settings).toEqual({ implementReview: false, implementReviewModel: "gpt-sol-6.1" });
+    expect(warnings).toEqual([
+      "dld.local.yaml: 'decision_edits' can only be set in dld.config.yaml",
+      "dld.local.yaml: unknown key 'review_modle'; did you mean 'review_model'?",
+    ]);
+  });
+
+  test("an empty dld.local.yaml sets nothing; a broken one fails naming the file", () => {
+    expect(parseLocalSettings("")).toEqual({});
+    expect(parseLocalSettings("# nothing yet\n")).toEqual({});
+    const failure = (text: string) => {
+      try {
+        parseLocalSettings(text);
+      } catch (error) {
+        if (error instanceof DldError) return error.message;
+      }
+      throw new Error("expected parseLocalSettings to throw");
+    };
+    expect(failure("[a, b]\n")).toBe("dld.local.yaml: expected a mapping of keys to values");
+    expect(failure("a: [\n")).toStartWith("dld.local.yaml: not valid YAML");
+    expect(failure("plan_review: sometimes\n")).toBe(
+      "dld.local.yaml: 'plan_review' must be true or false",
+    );
   });
 });

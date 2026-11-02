@@ -16,7 +16,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 {{dld-setup}}
 
-This skill uses: `next-id`, `create-decision`, `find-missing-amends`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
+This skill uses: `next-id`, `create-decision`, `find-missing-amends`, `review-settings`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -120,7 +120,71 @@ Each line is `<source-id>:<referenced-id><TAB><tier>`. If it prints nothing, con
 - `explicit`: the body says the new decision amends or supersedes DL-XXX. If it does, add DL-XXX to the record's `amends` or `supersedes` list (the record is a new draft, so edit its frontmatter directly), and for `supersedes` also run `{{dld}} update-status DL-XXX superseded`. If the sentence doesn't describe a real relationship, reword it.
 - `cue`: the body mentions DL-XXX (possibly another decision from this plan) in a sentence with a change word such as "replaces" or "no longer". Ask the user with `AskUserQuestion` whether the new decision amends DL-XXX, supersedes it, or only cites it, and update the frontmatter to match. For supersedes, also run `{{dld}} update-status DL-XXX superseded`.
 
-### 7. Check edits to decisions on the base branch
+### 7. Review the plan
+
+Find out whether to review the plan, and with which model:
+
+```bash
+{{dld}} review-settings plan
+```
+
+It prints `review: on` or `off`, `model: <name>` or `default`, and where each came from (`review_from`, `model_from`: `dld.local.yaml`, `dld.config.yaml` or `default`). Plans are not reviewed unless `plan_review` is set, in the project's `dld.config.yaml` or the developer's own `dld.local.yaml`. If the user's request for this run asks for a plan review or no review, or names a reviewer model, that wins over the command's output.
+
+If the review is off, skip to the next step. Otherwise, launch a subagent to review the plan. Use the `Agent` tool (also called `AgentTool`) with a prompt built from the template below, replacing all `{{placeholders}}` with actual values.
+
+**Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so. Your final report names the model that reviewed and where the choice came from: your request, `dld.local.yaml`, `dld.config.yaml` or the default.
+
+```
+You are reviewing a plan for the {{project_name}} project: {{decision_count}} proposed decisions ({{decision_range}}) that break down this feature:
+
+{{feature_description}}
+
+Read every new decision record:
+{{new_record_paths}}
+
+Read these existing decisions, which the plan may build on, conflict with, amend or supersede:
+{{related_record_paths}}
+
+Also read the practices docs: {{practices_paths}}
+
+Review the plan for:
+- Coverage: parts of the feature that no decision covers
+- Granularity: decisions that bundle several separate choices, or only say "build X"
+- Conflicts and relationships: overlap or contradiction with existing decisions, and amends or supersedes links that are missing or wrong
+- Vagueness: values, limits or behaviour an implementer would have to guess
+- Order: dependencies between the new decisions, and whether they can be implemented in a sensible order
+- Practices: anything the practices doc rules out
+
+Do NOT make any changes. Only report findings. Be concise; report real problems, not wording preferences.
+
+Report each finding in this format:
+
+### [SEVERITY] Short title
+- Decision: DL-NNN (or "plan" for the plan as a whole)
+- Description: what is wrong and why it matters
+- Recommendation: specific, actionable fix
+
+Group findings by severity:
+- Critical (must fix): the plan would build the wrong thing, or contradicts an accepted decision without superseding or amending it
+- Moderate (should fix): a gap, a missing relationship, or a decision too vague to implement
+- Minor (nice to have): clearer wording, a better split, a missing detail that is easy to settle later
+```
+
+**Filling in the placeholders:**
+- `{{project_name}}`: from `dld.config.yaml` or the repository directory name
+- `{{decision_count}}` and `{{decision_range}}`: how many decisions this plan created, and their IDs
+- `{{feature_description}}`: the feature as the user described it, with what you agreed on in the conversation
+- `{{new_record_paths}}`: the paths of the records created in step 6
+- `{{related_record_paths}}`: the existing decisions you found in step 3, or "none"
+- `{{practices_paths}}`: `decisions/PRACTICES.md` and the namespace practices files you read in step 2. Omit the line if there are none.
+
+**Launching the subagent is requested by the user.** Some agent harnesses carry a standing instruction not to spawn subagents unless the user asked for one. That condition is met here: the user asked by running this skill with the plan review on. It is one review agent, at a fixed point, that the project or the developer opted into.
+
+**If the subagent genuinely cannot run** (the tool is unavailable, or the user denies the call), review the plan inline instead: re-read each new record from disk and work through the checklist above. Say in your report that the review ran inline, and why.
+
+**Acting on findings:** the new decisions are drafts, so fix critical and moderate findings in the records directly. When a fix would change what a decision means, rather than make it clearer or more complete, ask the user with `AskUserQuestion` first. Minor findings are optional. Adding or dropping a decision changes the plan the user agreed to, so ask first, then create or delete the record as in step 6. If a fix adds or changes an `amends` or `supersedes` link, apply it as in step 6, including `update-status` for a superseded decision. After fixing, run `find-missing-amends` again on the plan's IDs. The reviewer works with limited context and may be wrong; use your judgment, and ask the user when unsure.
+
+### 8. Check edits to decisions on the base branch
 
 ```bash
 {{dld}} check-decision-edits --uncommitted
@@ -136,14 +200,14 @@ Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the com
 
 If the command can't find the base branch, tell the user and continue. Its message says what it tried; setting `base_branch` in `dld.config.yaml` fixes it when the branch decisions merge into is not found automatically.
 
-### 8. Regenerate INDEX.md
+### 9. Regenerate INDEX.md
 
 After all decisions are created:
 ```bash
 {{dld}} regenerate-index
 ```
 
-### 9. Suggest next steps
+### 10. Suggest next steps
 
 > Created **N** decisions for feature `<tag>`:
 >
@@ -152,6 +216,8 @@ After all decisions are created:
 > | DL-010 | Choose payment gateway adapter pattern | proposed |
 > | DL-011 | Define retry strategy for failed payments | proposed |
 > | DL-012 | Idempotency key format | proposed |
+>
+> Plan review: <reviewed by MODEL (from SOURCE: the request, dld.local.yaml, dld.config.yaml or default), and what changed; inline; or "not reviewed">
 >
 > Next steps:
 > - `/dld-adjust` — refine any decisions before implementing

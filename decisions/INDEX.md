@@ -2,6 +2,9 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-089 | Optional review subagent for /dld-plan, set by plan_review | accepted | review-settings, review |
+| DL-088 | Review model settings with per-step overrides, resolved by dld review-settings | accepted | review-settings, config, review |
+| DL-087 | Per-checkout personal settings in a gitignored dld.local.yaml | accepted | review-settings, config |
 | DL-086 | Node.js 22+ runtime, CI on 22 and 24, and floors that follow Node's LTS schedule | accepted | release, runtime |
 | DL-085 | State dld-kit's 1.0 public contract: formats, names and distribution, not only the setup commands | accepted | release, contract |
 | DL-084 | Make OVERVIEW.md the only built-in snapshot document and stop generating SNAPSHOT.md | accepted | snapshot |

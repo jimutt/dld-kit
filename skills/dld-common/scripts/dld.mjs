@@ -8156,7 +8156,15 @@ import { join as join5 } from "node:path";
 var import_yaml2 = __toESM(require_dist(), 1);
 import { join as join4 } from "node:path";
 var CONFIG_FILE = "dld.config.yaml";
+var LOCAL_FILE = "dld.local.yaml";
 var DECISION_EDITS = ["block", "ask", "allow"];
+var PERSONAL_KEYS = [
+  "implement_review",
+  "plan_review",
+  "review_model",
+  "implement_review_model",
+  "plan_review_model"
+];
 var CONFIG_KEYS = [
   "decisions_dir",
   "mode",
@@ -8164,6 +8172,10 @@ var CONFIG_KEYS = [
   "annotation_prefix",
   "annotation_exclude",
   "implement_review",
+  "plan_review",
+  "review_model",
+  "implement_review_model",
+  "plan_review_model",
   "decision_edits",
   "snapshot_artifacts",
   "base_branch"
@@ -8184,7 +8196,7 @@ function parseConfig(text, warn = () => {
   if (!isRecord2(raw)) throw invalid("expected a mapping of keys to values");
   for (const key of Object.keys(raw)) {
     if (key.startsWith("x-") || CONFIG_KEYS.some((known) => known === key)) continue;
-    warn(unknownKeyMessage(key));
+    warn(unknownKeyMessage(key, CONFIG_FILE, CONFIG_KEYS));
   }
   const mode = raw.mode;
   if (mode !== "flat" && mode !== "namespaced") {
@@ -8205,21 +8217,57 @@ function parseConfig(text, warn = () => {
     annotationPrefix: optionalString(raw.annotation_prefix, "annotation_prefix") ?? "@decision",
     // @decision(DL-023)
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
-    implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
+    personal: personalSettings(raw, CONFIG_FILE),
     decisionEdits: decisionEdits(raw.decision_edits),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
     ...optionalBaseBranch(raw.base_branch)
   };
 }
-function unknownKeyMessage(key) {
+function parseLocalSettings(text, warn = () => {
+}) {
+  const doc = (0, import_yaml2.parseDocument)(text, { logLevel: "silent" });
+  const problem = doc.errors[0] ?? doc.warnings[0];
+  if (problem !== void 0) throw invalid(`not valid YAML: ${problem.message}`, LOCAL_FILE);
+  const raw = doc.toJS() ?? {};
+  if (!isRecord2(raw)) throw invalid("expected a mapping of keys to values", LOCAL_FILE);
+  for (const key of Object.keys(raw)) {
+    if (key.startsWith("x-") || PERSONAL_KEYS.some((known) => known === key)) continue;
+    warn(
+      CONFIG_KEYS.some((known) => known === key) ? `${LOCAL_FILE}: '${key}' can only be set in ${CONFIG_FILE}` : unknownKeyMessage(key, LOCAL_FILE, PERSONAL_KEYS)
+    );
+  }
+  return personalSettings(raw, LOCAL_FILE);
+}
+function personalSettings(raw, file) {
+  const settings = {};
+  const implementReview = optionalBoolean(raw.implement_review, "implement_review", file);
+  if (implementReview !== void 0) settings.implementReview = implementReview;
+  const planReview = optionalBoolean(raw.plan_review, "plan_review", file);
+  if (planReview !== void 0) settings.planReview = planReview;
+  const reviewModel = modelName(raw.review_model, "review_model", file);
+  if (reviewModel !== void 0) settings.reviewModel = reviewModel;
+  const implementModel = modelName(raw.implement_review_model, "implement_review_model", file);
+  if (implementModel !== void 0) settings.implementReviewModel = implementModel;
+  const planModel = modelName(raw.plan_review_model, "plan_review_model", file);
+  if (planModel !== void 0) settings.planReviewModel = planModel;
+  return settings;
+}
+function modelName(value, key, file) {
+  const name = optionalString(value, key, file);
+  if (name !== void 0 && !/^\S(?:[^\r\n]*\S)?$/.test(name)) {
+    throw invalid(`'${key}' must be a model name on one line, without surrounding spaces`, file);
+  }
+  return name;
+}
+function unknownKeyMessage(key, file, keys) {
   let closest;
   let best = 3;
-  for (const known of CONFIG_KEYS) {
+  for (const known of keys) {
     const distance = editDistance(key, known);
     if (distance < best) [closest, best] = [known, distance];
   }
   const hint = closest === void 0 ? "" : `; did you mean '${closest}'?`;
-  return `${CONFIG_FILE}: unknown key '${key}'${hint}`;
+  return `${file}: unknown key '${key}'${hint}`;
 }
 function editDistance(a, b) {
   let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -8247,8 +8295,8 @@ function optionalBaseBranch(value) {
   }
   return { baseBranch: branch };
 }
-function invalid(message) {
-  return new DldError(`${CONFIG_FILE}: ${message}`);
+function invalid(message, file = CONFIG_FILE) {
+  return new DldError(`${file}: ${message}`);
 }
 function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -8258,16 +8306,16 @@ function requiredString(value, key) {
   if (result === void 0) throw invalid(`'${key}' is required`);
   return result;
 }
-function optionalString(value, key) {
+function optionalString(value, key, file) {
   if (value === void 0 || value === null) return void 0;
   if (typeof value !== "string" || value.trim() === "") {
-    throw invalid(`'${key}' must be a non-empty string`);
+    throw invalid(`'${key}' must be a non-empty string`, file);
   }
   return value;
 }
-function optionalBoolean(value, key) {
+function optionalBoolean(value, key, file) {
   if (value === void 0 || value === null) return void 0;
-  if (typeof value !== "boolean") throw invalid(`'${key}' must be true or false`);
+  if (typeof value !== "boolean") throw invalid(`'${key}' must be true or false`, file);
   return value;
 }
 function optionalStringList(value, key) {
@@ -9249,8 +9297,65 @@ function applyIndexMergeAttribute(ctx, root, plan) {
   return true;
 }
 
-// src/generate/harnesses.ts
+// src/generate/gitignore.ts
 import { join as join13 } from "node:path";
+var GITIGNORE = ".gitignore";
+var LOCAL_IGNORE_COMMENT = "# dld-kit: one developer's DLD settings for this checkout";
+function planLocalSettingsIgnore(ctx, root) {
+  const wanted = `/${LOCAL_FILE}`;
+  const git = gitAt(ctx, root);
+  let rule;
+  try {
+    rule = /:\d+:(.*)\t[^\t]*$/.exec(
+      git("check-ignore", "-v", "-n", "--no-index", LOCAL_FILE).trim()
+    )?.[1];
+  } catch (error) {
+    if (!(error instanceof GitCommandError) || error.status !== 1) {
+      return {
+        warnings: [
+          `could not check whether git ignores ${LOCAL_FILE}. Add this line to ${GITIGNORE} so personal settings are not committed: ${wanted}`
+        ]
+      };
+    }
+  }
+  const warnings = [];
+  if (git("ls-files", "--", LOCAL_FILE).trim() !== "") {
+    warnings.push(
+      `${LOCAL_FILE} is committed, so everyone gets these personal settings. Run \`git rm --cached ${LOCAL_FILE}\` and commit, to keep it to your checkout.`
+    );
+  }
+  if (rule !== void 0 && rule !== "") {
+    if (rule.startsWith("!")) {
+      warnings.push(
+        `a "${rule}" rule keeps ${LOCAL_FILE} out of git's ignore list, so dld-kit does not add one. Personal settings in it will be committed.`
+      );
+    }
+    return { warnings };
+  }
+  const path = join13(root, GITIGNORE);
+  if (ctx.fs.lexists(path) && !ctx.fs.isRegularFile(path)) {
+    warnings.push(
+      `${GITIGNORE} is not a regular file, so dld-kit does not edit it. Add this line to it yourself: ${wanted}`
+    );
+    return { warnings };
+  }
+  const text = ctx.fs.lexists(path) ? ctx.fs.readFile(path) : "";
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const separator = text === "" ? "" : text.endsWith("\n") ? eol : eol + eol;
+  return {
+    content: `${text}${separator}${LOCAL_IGNORE_COMMENT}${eol}${wanted}${eol}`,
+    creates: !ctx.fs.lexists(path),
+    warnings
+  };
+}
+function applyLocalSettingsIgnore(ctx, root, plan) {
+  if (plan.content === void 0) return false;
+  writeFileAtomic(ctx, join13(root, GITIGNORE), plan.content);
+  return true;
+}
+
+// src/generate/harnesses.ts
+import { join as join14 } from "node:path";
 
 // src/generate/template.ts
 var import_yaml4 = __toESM(require_dist(), 1);
@@ -9465,7 +9570,7 @@ function findHarness(name) {
   return HARNESSES.find((harness) => harness.name === name);
 }
 function detectHarnesses(ctx, root) {
-  const found = (marker) => ctx.fs.lexists(join13(root, marker));
+  const found = (marker) => ctx.fs.lexists(join14(root, marker));
   const detected = [];
   for (const harness of HARNESSES) {
     const marker = harness.markers.find(found);
@@ -9488,7 +9593,7 @@ function targetsFor(harnesses) {
 }
 
 // src/generate/rule.ts
-import { dirname as dirname2, join as join14, posix as posix3 } from "node:path";
+import { dirname as dirname2, join as join15, posix as posix3 } from "node:path";
 
 // templates/rules/dld-workflow.md
 var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated (except `id` and `timestamp`), but change the prose below it only through the dld-adjust skill, which follows `decision_edits` in `dld.config.yaml`: `block` (the default) never edits it and records an amendment or superseding decision instead, `ask` edits after the user confirms, `allow` edits.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate OVERVIEW.md, and any custom artifacts, from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
@@ -9501,7 +9606,7 @@ function ruleTextFor(prefix) {
   return RULE_TEXT.replaceAll(`\`${DEFAULT_PREFIX}(`, () => `\`${prefix}(`);
 }
 function projectRuleText(ctx, root) {
-  if (!ctx.fs.exists(join14(root, CONFIG_FILE))) return RULE_TEXT;
+  if (!ctx.fs.exists(join15(root, CONFIG_FILE))) return RULE_TEXT;
   try {
     return ruleTextFor(loadConfig({ ...ctx, warn: () => {
     } }, root).annotationPrefix);
@@ -9595,10 +9700,10 @@ function upsertBlock(content, block, file) {
 }
 function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text = RULE_TEXT) {
   const plan = { writes: [], removals: [], warnings: [] };
-  const regular = (file) => ctx.fs.isRegularFile(join14(root, file));
-  const read = (file) => regular(file) ? ctx.fs.readFile(join14(root, file)) : "";
+  const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
+  const read = (file) => regular(file) ? ctx.fs.readFile(join15(root, file)) : "";
   const resolved = (file) => {
-    const full = join14(root, file);
+    const full = join15(root, file);
     return ctx.fs.exists(full) ? ctx.fs.realPath(full) : full;
   };
   let blockFiles = [AGENTS_MD, CLAUDE_MD].filter(
@@ -9619,7 +9724,7 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   }
   const linkedDir = symlinkedPart(ctx, root, dirname2(CLAUDE_IMPORT_FILE));
   const ownsImport = linkedDir === void 0 && importFileVersion(read(CLAUDE_IMPORT_FILE)) !== void 0;
-  const wantsImport = channels.has("claude-file") && blockFiles.includes(AGENTS_MD) && !SHARED_CLAUDE_FILES.some((file) => ctx.fs.lexists(join14(root, file)));
+  const wantsImport = channels.has("claude-file") && blockFiles.includes(AGENTS_MD) && !SHARED_CLAUDE_FILES.some((file) => ctx.fs.lexists(join15(root, file)));
   if (ownsImport || wantsImport && linkedDir === void 0) {
     const content = renderImportFile(version2);
     pending.set(CLAUDE_IMPORT_FILE, content);
@@ -9656,7 +9761,7 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   for (const channel of ["claude-file", "agents-file"]) {
     const path = RULE_FILES[channel];
     if (loadsBlock(channel)) {
-      if (ctx.fs.lexists(join14(root, path))) plan.removals.push(path);
+      if (ctx.fs.lexists(join15(root, path))) plan.removals.push(path);
     } else if (channels.has(channel)) {
       refuseSymlinkedDir(ctx, root, dirname2(path));
       const content = renderRuleFile(channel, text, version2);
@@ -9670,10 +9775,10 @@ function planRule(ctx, root, channels, version2, { harnesses = [] } = {}, text =
   return plan;
 }
 function projectView(ctx, root) {
-  const exists = (file) => ctx.fs.exists(join14(root, file));
+  const exists = (file) => ctx.fs.exists(join15(root, file));
   return {
     exists,
-    read: (file) => exists(file) && !ctx.fs.isDirectory(join14(root, file)) ? ctx.fs.readFile(join14(root, file)) : ""
+    read: (file) => exists(file) && !ctx.fs.isDirectory(join15(root, file)) ? ctx.fs.readFile(join15(root, file)) : ""
   };
 }
 function instructionFiles(harness, view) {
@@ -9722,9 +9827,9 @@ function blindWarnings(blockFiles, blind, reads) {
   });
 }
 function blockPlacement(ctx, root, targets) {
-  if (ctx.fs.isRegularFile(join14(root, AGENTS_MD))) return AGENTS_MD;
-  const agentsLinked = ctx.fs.lexists(join14(root, AGENTS_MD));
-  if (ctx.fs.isRegularFile(join14(root, CLAUDE_MD)) && (agentsLinked || targets.every((h) => h.instructions.includes(CLAUDE_MD)))) {
+  if (ctx.fs.isRegularFile(join15(root, AGENTS_MD))) return AGENTS_MD;
+  const agentsLinked = ctx.fs.lexists(join15(root, AGENTS_MD));
+  if (ctx.fs.isRegularFile(join15(root, CLAUDE_MD)) && (agentsLinked || targets.every((h) => h.instructions.includes(CLAUDE_MD)))) {
     return CLAUDE_MD;
   }
   if (agentsLinked) {
@@ -9735,8 +9840,8 @@ function blockPlacement(ctx, root, targets) {
   return AGENTS_MD;
 }
 function switchWarnings(ctx, root, file, targets) {
-  if (file !== AGENTS_MD || ctx.fs.lexists(join14(root, AGENTS_MD))) return [];
-  const claudeMd = join14(root, CLAUDE_MD);
+  if (file !== AGENTS_MD || ctx.fs.lexists(join15(root, AGENTS_MD))) return [];
+  const claudeMd = join15(root, CLAUDE_MD);
   if (!ctx.fs.exists(claudeMd) || ctx.fs.isDirectory(claudeMd)) return [];
   const switching = targets.filter((h) => !h.readsAll && h.instructions.includes(CLAUDE_MD));
   if (switching.length === 0) return [];
@@ -9756,7 +9861,7 @@ function legacyBlockWarnings(claudeMd, ruleInstalled) {
   ];
 }
 function loadsRule(ctx, root, harness) {
-  if (harness.rule !== "block" && ctx.fs.exists(join14(root, RULE_FILES[harness.rule]))) {
+  if (harness.rule !== "block" && ctx.fs.exists(join15(root, RULE_FILES[harness.rule]))) {
     return true;
   }
   const view = projectView(ctx, root);
@@ -9765,16 +9870,16 @@ function loadsRule(ctx, root, harness) {
   );
 }
 function sessionContext(ctx, root, harness, text) {
-  if (!ctx.fs.exists(join14(root, CONFIG_FILE))) return void 0;
+  if (!ctx.fs.exists(join15(root, CONFIG_FILE))) return void 0;
   return loadsRule(ctx, root, harness) ? void 0 : text ?? projectRuleText(ctx, root);
 }
 function symlinkedPart(ctx, root, dir) {
   let current = "";
   for (const part of dir.split("/")) {
     current = current === "" ? part : `${current}/${part}`;
-    const full = join14(root, current);
+    const full = join15(root, current);
     if (!ctx.fs.lexists(full)) return void 0;
-    if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join14(ctx.fs.realPath(root), current)) {
+    if (!ctx.fs.exists(full) || ctx.fs.realPath(full) !== join15(ctx.fs.realPath(root), current)) {
       return current;
     }
   }
@@ -9791,13 +9896,13 @@ function refuseSymlinkedDir(ctx, root, dir) {
 function installedRuleChannels(ctx, root) {
   const channels = /* @__PURE__ */ new Set();
   for (const channel of ["claude-file", "agents-file"]) {
-    if (ctx.fs.lexists(join14(root, RULE_FILES[channel]))) channels.add(channel);
+    if (ctx.fs.lexists(join15(root, RULE_FILES[channel]))) channels.add(channel);
   }
   if (importFileVersion(projectView(ctx, root).read(CLAUDE_IMPORT_FILE)) !== void 0) {
     channels.add("claude-file");
   }
   for (const file of [AGENTS_MD, CLAUDE_MD]) {
-    const path = join14(root, file);
+    const path = join15(root, file);
     if (ctx.fs.isRegularFile(path) && findBlock(ctx.fs.readFile(path), file) !== void 0) {
       channels.add("block");
     }
@@ -9806,14 +9911,14 @@ function installedRuleChannels(ctx, root) {
 }
 function installedRuleStamps(ctx, root) {
   const stamps = [];
-  const regular = (file) => ctx.fs.isRegularFile(join14(root, file));
+  const regular = (file) => ctx.fs.isRegularFile(join15(root, file));
   for (const file of [CLAUDE_RULE_FILE, AGENTS_RULE_FILE].filter(regular)) {
-    stamps.push({ path: file, version: ruleVersion(ctx.fs.readFile(join14(root, file))) });
+    stamps.push({ path: file, version: ruleVersion(ctx.fs.readFile(join15(root, file))) });
   }
   const imported = importFileVersion(projectView(ctx, root).read(CLAUDE_IMPORT_FILE));
   if (imported !== void 0) stamps.push({ path: CLAUDE_IMPORT_FILE, version: imported });
   for (const file of [AGENTS_MD, CLAUDE_MD].filter(regular)) {
-    const content = ctx.fs.readFile(join14(root, file));
+    const content = ctx.fs.readFile(join15(root, file));
     const span = findBlock(content, file);
     if (span !== void 0) {
       stamps.push({ path: file, version: ruleVersion(content.slice(span.from, span.to)) });
@@ -9823,13 +9928,13 @@ function installedRuleStamps(ctx, root) {
 }
 function applyRulePlan(ctx, root, plan) {
   for (const { path, content } of plan.writes) {
-    const full = join14(root, path);
+    const full = join15(root, path);
     ctx.fs.mkdir(dirname2(full));
     if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
     writeFileAtomic(ctx, full, content);
   }
   for (const path of plan.removals) {
-    const full = join14(root, path);
+    const full = join15(root, path);
     ctx.fs.remove(full);
     if (ctx.fs.isDirectory(dirname2(full)) && ctx.fs.readDir(dirname2(full)).length === 0) {
       ctx.fs.removeDir(dirname2(full));
@@ -9929,6 +10034,17 @@ function ensureIndexMergeAttribute(io, ctx, project) {
   for (const warning of plan.warnings) io.stderr(`Warning: ${warning}
 `);
 }
+function ensureLocalSettingsIgnored(io, ctx, project) {
+  const { root } = project.paths;
+  const plan = planLocalSettingsIgnore(ctx, root);
+  if (applyLocalSettingsIgnore(ctx, root, plan)) {
+    const verb = plan.creates === true ? "Created" : "Updated";
+    io.stdout(`${verb} ${GITIGNORE}: ${LOCAL_FILE} holds personal settings and is not committed
+`);
+  }
+  for (const warning of plan.warnings) io.stderr(`Warning: ${warning}
+`);
+}
 
 // src/cli/commands/create-empty-index.ts
 var createEmptyIndexCommand = {
@@ -9962,7 +10078,7 @@ var detectSnapshotChangesCommand = {
 };
 
 // src/core/annotations.ts
-import { join as join15, relative as relative9, sep as sep5 } from "node:path";
+import { join as join16, relative as relative9, sep as sep5 } from "node:path";
 var EXCLUDED_DIRS = /* @__PURE__ */ new Set([
   ".git",
   // Agent configuration directories, which hold installed skills.
@@ -10025,7 +10141,7 @@ function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function readScannable(ctx, root, file, onSkip) {
-  const path = join15(root, file);
+  const path = join16(root, file);
   let text;
   try {
     if (!ctx.fs.isRegularFile(path)) return void 0;
@@ -10229,7 +10345,7 @@ Options:
 
 // src/core/rename.ts
 import { Buffer as Buffer2 } from "node:buffer";
-import { join as join16, posix as posix4 } from "node:path";
+import { join as join17, posix as posix4 } from "node:path";
 var idPattern = (id, flags = "") => new RegExp(`${id}(?![0-9])`, flags);
 function changedFiles(ctx, paths, commit2) {
   return nulSeparated(
@@ -10257,12 +10373,12 @@ function renameDecision(ctx, project, rename, base) {
   const { path, oldId, newId } = rename;
   const problem = renameProblem(paths, rename);
   if (problem !== void 0) throw new DldError(problem, EXIT_USAGE);
-  const full = join16(paths.root, path);
+  const full = join17(paths.root, path);
   if (!ctx.fs.isRegularFile(full)) throw new DldError(`${path} not found.`);
   const record = parseRecord(ctx.fs.readFile(full), path);
   if (record.id !== oldId) throw new DldError(`${path} has id ${record.id}, not ${oldId}.`);
   const newPath = posix4.join(posix4.dirname(path), `${newId}.md`);
-  const newFull = join16(paths.root, newPath);
+  const newFull = join17(paths.root, newPath);
   if (ctx.fs.lexists(newFull)) throw new DldError(`${newPath} already exists.`);
   verifyBase(ctx, paths, base);
   const since = mergeBase(ctx, paths, base);
@@ -10277,11 +10393,11 @@ function renameDecision(ctx, project, rename, base) {
   for (const file of changedFiles(ctx, paths, since)) {
     if (file === newPath) continue;
     if (file.startsWith(decisions)) {
-      rewriteFile(ctx, join16(paths.root, file), substitute);
+      rewriteFile(ctx, join17(paths.root, file), substitute);
     } else if (scannable.has(file)) {
       rewriteFile(
         ctx,
-        join16(paths.root, file),
+        join17(paths.root, file),
         (text) => text.split(oldAnnotation).join(newAnnotation)
       );
     }
@@ -10295,7 +10411,7 @@ function findStaleMentions(ctx, { paths }, planText, base) {
   const decisions = `${decisionsPathspec(paths)}/`;
   const files = changedFiles(ctx, paths, mergeBase(ctx, paths, base)).flatMap((file) => {
     if (file.startsWith(decisions)) return [];
-    const full = join16(paths.root, file);
+    const full = join17(paths.root, file);
     if (!ctx.fs.isRegularFile(full)) return [];
     const text = ctx.fs.readFile(full);
     if (text.slice(0, BINARY_SNIFF_BYTES).includes("\0")) return [];
@@ -10343,13 +10459,13 @@ Options:
 };
 
 // src/cli/commands/init.ts
-import { join as join19, relative as relative11 } from "node:path";
+import { join as join20, relative as relative11 } from "node:path";
 
 // src/generate/install.ts
-import { dirname as dirname4, join as join18 } from "node:path";
+import { dirname as dirname4, join as join19 } from "node:path";
 
 // src/generate/generate.ts
-import { dirname as dirname3, join as join17 } from "node:path";
+import { dirname as dirname3, join as join18 } from "node:path";
 var MANIFEST = "SKILL.md";
 var normalMode = (mode) => mode & 73 ? 493 : 420;
 function listFiles(ctx, dir, other = () => {
@@ -10360,7 +10476,7 @@ function listFiles(ctx, dir, other = () => {
     if (entry.name.startsWith(".")) continue;
     const rel = `${prefix}${entry.name}`;
     if (entry.isDirectory) {
-      found.push(...listFiles(ctx, join17(dir, entry.name), other, `${rel}/`));
+      found.push(...listFiles(ctx, join18(dir, entry.name), other, `${rel}/`));
     } else {
       if (!entry.isFile) other(rel);
       found.push(rel);
@@ -10396,7 +10512,7 @@ function generateSkills(ctx, templatesDir, adapter, version2, { sourceDir = "tem
   const provided = /* @__PURE__ */ new Set();
   const support = /* @__PURE__ */ new Map();
   for (const skill of skills) {
-    const files = listFiles(ctx, join17(templatesDir, skill), (rel) => {
+    const files = listFiles(ctx, join18(templatesDir, skill), (rel) => {
       throw new DldError(`${sourceDir}/${skill}/${rel}: templates must be regular files`);
     }).filter((file) => file !== MANIFEST);
     support.set(skill, files);
@@ -10408,7 +10524,7 @@ function generateSkills(ctx, templatesDir, adapter, version2, { sourceDir = "tem
   }
   const output = /* @__PURE__ */ new Map();
   for (const skill of skills) {
-    const path = join17(templatesDir, skill, MANIFEST);
+    const path = join18(templatesDir, skill, MANIFEST);
     const source = `${sourceDir}/${skill}/${MANIFEST}`;
     const template = parseTemplate(ctx.fs.readFile(path), skill, source);
     const rendered = renderBody(template, {
@@ -10424,7 +10540,7 @@ function generateSkills(ctx, templatesDir, adapter, version2, { sourceDir = "tem
       });
     }
     for (const file of support.get(skill) ?? []) {
-      const full = join17(templatesDir, skill, file);
+      const full = join18(templatesDir, skill, file);
       output.set(`${skill}/${file}`, {
         content: readSupportingFile(ctx, full, `${sourceDir}/${skill}/${file}`),
         mode: normalMode(ctx.fs.fileMode(full))
@@ -10446,7 +10562,7 @@ function diffOutput(ctx, dir, files, owns = anyDldSkill) {
   );
   const diff = { changed: [], missing: [], extra: [] };
   for (const [path, file] of files) {
-    const full = join17(dir, path);
+    const full = join18(dir, path);
     if (!existing.has(path) || !ctx.fs.isRegularFile(full)) diff.missing.push(path);
     else if (ctx.fs.readFile(full) !== file.content || normalMode(ctx.fs.fileMode(full)) !== file.mode) {
       diff.changed.push(path);
@@ -10457,12 +10573,12 @@ function diffOutput(ctx, dir, files, owns = anyDldSkill) {
 }
 function writeOutput(ctx, dir, files, owns = anyDldSkill) {
   const diff = diffOutput(ctx, dir, files, owns);
-  for (const path of diff.extra) ctx.fs.remove(join17(dir, path));
+  for (const path of diff.extra) ctx.fs.remove(join18(dir, path));
   for (const path of [...diff.missing, ...diff.changed]) {
     const file = files.get(path);
     if (file === void 0) continue;
-    const full = join17(dir, path);
-    ctx.fs.mkdir(join17(full, ".."));
+    const full = join18(dir, path);
+    ctx.fs.mkdir(join18(full, ".."));
     if (ctx.fs.lexists(full) && !ctx.fs.isRegularFile(full)) ctx.fs.remove(full);
     writeFileAtomic(ctx, full, file.content, file.mode);
   }
@@ -10476,14 +10592,14 @@ function removeEmptyParents(ctx, dir, paths) {
   }
   const deepestFirst = [...parents].sort((a, b) => b.split("/").length - a.split("/").length);
   for (const parent of deepestFirst) {
-    const full = join17(dir, parent);
+    const full = join18(dir, parent);
     if (ctx.fs.isDirectory(full) && ctx.fs.readDir(full).length === 0) ctx.fs.removeDir(full);
   }
 }
 
 // src/generate/install.ts
 function packageSource(ctx, cliPath2, command) {
-  const templatesDir = join18(dirname4(cliPath2), "..", "templates", "skills");
+  const templatesDir = join19(dirname4(cliPath2), "..", "templates", "skills");
   if (!ctx.fs.isDirectory(templatesDir)) {
     throw new DldError(
       `dld ${command} installs skills from the dld-kit npm package, but this copy of dld (${cliPath2}) has no templates beside it. Run it from the package instead: npx dld-kit@latest ${command}`
@@ -10508,12 +10624,12 @@ var SHIPPED_SKILLS = /* @__PURE__ */ new Set([
 ]);
 var isShipped = (name) => SHIPPED_SKILLS.has(name);
 function dldEntries(ctx, root, layout) {
-  const dir = join18(root, layout.dir);
+  const dir = join19(root, layout.dir);
   if (!ctx.fs.isDirectory(dir)) return [];
   return ctx.fs.readDir(dir).filter((entry) => !entry.isFile && entry.name.startsWith("dld-")).sort((a, b) => a.name < b.name ? -1 : 1);
 }
 function dldKitSkills(ctx, root, layout) {
-  const dir = join18(root, layout.dir);
+  const dir = join19(root, layout.dir);
   const owned = /* @__PURE__ */ new Set();
   for (const entry of dldEntries(ctx, root, layout)) {
     if (isShipped(entry.name)) {
@@ -10521,7 +10637,7 @@ function dldKitSkills(ctx, root, layout) {
       continue;
     }
     if (!entry.isDirectory) continue;
-    const skillMd = join18(dir, entry.name, "SKILL.md");
+    const skillMd = join19(dir, entry.name, "SKILL.md");
     if (!ctx.fs.isRegularFile(skillMd)) continue;
     const content = ctx.fs.readFile(skillMd);
     const notice2 = `Generated by dld-kit from templates/skills/${entry.name}/SKILL.md.`;
@@ -10533,7 +10649,7 @@ function ownedSkills(ctx, root, layout) {
   return [...dldKitSkills(ctx, root, layout)].sort();
 }
 function refuseSymlinkedSkills(ctx, root, layout) {
-  const dir = join18(root, layout.dir);
+  const dir = join19(root, layout.dir);
   if (!ctx.fs.isDirectory(dir)) return;
   const linked = ctx.fs.readDir(dir).filter((entry) => isShipped(entry.name) && !entry.isDirectory && !entry.isFile).map((entry) => `${layout.dir}/${entry.name}`).sort();
   if (linked.length === 0) return;
@@ -10543,7 +10659,7 @@ function refuseSymlinkedSkills(ctx, root, layout) {
 }
 var SKILLS_LOCK = "skills-lock.json";
 function skillsLockWarning(ctx, root) {
-  const path = join18(root, SKILLS_LOCK);
+  const path = join19(root, SKILLS_LOCK);
   if (!ctx.fs.isRegularFile(path)) return [];
   let skills;
   try {
@@ -10579,8 +10695,8 @@ function installedStamps(ctx, root) {
   for (const layout of LAYOUTS) {
     for (const skill of ownedSkills(ctx, root, layout)) {
       const path = `${layout.dir}/${skill}/SKILL.md`;
-      if (!ctx.fs.isRegularFile(join18(root, path))) continue;
-      stamps.push({ path, version: SKILL_STAMP.exec(ctx.fs.readFile(join18(root, path)))?.[1] });
+      if (!ctx.fs.isRegularFile(join19(root, path))) continue;
+      stamps.push({ path, version: SKILL_STAMP.exec(ctx.fs.readFile(join19(root, path)))?.[1] });
     }
   }
   return [...stamps, ...installedRuleStamps(ctx, root)];
@@ -10665,7 +10781,7 @@ function planInstall(ctx, root, request) {
 }
 function applyInstall(ctx, root, plan) {
   const skills = plan.skills.map(({ layout, files, owns }) => {
-    const diff = writeOutput(ctx, join18(root, layout.dir), files, owns);
+    const diff = writeOutput(ctx, join19(root, layout.dir), files, owns);
     const written = diff.changed.length + diff.missing.length;
     return {
       dir: layout.dir,
@@ -10720,7 +10836,7 @@ ${AGENT_HELP}
       throw new UsageError("--namespaces needs at least one namespace");
     }
     const root = findProjectRoot(ctx);
-    if (ctx.fs.lexists(join19(root, CONFIG_FILE))) {
+    if (ctx.fs.lexists(join20(root, CONFIG_FILE))) {
       throw new DldError(
         `DLD is already set up here (${CONFIG_FILE} exists). Run dld update to refresh the skills and rule, or dld update --agent <name> to add an agent.`
       );
@@ -10751,6 +10867,7 @@ ${AGENT_HELP}
 `);
     printReport(io, report2);
     ensureIndexMergeAttribute(io, ctx, project);
+    ensureLocalSettingsIgnored(io, ctx, project);
     io.stdout(
       `
 DLD is set up for: ${harnesses.map((harness) => harness.name).join(", ")}. Commit these files so everyone gets the same skills and rule.
@@ -11056,7 +11173,7 @@ Options:
 };
 
 // src/cli/commands/resolve-base.ts
-import { join as join20 } from "node:path";
+import { join as join21 } from "node:path";
 var resolveBaseCommand = {
   name: "resolve-base",
   summary: "Print the base ref to check decision IDs against",
@@ -11070,7 +11187,7 @@ origin/main, then main. Only a ref that exists is printed; when none does, exit 
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
     const root = findProjectRoot(ctx);
-    const config = ctx.fs.exists(join20(root, CONFIG_FILE)) ? loadConfig(ctx, root) : void 0;
+    const config = ctx.fs.exists(join21(root, CONFIG_FILE)) ? loadConfig(ctx, root) : void 0;
     io.stdout(`${resolveBase(ctx, config?.baseBranch)}
 `);
     return EXIT_OK;
@@ -11113,6 +11230,89 @@ Options:
       io.stdout(`Restored ${path}
 `);
     }
+    return EXIT_OK;
+  }
+};
+
+// src/core/review-settings.ts
+import { join as join22 } from "node:path";
+var REVIEW_STEPS = ["implement", "plan"];
+var STEP_KEYS = {
+  implement: { review: "implementReview", model: "implementReviewModel" },
+  plan: { review: "planReview", model: "planReviewModel" }
+};
+var REVIEWS_BY_DEFAULT = { implement: true, plan: false };
+function isReviewStep(value) {
+  return REVIEW_STEPS.some((step) => step === value);
+}
+function readLocalSettings(ctx, project) {
+  const path = join22(project.paths.root, LOCAL_FILE);
+  if (!ctx.fs.exists(path)) return {};
+  return parseLocalSettings(ctx.fs.readFile(path), (message) => ctx.warn(message));
+}
+function reviewSettings(ctx, project, step) {
+  if (!isReviewStep(step)) {
+    throw new DldError(
+      `unknown review step '${step}'; expected ${REVIEW_STEPS.join(" or ")}.`,
+      EXIT_USAGE
+    );
+  }
+  const keys = STEP_KEYS[step];
+  const layers = [
+    [LOCAL_FILE, readLocalSettings(ctx, project)],
+    [CONFIG_FILE, project.config.personal]
+  ];
+  let review = {
+    review: REVIEWS_BY_DEFAULT[step],
+    reviewFrom: "default"
+  };
+  const reviewLayer = layers.find(([, settings]) => settings[keys.review] !== void 0);
+  if (reviewLayer !== void 0) {
+    const [from, settings] = reviewLayer;
+    review = { review: settings[keys.review] === true, reviewFrom: from };
+  }
+  for (const [from, settings] of layers) {
+    const model = settings[keys.model] ?? settings.reviewModel;
+    if (model !== void 0) return { ...review, model, modelFrom: from };
+  }
+  return { ...review, modelFrom: "default" };
+}
+function formatReviewSettings(settings) {
+  return [
+    `review: ${settings.review ? "on" : "off"}`,
+    `review_from: ${settings.reviewFrom}`,
+    `model: ${settings.model ?? "default"}`,
+    `model_from: ${settings.modelFrom}`,
+    ""
+  ].join("\n");
+}
+
+// src/cli/commands/review-settings.ts
+var reviewSettingsCommand = {
+  name: "review-settings",
+  summary: "Print whether a review step runs, and on which model",
+  internal: true,
+  usage: `Usage: dld review-settings <${REVIEW_STEPS.join("|")}>
+
+Print the effective review settings for a step, with dld.local.yaml over dld.config.yaml
+over the defaults (implement reviews, plan does not):
+
+  review: on|off
+  review_from: dld.local.yaml|dld.config.yaml|default
+  model: <name>|default
+  model_from: dld.local.yaml|dld.config.yaml|default
+`,
+  run(args, io, ctx) {
+    const { positionals } = parseCommandArgs({
+      args: [...args],
+      options: {},
+      allowPositionals: true
+    });
+    const [step, ...rest] = positionals;
+    if (step === void 0 || rest.length > 0) {
+      throw new UsageError(`expected one review step: ${REVIEW_STEPS.join(" or ")}`);
+    }
+    io.stdout(formatReviewSettings(reviewSettings(ctx, loadProject(ctx), step)));
     return EXIT_OK;
   }
 };
@@ -11161,7 +11361,7 @@ Agents: ${HARNESS_NAMES.join(", ")}.
 };
 
 // src/cli/commands/update.ts
-import { join as join21 } from "node:path";
+import { join as join23 } from "node:path";
 var updateCommand = {
   name: "update",
   summary: "Refresh the installed DLD skills and rule to this version",
@@ -11184,7 +11384,7 @@ ${AGENT_HELP}
     });
     const requested = parseAgents(values.agent);
     const root = findProjectRoot(ctx);
-    if (!ctx.fs.lexists(join21(root, CONFIG_FILE))) {
+    if (!ctx.fs.lexists(join23(root, CONFIG_FILE))) {
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
     const project = loadProject(ctx);
@@ -11211,6 +11411,7 @@ ${AGENT_HELP}
     report2.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));
     printReport(io, report2);
     ensureIndexMergeAttribute(io, ctx, project);
+    ensureLocalSettingsIgnored(io, ctx, project);
     return EXIT_OK;
   }
 };
@@ -11338,6 +11539,7 @@ var COMMANDS = [
   updateStatusCommand,
   listProposedCommand,
   relatedDecisionsCommand,
+  reviewSettingsCommand,
   regenerateIndexCommand,
   verifyAnnotationsCommand,
   restoreDecisionProseCommand,

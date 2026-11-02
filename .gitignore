@@ -2,3 +2,6 @@
 node_modules/
 dist/
 coverage/
+
+# dld-kit: one developer's DLD settings for this checkout
+/dld.local.yaml
