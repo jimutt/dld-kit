@@ -16,7 +16,8 @@ import { mergeBase, resolveBase, verifyBase } from "./reindex.ts";
 
 /**
  * A record's state against the base branch: not on it (`draft`), on it and unchanged
- * (`integrated`), on it with a changed body (`edited`), or on it and gone here (`deleted`).
+ * (`integrated`), on it with a changed body (`edited`), on it and gone here (`deleted`), or
+ * edited or deleted but named in a `Decision-Edit:` trailer on the branch (`allowed`, DL-073).
  */
 export type RecordState = "draft" | "integrated" | "edited" | "deleted" | "allowed";
 
@@ -140,7 +141,7 @@ function trailerIds(git: (...args: string[]) => string, onto: string): Set<strin
   return new Set(values.split(/[\s,]+/).filter((value) => DECISION_ID.test(value)));
 }
 
-export interface Integrated {
+interface Integrated {
   onto: string;
   /** ID → path at the merge-base. */
   byId: Map<string, string>;

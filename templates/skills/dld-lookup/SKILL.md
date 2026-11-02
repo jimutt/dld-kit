@@ -44,7 +44,7 @@ If the decision has been amended or superseded (any `amended-by` or `superseded-
 2. Read each of them, and summarise what its Decision section changes about this one.
 3. Where they differ, follow the newest accepted decision, not this one.
 
-A `proposed` amending or superseding decision is planned, not in effect: mention it, but keep following the accepted decisions.
+Follow chains: when an `amended-by` or `superseded-by` decision is itself `superseded`, run `{{dld}} related-decisions` on it and use its `superseded-by` successor instead, until you reach an `accepted` decision. A `proposed` amending or superseding decision is planned, not in effect: mention it, but keep following the accepted decisions.
 
 Then display the full decision record, followed by its other relations (the decisions it amends or supersedes) if there are any.
 

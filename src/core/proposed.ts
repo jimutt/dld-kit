@@ -3,6 +3,7 @@ import type { Context } from "./context.ts";
 import { integratedRecords } from "./decision-edits.ts";
 import type { Project } from "./project.ts";
 import { listRecordFiles, parseRecord, recordNumber } from "./records.ts";
+import { verifyBase } from "./reindex.ts";
 
 export interface ProposedDecision {
   id: string;
@@ -17,6 +18,7 @@ export interface ProposedDecision {
 /** Every `proposed` record, ascending by ID, marked by whether this branch added it. */
 export function listProposed(ctx: Context, project: Project, base: string): ProposedDecision[] {
   const { paths } = project;
+  verifyBase(ctx, paths, base, " Fetch first or pass --base.");
   const atBase = integratedRecords(ctx, paths, base).byId;
   return listRecordFiles(ctx, paths.recordsDir)
     .map((file) => {

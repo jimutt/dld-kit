@@ -74,6 +74,23 @@ describe("checkDecisionEdits", () => {
     expect(uncommitted).toEqual([{ path: DL001, id: "DL-001", state: "edited" }]);
   });
 
+  test("trailers before the merge-base do not count; space-separated IDs and deletions do", () => {
+    const p = branched();
+    p.onMain("main: DL-003\n\nDecision-Edit: DL-001", () =>
+      p.write("decisions/records/DL-003.md", recordText("DL-003")),
+    );
+    p.git("merge", "-q", "main");
+    p.write(DL001, recordText("DL-001").replace("Test context", "Edited"));
+    p.commitAll("Edit DL-001");
+    expect(check(p)).toEqual([{ path: DL001, id: "DL-001", state: "edited" }]);
+    p.git("rm", "-q", "decisions/records/DL-003.md");
+    p.commitAll("Drop DL-003\n\nDecision-Edit: DL-003 DL-001");
+    expect(check(p)).toEqual([
+      { path: DL001, id: "DL-001", state: "allowed" },
+      { path: "decisions/records/DL-003.md", id: "DL-003", state: "allowed" },
+    ]);
+  });
+
   // @decision(DL-080)
   test("fails when an unmoved integrated record has a second copy", () => {
     const p = branched();

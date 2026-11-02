@@ -8356,7 +8356,8 @@ frontmatter), id or timestamp changed (edited), or that is gone (deleted). With 
 one line per ID with its state: draft, integrated, edited, deleted or allowed.
 
 A commit on the branch with a "Decision-Edit: DL-NNN[, DL-NNN ...]" trailer allows edits to
-the decisions it names: they are printed as allowed. Trailers do not apply with --uncommitted.
+the decisions it names: they are printed as allowed. The trailer must be in the message's last
+paragraph, which holds only trailers. Trailers do not apply with --uncommitted.
 
 Without IDs, exits 3 when decision_edits is block (the default) and an edited or deleted
 decision was printed. With IDs, and otherwise, exits 0. Errors exit 1, usage errors 2.
@@ -10637,6 +10638,7 @@ ${AGENT_HELP}
 import { basename as basename8, relative as relative12, sep as sep7 } from "node:path";
 function listProposed(ctx, project, base) {
   const { paths } = project;
+  verifyBase(ctx, paths, base, " Fetch first or pass --base.");
   const atBase = integratedRecords(ctx, paths, base).byId;
   return listRecordFiles(ctx, paths.recordsDir).map((file) => {
     const path = relative12(paths.root, file).split(sep7).join("/");
@@ -10778,7 +10780,7 @@ Options:
 // src/core/related.ts
 import { basename as basename10, relative as relative14, sep as sep8 } from "node:path";
 var RELATIONS = ["amends", "supersedes", "amended-by", "superseded-by"];
-var idNumber3 = (id) => Number.parseInt(id.slice(3), 10);
+var idNumber3 = (id) => DECISION_ID.test(id) ? Number.parseInt(id.slice(3), 10) : Number.POSITIVE_INFINITY;
 function relatedDecisions(ctx, project, id) {
   const { paths } = project;
   const targetFile = findRecordFile(ctx, paths.recordsDir, id, paths.root);
@@ -10788,7 +10790,8 @@ function relatedDecisions(ctx, project, id) {
     return { file, id: basename10(file, ".md"), record: parseRecord(ctx.fs.readFile(file), path) };
   });
   const byId = new Map(records.map((entry) => [entry.id, entry.record]));
-  const target = parseRecord(ctx.fs.readFile(targetFile), relative14(paths.root, targetFile));
+  const target = records.find((entry) => entry.file === targetFile)?.record;
+  if (target === void 0) throw new DldError(`decision ${id} not found.`);
   const related = [];
   const add = (relation, other) => {
     const record = byId.get(other);
@@ -10807,7 +10810,7 @@ function relatedDecisions(ctx, project, id) {
     if (entry.record.supersedes.includes(id)) add("superseded-by", entry.id);
   }
   return related.sort(
-    (a, b) => idNumber3(a.id) - idNumber3(b.id) || RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation)
+    (a, b) => idNumber3(a.id) - idNumber3(b.id) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) || RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation)
   );
 }
 function formatRelated({ relation, id, status, title }) {

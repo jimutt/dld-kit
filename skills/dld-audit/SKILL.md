@@ -57,7 +57,7 @@ Annotations referencing decisions with status `deprecated` or `superseded`. Code
 
 #### b2) Annotations referencing amended decisions
 
-Annotations referencing decisions that have been amended by a newer decision: `node "<skill-dir>/../dld-common/scripts/dld.mjs" related-decisions DL-NNN` prints an `amended-by` line for each. This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
+Annotations referencing decisions that have been amended by a newer decision: `node "<skill-dir>/../dld-common/scripts/dld.mjs" related-decisions DL-NNN` prints an `amended-by` line for each. Report only amenders whose status is `accepted`; a `proposed` one is not in effect yet. This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
 
 #### c) Stale references in decisions
 

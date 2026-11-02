@@ -20,7 +20,8 @@ frontmatter), id or timestamp changed (edited), or that is gone (deleted). With 
 one line per ID with its state: draft, integrated, edited, deleted or allowed.
 
 A commit on the branch with a "Decision-Edit: DL-NNN[, DL-NNN ...]" trailer allows edits to
-the decisions it names: they are printed as allowed. Trailers do not apply with --uncommitted.
+the decisions it names: they are printed as allowed. The trailer must be in the message's last
+paragraph, which holds only trailers. Trailers do not apply with --uncommitted.
 
 Without IDs, exits 3 when decision_edits is block (the default) and an edited or deleted
 decision was printed. With IDs, and otherwise, exits 0. Errors exit 1, usage errors 2.

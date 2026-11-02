@@ -2,7 +2,7 @@ import { basename, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import type { Project } from "./project.ts";
-import { findRecordFile, listRecordFiles, parseRecord } from "./records.ts";
+import { DECISION_ID, findRecordFile, listRecordFiles, parseRecord } from "./records.ts";
 
 export const RELATIONS = ["amends", "supersedes", "amended-by", "superseded-by"] as const;
 export type Relation = (typeof RELATIONS)[number];
@@ -15,7 +15,9 @@ export interface RelatedDecision {
   title: string;
 }
 
-const idNumber = (id: string) => Number.parseInt(id.slice(3), 10);
+/** The ID's number, or Infinity for a value that is not a decision ID, so it sorts last. */
+const idNumber = (id: string) =>
+  DECISION_ID.test(id) ? Number.parseInt(id.slice(3), 10) : Number.POSITIVE_INFINITY;
 
 // @decision(DL-077)
 /**
@@ -31,7 +33,8 @@ export function relatedDecisions(ctx: Context, project: Project, id: string): Re
     return { file, id: basename(file, ".md"), record: parseRecord(ctx.fs.readFile(file), path) };
   });
   const byId = new Map(records.map((entry) => [entry.id, entry.record]));
-  const target = parseRecord(ctx.fs.readFile(targetFile), relative(paths.root, targetFile));
+  const target = records.find((entry) => entry.file === targetFile)?.record;
+  if (target === undefined) throw new DldError(`decision ${id} not found.`);
 
   const related: RelatedDecision[] = [];
   const add = (relation: Relation, other: string) => {
@@ -53,6 +56,7 @@ export function relatedDecisions(ctx: Context, project: Project, id: string): Re
   return related.sort(
     (a, b) =>
       idNumber(a.id) - idNumber(b.id) ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) ||
       RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation),
   );
 }

@@ -108,7 +108,7 @@ A decision record is a **draft** until it reaches the base branch (see [Base bra
 
 `/dld-audit-auto` always behaves as `block`. The skills that write records finish with `dld check-decision-edits --uncommitted`, which lists the decisions on the base branch whose prose, `id` or `timestamp` has uncommitted changes, or that were deleted. Edits already committed, such as a fix you made by hand, are left alone.
 
-Without `--uncommitted`, the command checks the whole branch against the base, and exits 3 under `block` when it lists anything. That makes it a CI gate for pull requests. The job needs the base branch's history to find the merge-base:
+Without `--uncommitted`, the command checks the whole branch against the base, and exits 3 under `block` when it lists an `edited` or `deleted` decision. That makes it a CI gate for pull requests. The job needs the base branch's history to find the merge-base:
 
 ```yaml
 - uses: actions/checkout@v7
@@ -127,7 +127,7 @@ Fix a typo in DL-012
 Decision-Edit: DL-012
 ```
 
-The gate then prints those decisions as `allowed` and does not fail for them. Several IDs can share a trailer, separated by commas. The trailer is visible in review and in the history, which is the point: it stops accidental edits, not deliberate ones.
+The gate then prints those decisions as `allowed` and does not fail for them. Several IDs can share a trailer, separated by commas or spaces. git only reads trailers from the last paragraph of the commit message, after a blank line, and only when that paragraph holds nothing but trailers: `git commit -m "Fix a typo in DL-012" -m "Decision-Edit: DL-012"` works, while a trailer on the line right after the subject, or mixed with other text, is ignored. The trailer is visible in review and in the history, which is the point: it stops accidental edits, not deliberate ones.
 
 ### Base branch
 
