@@ -1,6 +1,6 @@
 # System Overview
 
-> Auto-generated narrative synthesis from 85 active decisions and 0 proposed decisions. Last updated 2026-11-02.
+> Auto-generated narrative synthesis from 88 active decisions and 0 proposed decisions. Last updated 2026-11-02.
 > This document is derived from individual decision records — do not edit manually.
 > Use `/dld-snapshot` to regenerate.
 
@@ -78,9 +78,11 @@ Two skill behaviours guard against acting on the wrong decision. `/dld-lookup` l
 
 ## Project Setup and the Always-On Rule
 
-`dld init` sets up DLD in a project without an agent session: config, directories, index, skills and the always-on rule. It refuses to run twice, and `dld update` refreshes everything afterwards (DL-040). Harnesses are targeted by name (`claude`, `antigravity`, `codex`, `cursor`, `opencode`, `pi`), detected from markers in the project and confirmed interactively, or given with `--agent` (DL-041). The CLI renders the skills from its bundled templates and copies itself into `dld-common`, so installed skills match the CLI that installed them (DL-042). `update` owns dld-kit's `dld-*` directories: it overwrites and prunes them, and refuses to downgrade skills a newer version installed (DL-043). It counts a directory as dld-kit's only by a shipped skill name, or by a stamp whose generated notice names that same directory, so a user's own `dld-*` skill and an edited `.claude/CLAUDE.md` are left in place with a warning, and every removed file is named (DL-072). `init` and `update` also add the union-merge line for `INDEX.md` to `.gitattributes` (DL-075). It coexists with `npx skills` and `gh skill` installs, refusing symlinked copies it cannot safely own, and CI checks both installers (DL-051).
+`dld init` sets up DLD in a project without an agent session: config, directories, index, skills and the always-on rule. It refuses to run twice, and `dld update` refreshes everything afterwards (DL-040). Harnesses are targeted by name (`claude`, `antigravity`, `codex`, `cursor`, `opencode`, `pi`), detected from markers in the project and confirmed interactively, or given with `--agent` (DL-041). The CLI renders the skills from its bundled templates and copies itself into `dld-common`, so installed skills match the CLI that installed them (DL-042). `update` owns dld-kit's `dld-*` directories: it overwrites and prunes them, and refuses to downgrade skills a newer version installed (DL-043). It counts a directory as dld-kit's only by a shipped skill name, or by a stamp whose generated notice names that same directory, so a user's own `dld-*` skill and an edited `.claude/CLAUDE.md` are left in place with a warning, and every removed file is named (DL-072). `init` and `update` also add the union-merge line for `INDEX.md` to `.gitattributes` (DL-075), and make git ignore `dld.local.yaml` (DL-087). It coexists with `npx skills` and `gh skill` installs, refusing symlinked copies it cannot safely own, and CI checks both installers (DL-051).
 
 The always-on rule has one source, `templates/rules/dld-workflow.md`, rendered with the project's `annotation_prefix` (DL-074). It is delivered through files dld-kit owns where a harness supports them (`.claude/rules/`, `.agents/rules/`), and otherwise through a marked block in AGENTS.md or CLAUDE.md, so that each harness loads it exactly once (DL-045). Which instruction files each harness reads, and where a new block goes, follows the harnesses' documented behaviour: Cursor reads both files, OpenCode only AGENTS.md, and a new block goes where every target harness can see it (DL-054, DL-061). Claude Code gets an AGENTS.md block through a dld-kit `.claude/CLAUDE.md` import (DL-055). The dld-init skill installs the rule through the CLI, and this repository uses the same channel (DL-047).
+
+Reviews are configurable per team and per developer. `/dld-implement` reviews its changes in a subagent unless `implement_review` is off, and `/dld-plan` reviews the decisions it wrote when `plan_review` is on (DL-089). `review_model`, with `implement_review_model` and `plan_review_model` per step, names the model the reviewer runs on, passed to the agent as written; a harness that can't choose a subagent's model reviews on its default and says so (DL-088). Personal overrides live in `dld.local.yaml`, a gitignored file next to the config that accepts only these review settings: the user's request for a run wins, then `dld.local.yaml`, then `dld.config.yaml`, then the defaults, and `dld review-settings` resolves them for the skills (DL-087, DL-088).
 
 ## Distribution and Releases
 
@@ -113,6 +115,7 @@ graph LR
     DL085["DL-085"] -.->|"amends"| DL056
     DL086["DL-086"] -.->|"amends"| DL001["DL-001"]
     DL086 -.->|"amends"| DL005
+    DL087["DL-087"] -.->|"amends"| DL085
     DL070 -.->|"amends"| DL021["DL-021"]
     DL065["DL-065"] -.->|"amends"| DL026["DL-026"]
     DL065 -.->|"amends"| DL027["DL-027"]
@@ -170,4 +173,5 @@ The densest cluster is rule delivery: DL-045's channels were refined four times 
 - Decision prose locks on the base branch; frontmatter stays editable (DL-066)
 - `package.json` is the only version source; releases go through a Changesets Version Packages pull request and npm trusted publishing (DL-052, DL-081)
 - Semver covers formats, names, the installed layout and the setup and CI commands; skill wording and the commands the skills run are internal (DL-056, DL-073, DL-085)
+- Team settings live in the committed `dld.config.yaml`; a developer's review settings in a gitignored `dld.local.yaml` (DL-087)
 - Decision IDs are `DL-` plus at least three digits, compared by number, unique across namespaces (DL-078, DL-080)

@@ -2,9 +2,9 @@ audit:
   last_run: 2026-11-01T18:06:56Z
   commit_hash: 5118a5e
 snapshot:
-  last_run: 2026-11-02T19:24:14Z
-  commit_hash: 6d6b139
-  decisions_included: 86
+  last_run: 2026-11-02T19:29:07Z
+  commit_hash: ca6b98a
+  decisions_included: 89
   includes_proposed: true
   artifacts:
-    OVERVIEW.md: 2026-11-02T19:24:14Z
+    OVERVIEW.md: 2026-11-02T19:29:07Z
