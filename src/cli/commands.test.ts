@@ -493,6 +493,11 @@ describe("init", () => {
       "Created .gitattributes: decisions/INDEX.md merges keep the rows from both sides\n",
     );
     expect(read(".gitattributes")).toContain("/decisions/INDEX.md merge=union\n");
+    // @decision(DL-087)
+    expect(result.out).toContain(
+      "Created .gitignore: dld.local.yaml holds personal settings and is not committed\n",
+    );
+    expect(read(".gitignore")).toContain("/dld.local.yaml\n");
   });
 
   test("namespaced, for AGENTS.md readers named with --agent", async () => {
@@ -601,6 +606,7 @@ describe("update", () => {
     const { p, cli } = await initialised();
     project = p;
     rmSync(join(p.root, ".gitattributes"));
+    rmSync(join(p.root, ".gitignore"));
     const config = readFileSync(join(p.root, "dld.config.yaml"), "utf8");
     p.write(
       "dld.config.yaml",
@@ -609,6 +615,7 @@ describe("update", () => {
     const result = await dldInstall(p, cli, "update");
     expect(result.err).toBe("");
     expect(result.out).toContain("Created .gitattributes: decisions/INDEX.md merges keep");
+    expect(result.out).toContain("Created .gitignore: dld.local.yaml holds personal settings");
     expect(readFileSync(join(p.root, ".claude/rules/dld-workflow.md"), "utf8")).toContain(
       "`@adr(DL-XXX)`",
     );
@@ -844,6 +851,33 @@ describe("list-proposed", () => {
 });
 
 // @decision(DL-077)
+// @decision(DL-088)
+describe("review-settings", () => {
+  test("prints the effective settings for a step", () => {
+    project = tempProject(`${FLAT_CONFIG}plan_review: true\n`);
+    project.write("dld.local.yaml", "plan_review_model: opus\n");
+    expect(dld(project, "review-settings", "plan")).toEqual({
+      code: EXIT_OK,
+      out: "review: on\nreview_from: dld.config.yaml\nmodel: opus\nmodel_from: dld.local.yaml\n",
+      err: "",
+    });
+  });
+
+  test("needs exactly one known step", () => {
+    project = tempProject();
+    for (const args of [[], ["plan", "implement"]]) {
+      const result = dld(project, "review-settings", ...args);
+      expect(result.code).toBe(EXIT_USAGE);
+      expect(result.err).toStartWith(
+        "dld review-settings: expected one review step: implement or plan\n",
+      );
+    }
+    const unknown = dld(project, "review-settings", "audit");
+    expect(unknown.code).toBe(EXIT_USAGE);
+    expect(unknown.err).toContain("unknown review step 'audit'");
+  });
+});
+
 describe("related-decisions", () => {
   test("prints relations in both directions, and fails for an unknown or missing ID", () => {
     project = tempProject();

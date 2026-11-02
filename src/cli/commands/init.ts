@@ -12,6 +12,7 @@ import {
   AGENT_HELP,
   cliPath,
   ensureIndexMergeAttribute,
+  ensureLocalSettingsIgnored,
   parseAgents,
   printReport,
   selectHarnesses,
@@ -89,6 +90,7 @@ ${AGENT_HELP}
     printReport(io, report);
     // @decision(DL-075)
     ensureIndexMergeAttribute(io, ctx, project);
+    ensureLocalSettingsIgnored(io, ctx, project);
     io.stdout(
       `\nDLD is set up for: ${harnesses.map((harness) => harness.name).join(", ")}. Commit these files so everyone gets the same skills and rule.\nNext, in your agent: the dld-retrofit skill records decisions from existing code, and dld-decide records a new one.\n`,
     );

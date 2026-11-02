@@ -32,6 +32,7 @@ import { relatedDecisionsCommand } from "./commands/related-decisions.ts";
 import { renameDecisionCommand } from "./commands/rename-decision.ts";
 import { resolveBaseCommand } from "./commands/resolve-base.ts";
 import { restoreDecisionProseCommand } from "./commands/restore-decision-prose.ts";
+import { reviewSettingsCommand } from "./commands/review-settings.ts";
 import { sessionContextCommand } from "./commands/session-context.ts";
 import { updateCommand } from "./commands/update.ts";
 import { updateAuditStateCommand } from "./commands/update-audit-state.ts";
@@ -54,6 +55,7 @@ export const COMMANDS: readonly Command[] = [
   updateStatusCommand,
   listProposedCommand,
   relatedDecisionsCommand,
+  reviewSettingsCommand,
   regenerateIndexCommand,
   verifyAnnotationsCommand,
   restoreDecisionProseCommand,

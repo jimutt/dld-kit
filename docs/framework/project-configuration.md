@@ -38,6 +38,17 @@ annotation_exclude:
 # Default: true
 implement_review: true
 
+# Whether /dld-plan runs a review subagent over the decisions it wrote
+# Default: false
+plan_review: false
+
+# The model for review subagents (optional), passed to the agent as written
+# Default: the harness's default model
+review_model: sonnet
+# Per-step overrides of review_model (optional)
+implement_review_model: opus
+plan_review_model: opus
+
 # Whether agents may edit the prose of decisions already on the base branch
 # block (default): never; amend or supersede instead
 # ask: after the user confirms
@@ -88,7 +99,9 @@ namespaces:
 
 Each entry is a git glob pattern relative to the repository root, applied as a `:(exclude,glob)` pathspec. `*` matches within a single directory level, so `*.md` matches only top-level markdown files; `**` matches across directories, so `docs/**` covers everything under `docs/`. A pattern that matches a directory excludes everything beneath it, so `docs/*` also covers `docs/sub/…`. Patterns must be relative to the root; absolute paths and `..` are rejected. Files ignored by `.gitignore`, the decisions directory, and common build and dependency directories are always skipped.
 
-### Implement Review
+### Reviews
+
+#### Implement review
 
 When `implement_review` is `true` (the default), `/dld-implement` launches a review subagent over the changed files before finalizing. The point of using a separate agent is that it reads the diff cold — the implementing agent has just spent a long session convincing itself the code is right, and is poor at catching its own baked-in assumptions.
 
@@ -97,6 +110,30 @@ When `implement_review` is `true` (the default), `/dld-implement` launches a rev
 The reviewer checks for correctness, security issues, type safety problems, and consistency with existing patterns, and reports findings grouped by severity (critical, moderate, minor). It works with limited context and may flag false positives; the implementing agent uses its own judgment and asks you when uncertain about a finding.
 
 Set `implement_review: false` to skip the step entirely — appropriate if the project already runs an independent review in CI or on the PR.
+
+#### Plan review
+
+When `plan_review` is `true` (default `false`), `/dld-plan` launches a review subagent after it has written the proposed decisions. The reviewer checks the plan for coverage of the feature, decisions that bundle several choices, conflicts with existing decisions and missing `amends` or `supersedes` links, values an implementer would have to guess, the order of the decisions, and the project's practices. The planning agent fixes what it can in the new records, which are still drafts, and asks you when a fix would change what a decision means. Plans are not reviewed by default: most are small, and the implementation review already runs.
+
+#### Review models
+
+`review_model` names the model the review subagents run on, and `implement_review_model` and `plan_review_model` override it for one step. The names are passed to the agent as written, so use the names your harness knows (for example `opus` in Claude Code). An agent whose harness can't choose a subagent's model, or doesn't know the name, runs the review on its default model and says so; the report always names the model that reviewed. Unset, reviews use the harness's default.
+
+A team whose members use different harnesses usually leaves the models unset here and lets each developer set theirs in `dld.local.yaml` (below).
+
+You can always ask for something else in the request for one run, for example "implement DL-012 and use gpt-sol-6.1 as the reviewer"; that wins over both files.
+
+#### Personal settings: dld.local.yaml
+
+`dld.local.yaml`, next to `dld.config.yaml` at the repository root, holds one developer's settings for that checkout. It is never committed: `dld init` and `dld update` add it to the root `.gitignore` unless git already ignores it.
+
+```yaml
+# dld.local.yaml
+review_model: gpt-sol-6.1
+plan_review: true
+```
+
+It accepts only the review settings (`implement_review`, `plan_review`, `review_model`, `implement_review_model`, `plan_review_model`) and keys starting with `x-`. Team settings such as `decision_edits` or `base_branch` are ignored there, with a warning, so one checkout can't loosen the team's rules. For each review, the effective setting is the first one found in: your request for that run, `dld.local.yaml`, `dld.config.yaml`, then the default. Within one file, a step's own model key wins over `review_model`. The skills read them through `dld review-settings implement` or `dld review-settings plan`, which prints the result and where each value came from.
 
 ### Decision edits
 

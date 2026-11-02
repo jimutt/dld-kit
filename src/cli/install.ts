@@ -9,6 +9,11 @@ import {
   planIndexMergeAttribute,
 } from "../generate/gitattributes.ts";
 import {
+  applyLocalSettingsIgnore,
+  GITIGNORE,
+  planLocalSettingsIgnore,
+} from "../generate/gitignore.ts";
+import {
   type Detection,
   findHarness,
   HARNESS_NAMES,
@@ -122,6 +127,20 @@ export function ensureIndexMergeAttribute(io: Io, ctx: Context, project: Project
   if (applyIndexMergeAttribute(ctx, root, plan)) {
     const verb = plan.creates === true ? "Created" : "Updated";
     io.stdout(`${verb} ${GITATTRIBUTES}: ${index} merges keep the rows from both sides\n`);
+  }
+  for (const warning of plan.warnings) io.stderr(`Warning: ${warning}\n`);
+}
+
+// @decision(DL-087)
+/** Makes git ignore dld.local.yaml through the root .gitignore, and reports it. */
+export function ensureLocalSettingsIgnored(io: Io, ctx: Context, project: Project): void {
+  const { root } = project.paths;
+  const plan = planLocalSettingsIgnore(ctx, root);
+  if (applyLocalSettingsIgnore(ctx, root, plan)) {
+    const verb = plan.creates === true ? "Created" : "Updated";
+    io.stdout(
+      `${verb} ${GITIGNORE}: dld.local.yaml holds personal settings and is not committed\n`,
+    );
   }
   for (const warning of plan.warnings) io.stderr(`Warning: ${warning}\n`);
 }

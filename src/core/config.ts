@@ -4,6 +4,8 @@ import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 
 export const CONFIG_FILE = "dld.config.yaml";
+/** One developer's settings for a checkout, never committed (DL-087). */
+export const LOCAL_FILE = "dld.local.yaml";
 
 export type Mode = "flat" | "namespaced";
 
@@ -15,6 +17,25 @@ export interface SnapshotArtifact {
   title: string;
   prompt: string;
 }
+
+// @decision(DL-087) @decision(DL-088) @decision(DL-089)
+/** Settings `dld.local.yaml` may override; unset ones are undefined. */
+export interface PersonalSettings {
+  implementReview?: boolean;
+  planReview?: boolean;
+  reviewModel?: string;
+  implementReviewModel?: string;
+  planReviewModel?: string;
+}
+
+/** The keys of `PersonalSettings`, as written in the YAML files. */
+export const PERSONAL_KEYS = [
+  "implement_review",
+  "plan_review",
+  "review_model",
+  "implement_review_model",
+  "plan_review_model",
+] as const;
 
 export interface Config {
   decisionsDir: string;
@@ -28,6 +49,8 @@ export interface Config {
   snapshotArtifacts: SnapshotArtifact[];
   /** The branch decisions are checked against, when set (DL-071). */
   baseBranch?: string;
+  /** The review settings as `dld.config.yaml` sets them, before `dld.local.yaml`. */
+  personal: PersonalSettings;
 }
 
 // @decision(DL-079)
@@ -39,6 +62,10 @@ export const CONFIG_KEYS = [
   "annotation_prefix",
   "annotation_exclude",
   "implement_review",
+  "plan_review",
+  "review_model",
+  "implement_review_model",
+  "plan_review_model",
   "decision_edits",
   "snapshot_artifacts",
   "base_branch",
@@ -66,7 +93,7 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
   if (!isRecord(raw)) throw invalid("expected a mapping of keys to values");
   for (const key of Object.keys(raw)) {
     if (key.startsWith("x-") || CONFIG_KEYS.some((known) => known === key)) continue;
-    warn(unknownKeyMessage(key));
+    warn(unknownKeyMessage(key, CONFIG_FILE, CONFIG_KEYS));
   }
 
   const mode = raw.mode;
@@ -91,21 +118,62 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
     // @decision(DL-023)
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
     implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
+    personal: personalSettings(raw, CONFIG_FILE),
     decisionEdits: decisionEdits(raw.decision_edits),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
     ...optionalBaseBranch(raw.base_branch),
   };
 }
 
-function unknownKeyMessage(key: string): string {
+// @decision(DL-087)
+/**
+ * Parses `dld.local.yaml`. Only the personal settings count; `warn` receives one message per
+ * other key, except `x-` keys. An empty file sets nothing.
+ */
+export function parseLocalSettings(
+  text: string,
+  warn: (message: string) => void = () => {},
+): PersonalSettings {
+  const doc = parseDocument(text, { logLevel: "silent" });
+  const problem = doc.errors[0] ?? doc.warnings[0];
+  if (problem !== undefined) throw invalid(`not valid YAML: ${problem.message}`, LOCAL_FILE);
+  const raw: unknown = doc.toJS() ?? {};
+  if (!isRecord(raw)) throw invalid("expected a mapping of keys to values", LOCAL_FILE);
+  for (const key of Object.keys(raw)) {
+    if (key.startsWith("x-") || PERSONAL_KEYS.some((known) => known === key)) continue;
+    warn(
+      CONFIG_KEYS.some((known) => known === key)
+        ? `${LOCAL_FILE}: '${key}' can only be set in ${CONFIG_FILE}`
+        : unknownKeyMessage(key, LOCAL_FILE, PERSONAL_KEYS),
+    );
+  }
+  return personalSettings(raw, LOCAL_FILE);
+}
+
+function personalSettings(raw: Record<string, unknown>, file: string): PersonalSettings {
+  const settings: PersonalSettings = {};
+  const implementReview = optionalBoolean(raw.implement_review, "implement_review", file);
+  if (implementReview !== undefined) settings.implementReview = implementReview;
+  const planReview = optionalBoolean(raw.plan_review, "plan_review", file);
+  if (planReview !== undefined) settings.planReview = planReview;
+  const reviewModel = optionalString(raw.review_model, "review_model", file);
+  if (reviewModel !== undefined) settings.reviewModel = reviewModel;
+  const implementModel = optionalString(raw.implement_review_model, "implement_review_model", file);
+  if (implementModel !== undefined) settings.implementReviewModel = implementModel;
+  const planModel = optionalString(raw.plan_review_model, "plan_review_model", file);
+  if (planModel !== undefined) settings.planReviewModel = planModel;
+  return settings;
+}
+
+function unknownKeyMessage(key: string, file: string, keys: readonly string[]): string {
   let closest: string | undefined;
   let best = 3;
-  for (const known of CONFIG_KEYS) {
+  for (const known of keys) {
     const distance = editDistance(key, known);
     if (distance < best) [closest, best] = [known, distance];
   }
   const hint = closest === undefined ? "" : `; did you mean '${closest}'?`;
-  return `${CONFIG_FILE}: unknown key '${key}'${hint}`;
+  return `${file}: unknown key '${key}'${hint}`;
 }
 
 /** Levenshtein distance. */
@@ -143,8 +211,8 @@ function optionalBaseBranch(value: unknown): { baseBranch?: string } {
   return { baseBranch: branch };
 }
 
-function invalid(message: string): DldError {
-  return new DldError(`${CONFIG_FILE}: ${message}`);
+function invalid(message: string, file: string = CONFIG_FILE): DldError {
+  return new DldError(`${file}: ${message}`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -157,17 +225,17 @@ function requiredString(value: unknown, key: string): string {
   return result;
 }
 
-function optionalString(value: unknown, key: string): string | undefined {
+function optionalString(value: unknown, key: string, file?: string): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string" || value.trim() === "") {
-    throw invalid(`'${key}' must be a non-empty string`);
+    throw invalid(`'${key}' must be a non-empty string`, file);
   }
   return value;
 }
 
-function optionalBoolean(value: unknown, key: string): boolean | undefined {
+function optionalBoolean(value: unknown, key: string, file?: string): boolean | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value !== "boolean") throw invalid(`'${key}' must be true or false`);
+  if (typeof value !== "boolean") throw invalid(`'${key}' must be true or false`, file);
   return value;
 }
 
