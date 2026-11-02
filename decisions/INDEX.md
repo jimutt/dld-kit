@@ -5,9 +5,9 @@
 | DL-080 | Decision IDs are unique across namespaces, and create-decision accepts only configured namespaces | accepted | v1-hardening, records, namespaces |
 | DL-079 | Warn about unknown keys in dld.config.yaml | accepted | v1-hardening, config |
 | DL-078 | Decision IDs are DL- plus a decimal number of at least three digits, compared by number | accepted | v1-hardening, records |
-| DL-075 | Merge INDEX.md with git's union driver through a managed .gitattributes line | proposed | v1-hardening, index, git |
-| DL-074 | Specify the annotation syntax, warn on near-misses, and render annotation_prefix into the rule and skills | proposed | v1-hardening, annotations |
-| DL-072 | dld update removes only dld-kit's own skill directories and keeps user edits to .claude/CLAUDE.md | proposed | v1-hardening, skills, migration |
+| DL-075 | Merge INDEX.md with git's union driver through a managed .gitattributes line | accepted | v1-hardening, index, git |
+| DL-074 | Specify the annotation syntax, warn on near-misses, and render annotation_prefix into the rule and skills | accepted | v1-hardening, annotations |
+| DL-072 | dld update removes only dld-kit's own skill directories and keeps user edits to .claude/CLAUDE.md | accepted | v1-hardening, skills, migration |
 | DL-071 | Resolve the base branch from config, the upstream, then origin/HEAD, and fail when it does not exist | accepted | v1-hardening, git |
 | DL-070 | Include proposed decisions in the snapshot, apart from accepted ones | accepted | snapshot, state |
 | DL-069 | Skip oversized and unreadable files in the annotation scan, and report them | accepted | annotations, audit |

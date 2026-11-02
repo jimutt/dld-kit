@@ -11,7 +11,7 @@ import {
   packageSource,
   planInstall,
 } from "../../generate/install.ts";
-import { projectRuleText } from "../../generate/rule.ts";
+import { ruleTextFor } from "../../generate/rule.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 import {
   AGENT_HELP,
@@ -47,6 +47,8 @@ ${AGENT_HELP}
     if (!ctx.fs.lexists(join(root, CONFIG_FILE))) {
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
+    // Read before anything is written, so an invalid config stops the update up front.
+    const project = loadProject(ctx);
     const installed = installedTargets(ctx, root);
     const added = targetsFor(requested);
     const layouts = new Set([...installed.layouts, ...added.layouts]);
@@ -64,13 +66,13 @@ ${AGENT_HELP}
       force: values.force === true,
       harnesses: requested,
       // @decision(DL-074)
-      ruleText: projectRuleText(ctx, root),
+      ruleText: ruleTextFor(project.config.annotationPrefix),
     });
     const report = applyInstall(ctx, root, plan);
     report.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));
     printReport(io, report);
     // @decision(DL-075)
-    ensureIndexMergeAttribute(io, ctx, loadProject(ctx));
+    ensureIndexMergeAttribute(io, ctx, project);
     return EXIT_OK;
   },
 };

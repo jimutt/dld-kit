@@ -26,7 +26,7 @@ npx dld-kit init
 This writes:
 
 - `dld.config.yaml`, `decisions/records/` and `decisions/INDEX.md`
-- a line in `.gitattributes` that has git merge `INDEX.md` with its union driver, so two branches that both add decisions do not conflict on it
+- a line in `.gitattributes` that has git merge `INDEX.md` with its union driver, so two branches that both add decisions do not conflict on it. To opt out, give `INDEX.md` your own merge setting (for example `/decisions/INDEX.md !merge`) and dld-kit leaves it alone
 - the `dld-*` skills for each selected agent: `.claude/skills/` for Claude Code, `.agents/skills/` for the others
 - the always-on rule, once per agent: a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi, `.agents/rules/dld-workflow.md` for Antigravity, and `.claude/rules/dld-workflow.md` for Claude Code unless Claude Code already reads the block (see [Agents](#agents)). When the block goes into `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, it writes `.claude/CLAUDE.md` instead, which imports `AGENTS.md` for Claude Code
 

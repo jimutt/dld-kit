@@ -120,7 +120,8 @@ export function ensureIndexMergeAttribute(io: Io, ctx: Context, project: Project
   const index = relative(root, indexPath(project.paths)).split(sep).join("/");
   const plan = planIndexMergeAttribute(ctx, root, index);
   if (applyIndexMergeAttribute(ctx, root, plan)) {
-    io.stdout(`Updated ${GITATTRIBUTES}: ${index} merges keep the rows from both sides\n`);
+    const verb = plan.creates === true ? "Created" : "Updated";
+    io.stdout(`${verb} ${GITATTRIBUTES}: ${index} merges keep the rows from both sides\n`);
   }
   for (const warning of plan.warnings) io.stderr(`Warning: ${warning}\n`);
 }

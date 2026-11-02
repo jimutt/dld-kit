@@ -9,11 +9,23 @@ export const INDEX_MERGE_COMMENT =
 export interface AttributesPlan {
   /** The new `.gitattributes` content, or undefined when nothing needs writing. */
   content?: string;
+  /** Whether the plan creates the file. */
+  creates?: boolean;
   warnings: string[];
 }
 
-/** A merge setting, set or unset: `merge=union`, `merge`, `-merge`, `!merge`. */
-const MERGE_ATTRIBUTE = /^[-!]?merge(=|$)/;
+/** A merge setting, set or unset (`merge=union`, `-merge`, `!merge`), or `binary`, which unsets it. */
+const MERGE_ATTRIBUTE = /^([-!]?merge(=|$)|binary$)/;
+
+/** Characters that make a path mean something else as a .gitattributes pattern. */
+const SPECIAL = /[\s"\\*?[\]]|^[!#]|(^|\/)\.\.(\/|$)/;
+
+/** A pattern as git reads it: a C-style quoted pattern is unquoted. */
+function unquote(pattern: string): string {
+  return pattern.length > 1 && pattern.startsWith('"') && pattern.endsWith('"')
+    ? pattern.slice(1, -1).replace(/\\(.)/g, "$1")
+    : pattern;
+}
 
 // @decision(DL-075)
 /**
@@ -24,6 +36,13 @@ const MERGE_ATTRIBUTE = /^[-!]?merge(=|$)/;
 export function planIndexMergeAttribute(ctx: Context, root: string, index: string): AttributesPlan {
   const path = join(root, GITATTRIBUTES);
   const wanted = `/${index} merge=union`;
+  if (SPECIAL.test(index)) {
+    return {
+      warnings: [
+        `the decision index ${index} cannot be named in ${GITATTRIBUTES} as a plain pattern, so dld-kit does not add its merge=union line. Add a line that matches it yourself, or two branches that add decisions will conflict on it.`,
+      ],
+    };
+  }
   if (ctx.fs.lexists(path) && !ctx.fs.isRegularFile(path)) {
     return {
       warnings: [
@@ -36,8 +55,9 @@ export function planIndexMergeAttribute(ctx: Context, root: string, index: strin
   const warnings: string[] = [];
   let set = false;
   lines.forEach((line, index_) => {
-    const [pattern, ...attributes] = line.trim().split(/\s+/);
-    if (pattern === undefined || pattern === "" || pattern.startsWith("#")) return;
+    const [raw, ...attributes] = line.trim().split(/\s+/);
+    if (raw === undefined || raw === "" || raw.startsWith("#")) return;
+    const pattern = unquote(raw);
     const forIndex = pattern === `/${index}` || pattern === index;
     if (forIndex && attributes.some((attribute) => MERGE_ATTRIBUTE.test(attribute))) set = true;
     if (!forIndex && lines[index_ - 1] === INDEX_MERGE_COMMENT) {
@@ -47,8 +67,13 @@ export function planIndexMergeAttribute(ctx: Context, root: string, index: strin
     }
   });
   if (set) return { warnings };
-  const separator = text === "" ? "" : text.endsWith("\n") ? "\n" : "\n\n";
-  return { content: `${text}${separator}${INDEX_MERGE_COMMENT}\n${wanted}\n`, warnings };
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const separator = text === "" ? "" : text.endsWith("\n") ? eol : eol + eol;
+  return {
+    content: `${text}${separator}${INDEX_MERGE_COMMENT}${eol}${wanted}${eol}`,
+    creates: !ctx.fs.lexists(path),
+    warnings,
+  };
 }
 
 /** Writes a planned `.gitattributes`; returns whether it wrote one. */

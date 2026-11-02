@@ -86,7 +86,7 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 
 **Missing amendment relationships** — Run `node "<skill-dir>/../dld-common/scripts/dld.mjs" find-missing-amends` to get candidates. The command only emits candidates whose source decision changed since the last audit, so re-runs stay focused on new work. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
 
-**Malformed annotations** — Rewrite each into valid annotations: one ID per annotation, exactly `<prefix>(DL-NNN)`, in canonical ID form (for example `@decision(DL-004, DL-005)` becomes `@decision(DL-004) @decision(DL-005)`). If an ID does not exist, treat it as an orphaned annotation.
+**Malformed annotations** — In code comments, rewrite each into valid annotations: one ID per annotation, exactly `<prefix>(DL-NNN)`, in canonical ID form (two IDs in one pair of parentheses become two annotations). If an ID does not exist, treat it as an orphaned annotation. In prose or example files (documentation, skill files, fixtures), where the wrong syntax may be deliberate, do not rewrite: list them in the PR description and suggest adding the paths to `annotation_exclude`.
 
 **Decisions without annotations** — If an accepted decision has code references but no annotations, and the referenced files exist, add the missing `@decision(DL-NNN)` annotations to the referenced code locations.
 

@@ -563,6 +563,7 @@ describe("rule text with the project's prefix", () => {
     expect(text).toContain("`@adr(DL-XXX)`");
     expect(text).not.toContain("@decision(");
     expect(ruleTextFor("@decision")).toBe(RULE_TEXT);
+    expect(ruleTextFor("@x$&")).toContain("`@x$&(DL-XXX)`");
   });
 
   test("projectRuleText reads the config, and falls back to the plain text", () => {

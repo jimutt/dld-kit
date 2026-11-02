@@ -17,7 +17,11 @@ const plan = (files: Record<string, string>, index = "decisions/INDEX.md") => {
 describe("planIndexMergeAttribute", () => {
   test("creates .gitattributes with the managed line, then has nothing to do", () => {
     const { fs, ctx, plan: first } = plan({});
-    expect(first).toEqual({ content: `${INDEX_MERGE_COMMENT}\n${LINE}\n`, warnings: [] });
+    expect(first).toEqual({
+      content: `${INDEX_MERGE_COMMENT}\n${LINE}\n`,
+      creates: true,
+      warnings: [],
+    });
     expect(applyIndexMergeAttribute(ctx, "/p", first)).toBe(true);
     const second = planIndexMergeAttribute(ctx, "/p", "decisions/INDEX.md");
     expect(second).toEqual({ warnings: [] });
@@ -50,10 +54,33 @@ describe("planIndexMergeAttribute", () => {
     );
   });
 
+  test("keeps CRLF line endings, and recognises quoted patterns and the binary macro", () => {
+    expect(plan({ "/p/.gitattributes": "*.png binary\r\n" }).plan.content).toBe(
+      `*.png binary\r\n\r\n${INDEX_MERGE_COMMENT}\r\n${LINE}\r\n`,
+    );
+    for (const line of ['"/decisions/INDEX.md" merge=ours', "/decisions/INDEX.md binary"]) {
+      expect(plan({ "/p/.gitattributes": `${line}\n` }).plan).toEqual({ warnings: [] });
+    }
+  });
+
+  test("does not write a pattern git would misread, and says so", () => {
+    for (const index of [
+      "my decisions/INDEX.md",
+      "d[1]/INDEX.md",
+      "!d/INDEX.md",
+      "../d/INDEX.md",
+    ]) {
+      const { plan: result } = plan({}, index);
+      expect(result.content).toBeUndefined();
+      expect(result.warnings[0]).toContain(`the decision index ${index} cannot be named`);
+    }
+  });
+
   test("adds the line for a moved decisions directory and warns about the old one", () => {
     const old = `${INDEX_MERGE_COMMENT}\n/docs/decisions/INDEX.md merge=union\n`;
     const { plan: result } = plan({ "/p/.gitattributes": old });
     expect(result.content).toBe(`${old}\n${INDEX_MERGE_COMMENT}\n${LINE}\n`);
+    expect(result.creates).toBe(false);
     expect(result.warnings).toEqual([
       ".gitattributes still sets a merge driver for /docs/decisions/INDEX.md, an earlier decisions directory. Remove that line if the index is no longer there.",
     ]);

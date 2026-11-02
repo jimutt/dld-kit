@@ -116,6 +116,8 @@ node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" rename-decision --old D
 
 The substitution is digit-aware: renaming `DL-100` will not accidentally rewrite `DL-1000`.
 
+Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default), and `rename-decision` rewrites whichever prefix is configured.
+
 **Note on plain-text DL-NNN mentions in code:** In non-decision files (source code, READMEs, etc.) `rename-decision`'s rewrite is **scoped to `` `@decision` ``(DL-NNN) annotations only**. Bare `DL-NNN` references in comments, log strings, or test fixtures are left untouched here to avoid false-positive matches against unrelated identifiers. Step 5 handles them.
 
 ## Step 5: Review plain-text DL-OLD mentions
