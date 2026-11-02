@@ -63,6 +63,8 @@ jobs:
           script: npm run version-packages
           commit-message: Version Packages
           pr-title: Version Packages
+          # The GitHub API can't commit executable files, and the bundled dld.mjs copies are.
+          push-with-git-cli: true
 
   verify:
     name: Check and pack the release
