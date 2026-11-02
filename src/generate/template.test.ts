@@ -11,6 +11,23 @@ const SOURCE = "templates/skills/dld-x/SKILL.md";
 const parse = (text: string) => parseTemplate(text, "dld-x", SOURCE);
 const HEADER = "---\nname: dld-x\ndescription: Does x — see `@decision` notes.\n";
 
+// @decision(DL-091)
+test("accepts a quoted heredoc body, and create-decision named in prose or other pipes", () => {
+  const body = [
+    "Run `create-decision --body-stdin` with a heredoc. | `printf` | `create-decision` |",
+    "```bash",
+    "GROUP=$(printf '%s\\n' \"$PLAN\" | grep -E 'x')",
+    "{{dld}} create-decision \\",
+    '  --id "DL-NNN" \\',
+    "  --body-stdin <<'DLD_BODY'",
+    "## Context",
+    "DLD_BODY",
+    "```",
+    "",
+  ].join("\n");
+  expect(parse(`${HEADER}---\n${body}`).body).toBe(body);
+});
+
 describe("parseTemplate", () => {
   test("keeps each field's line as written and splits off the body", () => {
     const template = parse(`${HEADER}compatibility: "Requires bash"\ninternal: true\n---\n\n# X\n`);
@@ -45,6 +62,21 @@ describe("parseTemplate", () => {
     ],
     ["a positional argument", `${HEADER}---\nx\n\`awk '{print $1}'\`\n`, ":6: '$1' is rewritten"],
     ["shell output", `${HEADER}---\nRun !\`date\`.\n`, ":5: '!`' is rewritten"],
+    [
+      "a printf body piped into create-decision (DL-091)",
+      `${HEADER}---\n\n\`\`\`bash\nprintf "## Context\\n" | {{dld}} create-decision --body-stdin\n\`\`\`\n`,
+      ":7: create-decision pipes the body into create-decision",
+    ],
+    [
+      "a pipe split over lines (DL-091)",
+      `${HEADER}---\n\n\`\`\`bash\necho "$BODY" \\\n  | {{dld}} create-decision \\\n  --body-stdin\n\`\`\`\n`,
+      ":7: create-decision pipes the body",
+    ],
+    [
+      "an unquoted heredoc (DL-091)",
+      `${HEADER}---\n\n\`\`\`bash\n{{dld}} create-decision --id DL-1 \\\n  --body-stdin <<EOF\nbody\nEOF\n\`\`\`\n`,
+      ":7: create-decision does not pass the body through a quoted heredoc",
+    ],
   ])("rejects %s", (_, text, message) => {
     expect(() => parse(text)).toThrow(`${SOURCE}${message}`);
   });

@@ -80,21 +80,37 @@ This outputs the next available ID (e.g., `DL-004`).
 
 Compose the markdown body with the relevant sections (Context, Decision, Rationale, Consequences). Omit sections that aren't relevant, but always include Context and Decision.
 
-Then run `create-decision`, piping the body via `printf` with `\n` for newlines (do **not** use literal newlines in the body argument — use `\n` escape sequences so the entire command stays on one logical line):
+Then run `create-decision`, passing the body on stdin through a quoted heredoc:
 ```bash
-printf "## Context\n\nWhat prompted this decision.\n\n## Decision\n\nWhat was decided.\n\n## Rationale\n\nWhy this choice.\n\n## Consequences\n\nWhat becomes easier or harder." | node "<skill-dir>/../dld-common/scripts/dld.mjs" create-decision \
+node "<skill-dir>/../dld-common/scripts/dld.mjs" create-decision \
   --id "DL-NNN" \
-  --title "Short descriptive title" \
+  --title 'Short descriptive title' \
   --namespace "billing" \
-  --tags "tag1, tag2" \
+  --tags 'tag1, tag2' \
   --supersedes "DL-003, DL-007" \
   --amends "DL-005" \
-  --body-stdin
+  --body-stdin <<'DLD_BODY'
+## Context
+
+What prompted this decision.
+
+## Decision
+
+What was decided.
+
+## Rationale
+
+Why this choice.
+
+## Consequences
+
+What becomes easier or harder.
+DLD_BODY
 ```
 
-Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. Pass `--namespace` only in a namespaced project, with one of the namespaces in `dld.config.yaml`; leave it out in a flat project, where it is an error. The command creates the file with YAML frontmatter and the body content, and outputs the file path.
+Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` in it need no escaping. Don't indent the body, and put the closing `DLD_BODY` alone on its own line, unindented; no line of the body may be exactly `DLD_BODY`. The other arguments are ordinary shell strings: put the title and tags in single quotes, and write an apostrophe in them as `'\''`.
 
-> **Note:** If the body contains literal `%` characters, escape them as `%%` (printf format string requirement).
+Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. Pass `--namespace` only in a namespaced project, with one of the namespaces in `dld.config.yaml`; leave it out in a flat project, where it is an error. The command creates the file with YAML frontmatter and the body content, and outputs the file path.
 
 If this decision supersedes others, also update their status:
 ```bash

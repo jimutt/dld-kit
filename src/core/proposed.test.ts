@@ -35,6 +35,23 @@ describe("listProposed", () => {
     expect(listed[2]?.path).toBe("decisions/records/billing/DL-010.md");
   });
 
+  // @decision(DL-090)
+  test("marks every record unknown without a base, and needs no git", () => {
+    const p = branchedProject();
+    project = p;
+    p.write("decisions/records/DL-002.md", recordText("DL-002", "proposed"));
+    p.write("decisions/records/DL-003.md", recordText("DL-003"));
+    const ctx = {
+      ...p.ctx,
+      git: () => {
+        throw new Error("git was called");
+      },
+    };
+    expect(listProposed(ctx, loadProject(p.ctx), undefined).map(formatProposed)).toEqual([
+      "DL-002\tunknown\tTest decision DL-002",
+    ]);
+  });
+
   test("fails with a clear message for an unknown base", () => {
     const p = branchedProject();
     project = p;

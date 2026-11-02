@@ -76,8 +76,26 @@ describe("resolveBase", () => {
     const p = branched();
     p.git("branch", "-m", "main", "trunk");
     expect(() => resolveBase(p.ctx)).toThrow(
-      "no base branch found (tried origin/main, main). Set base_branch in dld.config.yaml",
+      "no base branch found (tried origin/main, main, origin/master, master). Set base_branch in dld.config.yaml",
     );
+  });
+
+  // @decision(DL-090)
+  test("falls back to master, after main", () => {
+    const p = branched();
+    p.git("branch", "-m", "main", "master");
+    expect(resolveBase(p.ctx)).toBe("master");
+    p.git("branch", "main", "master");
+    expect(resolveBase(p.ctx)).toBe("main");
+  });
+
+  test("prefers origin/master over master, and a local main over origin/master", () => {
+    const p = branched();
+    p.git("branch", "-m", "main", "master");
+    p.git("update-ref", "refs/remotes/origin/master", "master");
+    expect(resolveBase(p.ctx)).toBe("origin/master");
+    p.git("branch", "main", "master");
+    expect(resolveBase(p.ctx)).toBe("main");
   });
 
   test("uses a local upstream branch name without a slash", () => {

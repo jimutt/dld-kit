@@ -1,6 +1,6 @@
 # System Overview
 
-> Auto-generated narrative synthesis from 88 active decisions and 0 proposed decisions. Last updated 2026-11-02.
+> Auto-generated narrative synthesis from 90 active decisions and 0 proposed decisions. Last updated 2026-11-02.
 > This document is derived from individual decision records — do not edit manually.
 > Use `/dld-snapshot` to regenerate.
 
@@ -52,7 +52,7 @@ The audit and snapshot commands keep the output formats of the scripts they repl
 
 ## Reindex
 
-Decision IDs are sequential, so parallel branches can collide. Reindex and the decision-edit checks compare against a base branch resolved from `base_branch` in the config, the upstream, `origin/HEAD`, `origin/main` or `main`, using only a ref that exists and failing with what it tried otherwise (DL-071). `/dld-reindex` finds local records whose IDs are taken on the base branch or in open PRs, and plans renames to free IDs (DL-027). Open PRs are scanned through `Context.gh`, and a skipped scan is always reported, because it is the one case where the user could be misled about how safe the IDs are (DL-026). A record the branch inherited from an open PR below it (by git ancestry) is not a collision with that PR, though its ID still counts as taken (DL-065).
+Decision IDs are sequential, so parallel branches can collide. Reindex and the decision-edit checks compare against a base branch resolved from `base_branch` in the config, the upstream, `origin/HEAD`, `origin/main`, `main`, `origin/master` or `master`, using only a ref that exists and failing with what it tried otherwise (DL-071, DL-090). `/dld-reindex` finds local records whose IDs are taken on the base branch or in open PRs, and plans renames to free IDs (DL-027). Open PRs are scanned through `Context.gh`, and a skipped scan is always reported, because it is the one case where the user could be misled about how safe the IDs are (DL-026). A record the branch inherited from an open PR below it (by git ancestry) is not a collision with that PR, though its ID still counts as taken (DL-065).
 
 Every command that consumes the rename plan validates all of its lines before doing any work (DL-028). Renames rewrite annotations and mentions byte for byte through the scanner's file filter, and mentions in excluded files are surfaced for the agent to judge (DL-029). The result is committed on top of the branch with literal staging and a full rollback on failure, and the branch is squashed only when the user asks (DL-030, DL-064).
 
@@ -72,9 +72,11 @@ A record's prose locks when the record reaches the base branch, not when it is a
 
 Skill content exists only in `templates/skills/`. A small placeholder syntax abstracts what differs between harnesses (DL-031): `{{dld}}` renders the CLI invocation each harness needs, and `{{dld-setup}}` checks that `dld-common` is installed (DL-036). The generator in `src/generate` renders templates through an adapter registry into an in-memory result (DL-032), and a sentence in each skill keeps it usable in harnesses that read another harness's directory (DL-046). Output carries only settings the harness reads (DL-039).
 
+The skills that record decisions pass the body to `create-decision` through a quoted heredoc, so backticks, `$` and `%` reach the record as written, and the generator rejects a template that pipes a body in or uses an unquoted heredoc (DL-091).
+
 Generated output is committed and checked byte for byte, and `check:generated` fails on hand edits, missing regeneration or orphaned files (DL-033). Every generated file carries one notice that holds wherever it is installed (DL-044). Each skill set ships a single copy of the bundled CLI in `dld-common/scripts/dld.mjs`, and building happens before generating, so a stale bundle cannot be committed (DL-035). Tessl packaging and the hand-maintained skill copy were retired (DL-034), and the development docs describe the CLI-only toolkit (DL-038).
 
-Two skill behaviours guard against acting on the wrong decision. `/dld-lookup` lists the decisions that amend or supersede the one it reads, follows chains of superseded amendments, and tells the agent to follow the newest accepted decision (DL-077). `/dld-implement` without arguments asks which proposed decisions to implement, offering only those added on the current branch by default (DL-076).
+Two skill behaviours guard against acting on the wrong decision. `/dld-lookup` lists the decisions that amend or supersede the one it reads, follows chains of superseded amendments, and tells the agent to follow the newest accepted decision (DL-077). `/dld-implement` without arguments asks which proposed decisions to implement, offering only those added on the current branch by default (DL-076); with no base branch to compare with, it still lists them all, marked `unknown`, with none selected (DL-090).
 
 ## Project Setup and the Always-On Rule
 
@@ -116,6 +118,8 @@ graph LR
     DL086["DL-086"] -.->|"amends"| DL001["DL-001"]
     DL086 -.->|"amends"| DL005
     DL087["DL-087"] -.->|"amends"| DL085
+    DL090["DL-090"] -.->|"amends"| DL071["DL-071"]
+    DL090 -.->|"amends"| DL076["DL-076"]
     DL070 -.->|"amends"| DL021["DL-021"]
     DL065["DL-065"] -.->|"amends"| DL026["DL-026"]
     DL065 -.->|"amends"| DL027["DL-027"]

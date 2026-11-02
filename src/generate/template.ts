@@ -76,6 +76,30 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
       );
     }
   }
+  // @decision(DL-091)
+  let fenced = false;
+  let command = "";
+  let commandLine = 0;
+  for (let i = end + 1; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced;
+      command = "";
+      continue;
+    }
+    if (!fenced) continue;
+    if (command === "") commandLine = i + 1;
+    command += `${line.replace(/\\$/, "")} `;
+    if (line.endsWith("\\")) continue;
+    const problem = bodyStdinProblem(command);
+    if (problem !== undefined) {
+      throw fail(
+        commandLine,
+        `create-decision ${problem}; use --body-stdin <<'DLD_BODY' with the body after it`,
+      );
+    }
+    command = "";
+  }
   return {
     skill,
     source,
@@ -89,6 +113,23 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
 // @decision(DL-046)
 /** Text OpenCode's command templating replaces in a skill body: arguments and shell output. */
 const HARNESS_TEMPLATING = /\$ARGUMENTS|\$\d|!`/;
+
+// @decision(DL-091)
+/** A quoted heredoc, which passes its text through without expansion. */
+const QUOTED_HEREDOC = /<<-?\s*'[A-Za-z_]+'/;
+
+// @decision(DL-091)
+/**
+ * Problems with a `create-decision --body-stdin` command in a code block, or undefined. The body
+ * must come from a quoted heredoc, not a pipe or an unquoted heredoc, which the shell expands.
+ */
+function bodyStdinProblem(command: string): string | undefined {
+  const at = command.search(/\bcreate-decision\b/);
+  if (at === -1 || !/--body-stdin\b/.test(command)) return undefined;
+  if (command.slice(0, at).includes("|")) return "pipes the body into create-decision";
+  if (!QUOTED_HEREDOC.test(command)) return "does not pass the body through a quoted heredoc";
+  return undefined;
+}
 
 /** A `{{script <skill>/<path>}}` reference. */
 export interface ScriptRef {

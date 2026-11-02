@@ -37,8 +37,9 @@ export function compareIds(a: string, b: string): number {
 /**
  * The ref decisions are checked against: `origin/<baseBranch>` or `<baseBranch>` when the config
  * sets it; else the upstream, when it tracks a differently named branch; else the remote's
- * default branch (`origin/HEAD`); else `origin/main`, then `main`. Only a ref that resolves to a
- * commit is returned; when none does, it fails naming the refs it tried.
+ * default branch (`origin/HEAD`); else `origin/main`, then `main`, then `origin/master`, then
+ * `master`. Only a ref that resolves to a commit is returned; when none does, it fails naming the
+ * refs it tried.
  */
 export function resolveBase(ctx: Context, baseBranch?: string): string {
   const git: Git = (...args) => ctx.git(args);
@@ -79,7 +80,8 @@ export function resolveBase(ctx: Context, baseBranch?: string): string {
     "refs/remotes/origin/HEAD",
   ).trim();
   if (remoteDefault !== "") candidates.push(remoteDefault);
-  candidates.push(DEFAULT_BASE, "main");
+  // @decision(DL-090)
+  candidates.push(DEFAULT_BASE, "main", "origin/master", "master");
 
   const found = firstExisting(...new Set(candidates));
   if (found !== undefined) return found;

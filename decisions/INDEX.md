@@ -2,6 +2,8 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-091 | Pass decision bodies to create-decision through a quoted heredoc | accepted | rc6-fixes, skills |
+| DL-090 | Fall back to master for the base branch, and list proposed decisions without one | accepted | rc6-fixes, base-branch |
 | DL-089 | Optional review subagent for /dld-plan, set by plan_review | accepted | review-settings, review |
 | DL-088 | Review model settings with per-step overrides, resolved by dld review-settings | accepted | review-settings, config, review |
 | DL-087 | Per-checkout personal settings in a gitignored dld.local.yaml | accepted | review-settings, config |
