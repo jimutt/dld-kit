@@ -1,9 +1,9 @@
 # System Snapshot
 
-> Auto-generated from the decision log on 2026-11-01. Do not edit manually.
+> Auto-generated from the decision log on 2026-11-02. Do not edit manually.
 > Use `/dld-snapshot` to regenerate. Source of truth: individual decision records.
 >
-> **Active decisions:** 69 (DL-001 through DL-070, excluding superseded/deprecated)
+> **Active decisions:** 80 (DL-001 through DL-081, excluding superseded/deprecated)
 > **Proposed decisions:** 0 (listed after the active ones, under "(proposed)" headings)
 
 ---
@@ -69,7 +69,7 @@ Tests never touch the developer's real repository.
 ---
 
 ### DL-005: CI runs typecheck, lint, all test layers on Node 20 and 22, and a package dry-run
-*Amended by: DL-020, DL-059*
+*Amended by: DL-020, DL-059, DL-081*
 
 The GitHub Actions workflow runs on pull requests and on pushes to `main` and `v1`, with these steps:
 
@@ -137,7 +137,7 @@ Tests use the real implementations against temporary git projects for the normal
 ---
 
 ### DL-009: Load dld.config.yaml with the bundled yaml package into a typed, validated Config
-*Amended by: DL-023, DL-067*
+*Amended by: DL-023, DL-067, DL-071, DL-079*
 
 - Parse the file with the `yaml` npm package. YAML errors and warnings (e.g. an unresolved custom tag) are config errors; the parser never prints. It is a devDependency, bundled into `dist/dld.mjs` by esbuild, so the published package keeps no runtime dependencies.
 - Validate the parsed value into a typed `Config` object, without type assertions (PRACTICES.md):
@@ -205,6 +205,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ## Shared library (v1-port-common)
 
 ### DL-014: Parse decision records with yaml, edit their metadata line by line, and render new records from a fixed template
+*Amended by: DL-078*
 
 - **Reading.** Core splits a record into frontmatter and body at the first two lines that are exactly `---`. It parses the frontmatter with the `yaml` package (DL-009) and validates it into a typed `DecisionRecord`: `id`, `title` and `status` required; `timestamp`, `supersedes`, `amends`, `namespace`, `tags` and `references` optional with empty defaults.
 - **Legacy frontmatter.** `create-decision.sh` wrote titles without escaping, so existing records can contain frontmatter that is not valid YAML (e.g. `title: "Use "yaml" package"`). When the YAML parse fails, fields are read line by line the way `regenerate-index.sh` read them: the first `<field>:` line, surrounding quotes stripped, `[a, b]` lists split on commas, no `references`. The result is validated like any other record. A record that still fails validation fails with an error naming the file.
@@ -264,6 +265,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ---
 
 ### DL-018: Render INDEX.md with a single renderer that matches regenerate-index.sh byte for byte
+*Amended by: DL-075*
 
 - One core function renders INDEX.md from a list of records and the project mode. Both `create-empty-index` (empty list) and `regenerate-index` use it.
 - Output matches the scripts byte for byte for well-formed records:
@@ -283,7 +285,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ---
 
 ### DL-019: Scan for annotations with one core scanner over git's file list and a single exclusion list
-*Amended by: DL-023, DL-060, DL-069*
+*Amended by: DL-023, DL-060, DL-069, DL-074*
 
 - Core has one annotation scanner, used by `verify-annotations` now and by `find-annotations` when it is ported.
 - The file list comes from `git ls-files --cached --others --exclude-standard`: tracked files plus untracked files that `.gitignore` does not ignore.
@@ -342,6 +344,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ---
 
 ### DL-022: Port find-annotations onto the shared scanner, reporting only IDs inside annotations
+*Amended by: DL-074*
 
 - `dld find-annotations` prints the shared scanner's results as `<file>:<line>:<DL-NNN>`, one line per annotation, with paths relative to the project root and `/` separators. Output is sorted by file, then line, then position on the line. No annotations means no output and exit 0.
 - Only IDs inside an annotation (`<prefix>(DL-NNN)`) are reported. Plain `DL-NNN` mentions on the same line are not.
@@ -430,7 +433,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ---
 
 ### DL-027: Port the reindex planning commands on one core computation
-*Amended by: DL-065*
+*Amended by: DL-065, DL-071*
 
 - The four become `dld resolve-base`, `dld list-taken-ids`, `dld find-collisions` and `dld plan-renames` (DL-011), backed by one core module. Taken IDs, local additions and collisions are computed once per command, so `gh` runs at most once and the notice prints at most once. When the branch adds no records, the open-PR scan is not run at all.
 - `resolve-base` keeps the script's logic and, like the script, works without `dld.config.yaml` and prints `origin/main` when git cannot answer.
@@ -662,6 +665,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ## Project setup: init and update (v1-init-update)
 
 ### DL-040: Add dld init and dld update for project setup through npm
+*Amended by: DL-075*
 
 - `dld init [--namespaces <a,b,...>] [--agent <names>] [--yes]` sets up DLD in the current git repository:
   - It fails (exit 1) if `dld.config.yaml` already exists, telling the user to run `dld update`.
@@ -736,7 +740,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 
 ### DL-043: Own the dld-* skill directories on update: overwrite, prune, refuse downgrades
 *Amends: DL-033*
-*Amended by: DL-051*
+*Amended by: DL-051, DL-072*
 
 - In each skills directory, dld-kit owns the `dld-*` directories (as DL-033). `init` and `update` make them hold exactly the generated output: changed files are overwritten, missing files written, and other files removed. Local edits are overwritten, as the generated-file notice says (DL-044).
 - Directories left empty by pruning are removed, bottom-up, up to but not including the skills directory. This applies to `npm run generate` too. `Context.fs` gains an operation that removes an empty directory and fails on a non-empty one.
@@ -767,7 +771,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ---
 
 ### DL-045: Deliver the always-on rule through owned rule files and a managed AGENTS.md block
-*Amended by: DL-049, DL-054, DL-055, DL-061*
+*Amended by: DL-049, DL-054, DL-055, DL-061, DL-074*
 
 - **Text.**
   - `templates/rules/dld-workflow.md` is the one source for every channel.
@@ -953,7 +957,7 @@ The project root is the output of `git rev-parse --show-toplevel`, run in the co
 ---
 
 ### DL-052: Release from a version tag with npm trusted publishing; package.json holds the one version
-*Amended by: DL-058*
+*Amended by: DL-058, DL-081*
 
 - **One version.** The `version` field in `package.json` is the only version.
   - The generator renders it into the skill stamps, rule notices, plugin manifests and marketplace entries.
@@ -1046,6 +1050,7 @@ The README is rewritten in the implementation of this workstream.
 
 ### DL-055: Give Claude Code the AGENTS.md block through a dld-kit .claude/CLAUDE.md import, and follow AGENTS.md imports
 *Amends: DL-045, DL-054*
+*Amended by: DL-072*
 
 - **What Claude Code reads.** dld-kit models it as follows:
   - Every CLAUDE file that exists at the project root (`CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`).
@@ -1080,6 +1085,7 @@ The README is rewritten in the implementation of this workstream.
 
 ### DL-056: The semver contract covers the setup commands; the commands the skills run are internal
 *Amends: DL-002, DL-011*
+*Amended by: DL-073*
 
 - **Public.** The semver contract for the `dld` CLI covers the setup commands:
   - `init`, `update`, `install-rule` and `session-context`, with their flags, exit codes and documented output;
@@ -1226,6 +1232,7 @@ The README is rewritten in the implementation of this workstream.
 
 ### DL-062: Merge v1 into main during the release candidates and make each candidate the default install
 *Amends: DL-058*
+*Amended by: DL-081*
 
 - **Merge `v1` into `main` now** (PR #76). The merge is a fast-forward. `main` becomes the release branch for the remaining candidates and for 1.0.0, and `v1` is retired: CI stops triggering on it.
 - **The README says the project is in release candidates.** The "Early development" note is replaced by one saying that 1.0 is in release candidates, which replace the 0.x skills, and that commands, file formats and skills may still change before 1.0.0. It links the last 0.x release, v0.9.0.
@@ -1319,6 +1326,7 @@ The README is rewritten in the implementation of this workstream.
 ## Decision edits (decision-edits)
 
 ### DL-066: Decision prose locks when the record reaches the base branch; frontmatter stays editable
+*Amended by: DL-071, DL-073*
 
 - A record's prose locks when it reaches the base branch, not when it is accepted. A record is **integrated** when its file exists at the merge-base of the base branch and HEAD; otherwise it is a **draft**, whatever its status. Drafts can be edited freely.
 - A record that is still `proposed` in its merge-base copy is a draft too. Decisions PRs often merge `proposed` records that are implemented later, and proposed records have always been mutable.
@@ -1401,3 +1409,217 @@ The README is rewritten in the implementation of this workstream.
 **Rationale:** A separate section keeps the accepted part of both documents an accurate statement of current state while showing where the system is headed. Counting proposed records in `decisions_included`, plus an upgrade marker, keeps incremental detection exact.
 
 **Code:** `src/core/snapshot.ts` → `collectActiveDecisions`, `detectSnapshotChanges`, `updateSnapshotState`, `src/cli/commands/collect-active-decisions.ts` → `collectActiveDecisionsCommand`, `src/core/snapshot.test.ts`, `templates/skills/dld-snapshot/SKILL.md`
+
+---
+
+## Pre-1.0 hardening (v1-hardening)
+
+### DL-071: Resolve the base branch from config, the upstream, then origin/HEAD, and fail when it does not exist
+*Amends: DL-027, DL-066, DL-009*
+
+- `dld.config.yaml` gets an optional key `base_branch`, a branch name such as `main` or `develop`.
+- The base ref is resolved in this order, the first that applies winning:
+  1. `--base`, where a command takes it.
+  2. `base_branch`: `origin/<base_branch>` if that ref exists, else the local `<base_branch>`.
+  3. The upstream, when it tracks a branch with a different name than the current one (DL-027's rule).
+  4. The remote's default branch, from `git symbolic-ref refs/remotes/origin/HEAD`.
+  5. `origin/main`, then the local `main` (DL-066's fallback).
+- `resolve-base` prints the ref it picked only if it resolves to a commit. Otherwise it fails with exit 1, naming the refs it tried and suggesting `base_branch` or `git remote set-head origin --auto`.
+- Every command that picks a base itself uses this one resolution: `resolve-base`, and `list-taken-ids`, `find-collisions`, `plan-renames`, `rename-decision`, `check-decision-edits` and `restore-decision-prose` without `--base`. `commit-reindex` and `find-stale-mentions` still require `--base`, which the reindex skill passes from `resolve-base`; leaving it out is now a usage error (exit 2).
+- `base_branch` is a plain branch name. A value that starts with `-` or `origin/`, is `@`, contains whitespace, `~ ^ : ? * [ \`, `..` or `@{`, starts or ends with `/`, or ends with `.` or `.lock` is a config error, so revision syntax such as `main~1` cannot quietly move the base.
+- The configuration spec documents `base_branch`, and the skills that report "base branch not found" point at it.
+
+**Rationale:** A silently missing base turned off prose protection in every repository not on `main`. `origin/HEAD` covers most repositories without configuration, `base_branch` covers the rest, and failing with the refs tried names both the problem and the fix.
+
+**Code:** `src/core/reindex.ts` → `resolveBase`, `src/core/decision-edits.ts` → `editBase`, `src/cli/commands/base-option.ts` → `baseOption`, `src/cli/commands/resolve-base.ts` → `resolveBaseCommand`, `src/core/config.ts` → `parseConfig`, `src/core/reindex.test.ts`, `docs/framework/project-configuration.md`
+
+---
+
+### DL-072: dld update removes only dld-kit's own skill directories and keeps user edits to .claude/CLAUDE.md
+*Amends: DL-043, DL-055*
+
+- **Pruning.** `update` removes a `dld-*` directory that the current version does not generate only when it is dld-kit's:
+  - it is a real directory (not a symlink) whose SKILL.md carries a `metadata.dld-kit-version` stamp and the generated notice naming its own template, `templates/skills/<name>/SKILL.md`. A user's renamed copy of a dld-kit skill keeps the notice of the skill it was copied from, so it is the user's; or
+  - its name is one of the skills dld-kit has shipped, in any version (the 0.x names included), kept as a list in the generator.
+  Any other `dld-*` directory is left in place, with a warning naming it.
+- **Reporting.** `init` and `update` name every directory and file they remove, not only a count.
+- **`.claude/CLAUDE.md`.** dld-kit rewrites the file only when its content, apart from the version in the notice, is exactly what some dld-kit version generated: the notice and the `@../AGENTS.md` import. Line endings and the wording of the notice line are ignored in the comparison, so an untouched file from an older version still counts. If the user added anything, the file is left unchanged, with a warning that it holds user content and that dld-kit no longer maintains it; removing its notice line makes it plainly the user's. If the import line is missing, the warning says to add it back. The DL-045 once-per-harness checks treat the file as user-owned from then on.
+- The same test decides which `dld-*` entries count as installed skills for the version and symlink checks, so a user's own `dld-*` skill never blocks an update. The `npx skills` lock warning and the symlink refusal look only at shipped names.
+- In dld-kit's own repository, `npm run generate` keeps owning every `dld-*` directory in its outputs, so an orphaned skill there is still caught.
+- Unit tests cover a user `dld-*` skill next to dld-kit's, a 0.x unstamped copy, and an edited `.claude/CLAUDE.md`.
+
+**Rationale:** Deleting files the user wrote is the one thing an update must never do. The shipped-name list and the stamp with its own template notice identify everything dld-kit installed, so the 0.x migration still works while user skills and edited files survive.
+
+**Code:** `src/generate/install.ts` → `SHIPPED_SKILLS`, `planInstall`, `applyInstall`, `src/generate/generate.ts` → `writeOutput`, `src/generate/rule.ts` → `importFileVersion`, `src/cli/install.ts` → `printReport`, `src/generate/install.test.ts`, `src/generate/rule.test.ts`
+
+---
+
+### DL-073: check-decision-edits is part of the CLI contract, and a Decision-Edit commit trailer allows a deliberate edit
+*Amends: DL-056, DL-066*
+
+- `check-decision-edits` joins the semver contract (DL-056) and is listed with the setup commands in `dld --help`, under a heading renamed "Setup and CI commands". The README's CLI table lists it. The contract covers:
+  - the options `--base`, `--uncommitted` and decision IDs;
+  - the output lines `<path>\t<DL-NNN>\t<state>`;
+  - the states `edited`, `deleted`, `allowed`, `draft` and `integrated`;
+  - exit 0 (nothing blocked), 1 (error) and 3 (blocked).
+- **Commit trailer.** A commit between the merge-base and HEAD with a `Decision-Edit:` trailer allows edits to the decisions it names, for example `Decision-Edit: DL-012, DL-015`. The trailer is read with `git log --format=%(trailers:key=Decision-Edit,valueonly)`.
+  - An edited or deleted record that a trailer names is printed with state `allowed`. It never makes the command exit 3.
+  - Trailers apply only to committed edits. `--uncommitted`, which the skills use, ignores them.
+  - IDs in a trailer are separated by commas or spaces; anything that is not a decision ID is ignored. Trailers are read with git's own trailer parsing, so only a trailer in the commit message's final paragraph counts.
+  - `dld-adjust`, which reads states for given IDs, treats `allowed` like `edited`: the record is on the base branch.
+- The configuration spec documents the CI recipe as supported, and explains the trailer as the way to land a deliberate fix under `block`.
+- `restore-decision-prose` stays internal.
+
+**Rationale:** The docs already asked users to run this command in CI, so it belongs in the semver contract. A commit trailer travels with the change, needs no forge-specific labels or tokens, and records who chose to edit which record.
+
+**Code:** `src/core/decision-edits.ts` → `checkDecisionEdits`, `EDIT_TRAILER`, `src/cli/commands/check-decision-edits.ts` → `checkDecisionEditsCommand`, `src/cli/index.ts` → `COMMANDS`, `src/core/decision-edits.test.ts`, `docs/framework/project-configuration.md`, `README.md`
+
+---
+
+### DL-074: Specify the annotation syntax, warn on near-misses, and render annotation_prefix into the rule and skills
+*Amends: DL-019, DL-022, DL-045*
+
+- **Syntax.** An annotation is the configured prefix immediately followed by `(`, one decision ID in canonical form (DL-078), and `)`, with no spaces. It is case-sensitive. A line may hold several annotations. The decision record format spec states this, with examples of what is not an annotation.
+- **Near-misses.** The scanner also reports text that starts with the prefix in any letter case followed by `(`, contains `DL-` or `dl-` followed by digits before the closing `)`, and is not a valid annotation.
+  - `find-annotations` and `verify-annotations` print one warning per near-miss on stderr (`<file>:<line>: not an annotation: <text>`). Their stdout and exit codes are unchanged.
+  - `/dld-audit` lists them as issues, and `/dld-audit-auto` fixes them.
+  - Placeholders without digits, such as `@decision(DL-XXX)` in documentation, are not near-misses.
+  - A near-miss must close its parentheses on the same line, so an unclosed `@decision(DL-010` is not reported.
+  - Existing annotations with a non-canonical ID, such as `@decision(DL-5)`, still count, as DL-078 keeps reading what it finds.
+- **`annotation_prefix` is kept and works end to end.**
+  - The rule is installed per project, so `install-rule`, `update` and `session-context` render the configured prefix into the rule text. `init` writes a fresh config with the default prefix. Without a config, or with one that cannot be read, they use `@decision`.
+  - The skill templates are the same for every project, so wherever they tell the agent to find or write annotations, they say to use `annotation_prefix` from `dld.config.yaml`, `@decision` by default. Examples keep `@decision`.
+
+**Rationale:** A silent miss is the worst failure for an annotation: the code looks linked and is not. Warnings cost nothing when the text is right, requiring digits keeps documentation placeholders quiet, and rendering the prefix where the rule is installed makes the setting real.
+
+**Code:** `src/core/annotations.ts` → `scanAnnotations`, `formatNearMiss`, `src/cli/commands/find-annotations.ts`, `src/cli/commands/verify-annotations.ts`, `src/generate/rule.ts` → `ruleTextFor`, `projectRuleText`, `src/core/annotations.test.ts`, `docs/framework/decision-record-format.md`
+
+---
+
+### DL-075: Merge INDEX.md with git's union driver through a managed .gitattributes line
+*Amends: DL-018, DL-040*
+
+- `init` and `update` make sure `.gitattributes` at the project root contains the line `/<decisions_dir>/INDEX.md merge=union`, preceded by the comment `# dld-kit: keep both sides' rows when merging the decision index`.
+  - The file is created if it does not exist.
+  - The line is added only when no line in the file already sets a merge attribute (`merge`, `merge=…`, `-merge` or `!merge`) for that path, written with or without the leading `/`. A user's own setting wins, and dld-kit never edits or removes other lines.
+  - A `.gitattributes` that is not a regular file is not edited; a warning gives the line to add.
+  - Quoted patterns are unquoted before comparing, and `binary` counts as a merge setting (it unsets `merge`).
+  - When the index path holds characters git would read as pattern syntax (whitespace, `"`, `\`, `*`, `?`, `[`, `]`, a leading `!` or `#`) or a `..` segment, nothing is written, and a warning asks the user to add a matching line.
+  - New lines use the file's line endings (CRLF when it already has them).
+  - `update` reads the config before writing anything, so an invalid config stops it up front.
+  - When `decisions_dir` changes, `update` adds the line for the new path. It leaves an old line in place, with a warning.
+- The INDEX.md layout is unchanged: a fixed header, one self-contained line per row and no counts. That is what lets a union merge produce a valid table.
+- The dld-init skill does the same through the CLI: `create-empty-index`, which it runs once, also adds the line.
+
+**Rationale:** The union driver keeps both sides' rows in every merge, including GitHub's merge button, with no custom driver to install, while INDEX.md stays committed and browsable.
+
+**Code:** `src/generate/gitattributes.ts` → `planIndexMergeAttribute`, `src/cli/install.ts` → `ensureIndexMergeAttribute`, `src/cli/commands/create-empty-index.ts`, `src/cli/commands/init.ts`, `src/cli/commands/update.ts`, `src/generate/gitattributes.test.ts`
+
+---
+
+### DL-076: /dld-implement without arguments proposes this branch's proposed decisions and asks before starting
+
+- Without arguments, `/dld-implement` collects the `proposed` records and splits them into two groups:
+  - those added on this branch, meaning their file does not exist at the merge-base with the base branch (DL-071), committed or not;
+  - all others.
+- It asks with `AskUserQuestion` which to implement. This branch's records are offered as the default. The others are listed separately and are never selected by default.
+- If no proposed records were added on this branch, it shows the others and asks. It never starts implementing without the user confirming the list.
+- IDs and `tag:` arguments behave as now.
+- The split comes from a new internal command, `dld list-proposed [--base <ref>]`, which prints `<DL-NNN>\t<branch|base>\t<title>` for each proposed record, ascending by ID. It uses DL-071's base resolution; when no base is found it fails, and the skill then shows every proposed decision and asks.
+
+**Rationale:** "Implement what I just planned" almost always means the records the current branch added; one confirmation prevents an agent from rewriting code for someone else's merged plan.
+
+**Code:** `src/core/proposed.ts` → `listProposed`, `src/cli/commands/list-proposed.ts` → `listProposedCommand`, `templates/skills/dld-implement/SKILL.md`, `src/core/proposed.test.ts`
+
+---
+
+### DL-077: Lookup shows the decisions that amend or supersede a decision, through a new related-decisions command
+
+- New internal command `dld related-decisions <DL-NNN>`. It prints one line per relationship, `<relation>\t<DL-NNN>\t<status>\t<title>`, where the relation is:
+  - `amended-by` or `superseded-by` for records whose `amends` or `supersedes` lists the ID;
+  - `amends` or `supersedes` for the IDs the record itself lists.
+  Lines are in ascending ID order. The command exits 1 if the decision does not exist.
+- `/dld-lookup` by ID runs it after reading the record. When the decision has been amended or superseded, lookup:
+  - says so before the record's content;
+  - summarises what each amending or superseding decision changed, from its Decision section;
+  - tells the agent to follow the newest decision where they differ.
+- `/dld-implement`, `/dld-adjust` and `/dld-audit` use the same command wherever they check relationships.
+- `/dld-lookup` now runs the CLI, so its compatibility note says it needs Node.js 20+, like the other skills.
+- A `proposed` decision that amends or supersedes this one is mentioned as planned; lookup keeps following the accepted decisions. When an amending or superseding decision is itself superseded, lookup follows the chain with further `related-decisions` calls until it reaches an accepted decision.
+- The audit-auto skill's list of housekeeping fields drops `superseded_by`. It names the fields the format has: `references`, `amends`, `supersedes`, `status`.
+
+**Rationale:** DLD's core promise is that an agent reads the right rationale before editing annotated code, and an amended decision is only half of it. Reverse links are mechanical, so the CLI computes them rather than storing them.
+
+**Code:** `src/core/related.ts` → `relatedDecisions`, `src/cli/commands/related-decisions.ts` → `relatedDecisionsCommand`, `templates/skills/dld-lookup/SKILL.md`, `src/core/related.test.ts`
+
+---
+
+### DL-078: Decision IDs are DL- plus a decimal number of at least three digits, compared by number
+*Amends: DL-014*
+
+- **The format spec states the ID rule.**
+  - An ID is `DL-` followed by a decimal number, zero-padded to three digits. Numbers above 999 use as many digits as they need: DL-001, DL-042, DL-999, DL-1000.
+  - This canonical form is the ID's identity everywhere: file names, frontmatter, annotations and references.
+  - IDs are ordered by number, not as text.
+  - `next-id` gives one more than the highest existing number.
+- `create-decision --id` rejects an ID that is not canonical, such as `DL-5`, `DL-0042` or `dl-007`, with a usage error (exit 2) that names the canonical form. So does rename-plan validation (DL-028) for the new ID, which covers `rename-decision --new` and every plan `find-stale-mentions` and `commit-reindex` read.
+- Canonical means `DL-` and either exactly three digits or a number of four or more digits without a leading zero. When a rejected ID is a `DL-`/`dl-` number that can be respelled exactly, the error names the canonical form; otherwise it gives the generic expected format. Every rename-plan validation failure is a usage error (exit 2).
+- Commands that read existing IDs keep accepting what they find, so a non-canonical record created by hand is reported by the tools, not hidden.
+
+**Rationale:** Writing down what the CLI already does makes growth past DL-999 a guarantee. One spelling per ID keeps text matching exact, and "at least three digits" leaves room for an optional width setting later.
+
+**Code:** `src/core/ids.ts` → `isCanonicalId`, `formatId`, `src/core/decisions.ts` → `createDecision`, `src/core/rename-plan.ts` → `renameProblem`, `src/core/ids.test.ts`, `docs/framework/decision-record-format.md`
+
+---
+
+### DL-079: Warn about unknown keys in dld.config.yaml
+*Amends: DL-009*
+
+- Parsing the config reports warnings. A top-level key that is not part of the configuration spec produces `dld.config.yaml: unknown key '<key>'`, followed by `; did you mean '<known key>'?` when a known key is within two edits of it.
+- `Context` gains `warn(message)`, the channel core uses for problems that do not stop a command. The CLI dispatcher prints each distinct message once per run as `Warning: <message>` on stderr, so every command that loads the config reports the warnings without code of its own, and carries on. Stdout and exit codes are unchanged.
+- Unknown keys stay warnings in every 1.x release. Only a major version could make them errors.
+- The configuration spec says that unknown keys are reported, and lists every key.
+
+**Rationale:** A warning catches typos at the first command without breaking configs with keys from a newer dld-kit; settling now that unknown keys only warn leaves later releases free to add keys.
+
+**Code:** `src/core/config.ts` → `CONFIG_KEYS`, `parseConfig`, `src/core/context.ts` → `Context`, `src/cli/index.ts` → `run`, `src/node-context.ts` → `createNodeContext`, `src/core/config.test.ts`, `docs/framework/project-configuration.md`
+
+---
+
+### DL-080: Decision IDs are unique across namespaces, and create-decision accepts only configured namespaces
+
+- `create-decision` fails if a record with that ID already exists anywhere under the records directory, in any namespace or at its root. The error names the existing file.
+- Every entry in `namespaces` must be a plain directory name (letters, digits, `.`, `_`, `-`; not `.` or `..`), or the config is invalid.
+- In a namespaced project, `--namespace` must be one of the configured `namespaces`. An unknown name is a usage error that lists them. Without `--namespace`, the record goes at the root of the records directory, as now.
+- In a flat project, `--namespace` is a usage error.
+- Commands that find a record by ID go through one lookup, which fails when the ID is in more than one file, listing the files, instead of picking one. That covers `update-status`, and `check-decision-edits` and `restore-decision-prose` with IDs. `rename-decision` is given the record's path, so it is unaffected.
+- "Already exists" is decided by number, so a hand-made `DL-07.md` also blocks creating `DL-007`.
+- `regenerate-index` prints a warning on stderr for every number that is in more than one file, through the `Context.warn` channel (DL-079).
+
+**Rationale:** A global ID is what makes an annotation unambiguous, and two records with one ID break every link to it; rejecting unknown namespaces stops a typo from creating a namespace nothing knows about.
+
+**Code:** `src/core/decisions.ts` → `createDecision`, `src/core/records.ts` → `findRecordFile`, `duplicateRecordFiles`, `src/cli/commands/regenerate-index.ts` → `regenerateIndexCommand`, `src/core/decisions.test.ts`
+
+---
+
+## Release pipeline (release)
+
+### DL-081: Release through Changesets: a Version Packages pull request, then the verify, publish and release jobs
+*Amends: DL-052, DL-062, DL-005*
+
+- **Changesets** records what each pull request changes. Every pull request to `main` adds a changeset (`npx changeset`, or `npx changeset --empty` when nothing shipped changes). CI fails a pull request without one, except the Version Packages pull request itself.
+- **Pre mode.** The repository is in Changesets pre mode with the tag `rc` until 1.0.0, so versions continue `1.0.0-rc.6`, `1.0.0-rc.7`, …; `changeset pre exit` in a pull request makes the next version `1.0.0`.
+- **`release.yml` runs on every push to `main`**, and by hand (`workflow_dispatch`, `main` only) to retry. Its first job runs `changesets/action/select-mode`:
+  - `version`: the `version` job runs `changesets/action/version` with `npm run version-packages` (`changeset version`, then `npm run generate`, so every stamp and manifest carries the new version, DL-052). It opens or updates a "Version Packages" pull request.
+  - `publish` (the version in `package.json` is not on npm yet, so a Version Packages pull request was just merged): DL-052's three jobs run, unchanged in what they may do:
+    - `verify` (read-only) runs every check, packs the tarball, and extracts the version's section of `CHANGELOG.md` as release notes;
+    - `publish` (the `npm` environment, `id-token: write`) publishes that tarball with no project code installed or run;
+    - `release` (`contents: write`) creates the `v<version>` tag on the released commit and the GitHub release, with the changelog section followed by GitHub's generated notes.
+  - `none`: nothing to do.
+- **Dist-tags and the GitHub "latest" flag** follow DL-062 without manual steps: a `1.0.0-*` candidate is published to `latest` and its GitHub release is the latest release, not a prerelease. After 1.0.0, prereleases go to `next` as GitHub prereleases, and releases to `latest`.
+- `npm version` is no longer used; the `version` script is removed. `package.json` stays the one version source (DL-052).
+- **One-time settings:** the `npm` environment's deployment rule allows the `main` branch instead of `v*` tags, and the repository lets GitHub Actions create pull requests. The npm trusted publisher (repository, `release.yml`, environment `npm`) is unchanged.
+
+**Rationale:** A Version Packages pull request turns a release into a review and a merge, with the changelog written as part of the work. Keeping DL-052's verify, publish and release jobs keeps its rule that the job able to publish never runs project code.
+
+**Code:** `.github/workflows/release.yml`, `.github/workflows/test.yml`, `scripts/release.ts` → `releaseInfo`, `releaseNotes`, `scripts/release-cli.ts`, `scripts/release.test.ts`, `.changeset/config.json`, `.changeset/pre.json`, `package.json`, `docs/releasing.md`
