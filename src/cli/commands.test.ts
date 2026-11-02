@@ -322,7 +322,6 @@ describe("snapshot commands", () => {
     );
     expect(dld(project, "detect-snapshot-changes").out).toBe("mode: full\n");
 
-    project.write("decisions/SNAPSHOT.md");
     project.write("decisions/OVERVIEW.md");
     const head = project.git("rev-parse", "--short", "HEAD").trim();
     expect(dld(project, "update-snapshot-state", "ONBOARDING.md").out).toBe(

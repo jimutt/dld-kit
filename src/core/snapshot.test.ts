@@ -82,7 +82,6 @@ describe("detectSnapshotChanges", () => {
   function snapshotted(p: TempProject) {
     writeRecord(p, "DL-001");
     writeRecord(p, "DL-002");
-    p.write("decisions/SNAPSHOT.md");
     p.write("decisions/OVERVIEW.md");
     p.git("add", ".");
     p.git("commit", "-qm", "snapshot");
@@ -99,21 +98,19 @@ describe("detectSnapshotChanges", () => {
     expect(detect(project)).toEqual({ mode: "full" });
   });
 
-  test("is full when an artifact is missing", () => {
-    for (const artifact of ["OVERVIEW.md", "SNAPSHOT.md"]) {
-      project = tempProject();
-      snapshotted(project);
-      project.git("rm", "-q", `decisions/${artifact}`);
-      expect(detect(project)).toEqual({ mode: "full" });
-      project.cleanup();
-    }
-    project = undefined;
+  // @decision(DL-084)
+  test("is full when OVERVIEW.md is missing, whether or not SNAPSHOT.md exists", () => {
+    project = tempProject();
+    snapshotted(project);
+    expect(detect(project)).toMatchObject({ mode: "incremental" });
+    expect(detect(project)).toMatchObject({ mode: "incremental" });
+    project.git("rm", "-q", "decisions/OVERVIEW.md");
+    expect(detect(project)).toEqual({ mode: "full" });
   });
 
   test("is full when the state file has only an audit section", () => {
     project = tempProject();
     writeRecord(project, "DL-001");
-    project.write("decisions/SNAPSHOT.md");
     project.write("decisions/OVERVIEW.md");
     project.write(
       "decisions/.dld-state.yaml",
@@ -125,11 +122,10 @@ describe("detectSnapshotChanges", () => {
   test("reports new decisions without a commit baseline", () => {
     project = tempProject();
     writeRecord(project, "DL-001");
-    project.write("decisions/SNAPSHOT.md");
     project.write("decisions/OVERVIEW.md");
     project.write(
       "decisions/.dld-state.yaml",
-      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 1\n  artifacts:\n    SNAPSHOT.md: 2026-01-15T10:00:00Z\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n",
+      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 1\n  artifacts:\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n",
     );
     writeRecord(project, "DL-002");
     const changes = detect(project);
@@ -153,12 +149,11 @@ describe("detectSnapshotChanges", () => {
     };
     writeRecord(p, "DL-001");
     writeRecord(p, "DL-002");
-    p.write("decisions/SNAPSHOT.md");
     p.write("decisions/OVERVIEW.md");
     commitAt("2026-01-10T10:00:00Z", "snapshot");
     p.write(
       "decisions/.dld-state.yaml",
-      "snapshot:\n  last_run: 2026-01-10T12:00:00Z\n  decisions_included: 2\n  artifacts:\n    SNAPSHOT.md: 2026-01-10T12:00:00Z\n    OVERVIEW.md: 2026-01-10T12:00:00Z\n",
+      "snapshot:\n  last_run: 2026-01-10T12:00:00Z\n  decisions_included: 2\n  artifacts:\n    OVERVIEW.md: 2026-01-10T12:00:00Z\n",
     );
     commitAt("2026-01-10T12:00:00Z", "state");
     writeRecord(p, "DL-001", "superseded");
@@ -218,10 +213,9 @@ describe("detectSnapshotChanges", () => {
     writeRecord(project, "DL-003");
     writeRecord(project, "DL-004", "superseded");
     writeRecord(project, "DL-006", "proposed");
-    project.write("decisions/SNAPSHOT.md");
     project.write("decisions/OVERVIEW.md");
     const state =
-      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 3\n  artifacts:\n    SNAPSHOT.md: 2026-01-15T10:00:00Z\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n";
+      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 3\n  artifacts:\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n";
     project.write("decisions/.dld-state.yaml", state);
     expect(detect(project)).toMatchObject({ newDecisions: ["DL-002", "DL-006"] });
     project.write(
@@ -268,7 +262,6 @@ describe("detectSnapshotChanges", () => {
   test("detects modified records under non-ASCII paths", () => {
     project = tempProject("decisions_dir: beslut/décisions\nmode: flat\n");
     project.write("beslut/décisions/records/DL-001.md", recordText("DL-001"));
-    project.write("beslut/décisions/SNAPSHOT.md");
     project.write("beslut/décisions/OVERVIEW.md");
     project.git("add", ".");
     project.git("commit", "-qm", "snapshot");
@@ -300,6 +293,7 @@ describe("updateSnapshotState", () => {
     writeRecord(project, "DL-005", "superseded");
     const result = updateSnapshotState(project.ctx, loadProject(project.ctx), [
       "ONBOARDING.md",
+      "SNAPSHOT.md",
       "__proto__",
     ]);
     expect(result.highest).toBe(4);
@@ -311,9 +305,9 @@ describe("updateSnapshotState", () => {
   decisions_included: 4
   includes_proposed: true
   artifacts:
-    SNAPSHOT.md: 2026-01-15T10:00:00Z
     OVERVIEW.md: 2026-01-15T10:00:00Z
     ONBOARDING.md: 2026-01-15T10:00:00Z
+    SNAPSHOT.md: 2026-01-15T10:00:00Z
     __proto__: 2026-01-15T10:00:00Z
 `,
     );

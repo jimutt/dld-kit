@@ -6,7 +6,7 @@ Code is full of choices that look odd without their reason: a retry tuned to one
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/dld-workflow-dark.svg">
-  <img src="docs/assets/dld-workflow-light.svg" width="880" alt="DLD workflow: /dld-plan records proposed decisions; /dld-implement writes and reviews the code and links it to the decisions with @decision comments; /dld-snapshot, run on demand, on a schedule or in CI, generates OVERVIEW.md and SNAPSHOT.md. Agents read the linked decision before editing annotated code.">
+  <img src="docs/assets/dld-workflow-light.svg" width="880" alt="DLD workflow: /dld-plan records proposed decisions; /dld-implement writes and reviews the code and links it to the decisions with @decision comments; /dld-snapshot, run on demand, on a schedule or in CI, generates OVERVIEW.md. Agents read the linked decision before editing annotated code.">
 </picture>
 
 > [!NOTE]
@@ -34,7 +34,7 @@ Then, in your agent:
 /dld-snapshot
 ```
 
-`/dld-plan` talks the feature through with you and records proposed decisions. `/dld-implement` writes the code, has it reviewed, and adds the `@decision` comments. `/dld-snapshot` regenerates `OVERVIEW.md` and `SNAPSHOT.md` from the decisions.
+`/dld-plan` talks the feature through with you and records proposed decisions. `/dld-implement` writes the code, has it reviewed, and adds the `@decision` comments. `/dld-snapshot` regenerates `OVERVIEW.md` from the decisions.
 
 These are Claude Code's slash commands. In Pi, use `/skill:dld-plan`. In other agents, ask for the skill by name: "use the dld-plan skill to plan retries for the payment client".
 
@@ -74,7 +74,7 @@ function retryWithBackoff(fn: () => Promise<Response>): Promise<Response> {
 The **always-on rule** is a short instruction installed for each agent: read the decision behind an annotation before changing that code. If a change would contradict it, the agent checks with you, and a new decision records the change.
 
 - **Merged decisions aren't rewritten.** While a decision is only on your branch, edit it as much as you like. Once it's on the main branch, you don't edit its reasoning: to change course, record a new decision that supersedes or amends it, so the history stays complete. The frontmatter (`status`, `references`, links, title) can always be updated; `id` and `timestamp` can't. `decision_edits` in the config can relax this. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
-- **The docs are generated.** `/dld-snapshot` builds `OVERVIEW.md` and `SNAPSHOT.md` from the decisions. You never edit a spec by hand.
+- **The docs are generated.** `/dld-snapshot` builds `OVERVIEW.md`, and any documents you define in `snapshot_artifacts`, from the decisions. You never edit a spec by hand.
 - **Drift gets caught.** `/dld-audit` finds annotations without a decision, references to files that no longer exist, and annotated code that changed.
 - **Conventions live in one file.** An optional `decisions/PRACTICES.md` holds your testing, style and architecture conventions, and `/dld-implement` follows it.
 
@@ -103,7 +103,7 @@ More detail, with diagrams: [workflows](docs/workflows.md).
 | `/dld-status` | Summarize the decision log |
 | `/dld-audit` | Find drift between decisions and code |
 | `/dld-audit-auto` | Audit, fix and open a PR, for scheduled runs |
-| `/dld-snapshot` | Generate `OVERVIEW.md` and `SNAPSHOT.md` from the decisions |
+| `/dld-snapshot` | Generate `OVERVIEW.md` and your custom artifacts from the decisions |
 | `/dld-retrofit` | Write decisions for existing code, broadly or in detail |
 | `/dld-reindex` | Fix decision ID clashes with the base branch and open PRs |
 

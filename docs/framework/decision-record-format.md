@@ -27,7 +27,6 @@ Determined by project configuration (see `dld.config.yaml`).
 decisions/
   INDEX.md
   OVERVIEW.md
-  SNAPSHOT.md
   PRACTICES.md
   .dld-state.yaml
   records/
@@ -41,7 +40,6 @@ decisions/
 decisions/
   INDEX.md
   OVERVIEW.md
-  SNAPSHOT.md
   PRACTICES.md
   .dld-state.yaml
   records/
