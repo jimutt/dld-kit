@@ -14,7 +14,7 @@ No. If a spec tool such as Spec Kit, OpenSpec or Kiro works for your team, switc
 - **The history stays.** Changing course is a new decision that supersedes or amends the old one, so the record of why the code looks the way it does is never rewritten.
 - **The code points to its reasoning.** An `@decision` annotation sits on the code it explains, so an agent about to change that code is sent to the decision, instead of having to work out which part of a spec applies.
 
-You can also record decisions next to a spec tool, or use `/dld-plan` for the planning step instead of one.
+The two can also be combined: keep planning features with your spec tool, and record the choices that should outlive the feature as decisions linked from the code. Or let `/dld-plan` take over the planning: it talks the feature through with you and writes proposed decisions where a spec tool would write a spec.
 
 ### What does it cost to run?
 

@@ -168,11 +168,11 @@ All the options: [project configuration](docs/framework/project-configuration.md
 
 ## DLD and spec-driven development
 
-Spec-driven tools such as [Spec Kit](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/), [OpenSpec](https://openspec.dev/) and [Kiro](https://kiro.dev/) work well, especially for new projects. If they fit your team, use them. DLD is for long-lived code, where specs tend to go stale:
+If your team uses a spec-driven tool such as [Spec Kit](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/), [OpenSpec](https://openspec.dev/) or [Kiro](https://kiro.dev/) and it works for you, switching isn't necessarily worth it. DLD differs in three ways:
 
-- **Decisions instead of a spec.** You record each decision once and never rewrite it, so the history of why the code looks the way it does stays complete.
-- **The spec is generated.** The overview docs are built from the decisions, the way event sourcing builds a read model from events.
-- **The context sits in the code.** An annotation next to the code sends the agent straight to the reasoning.
+- **Decisions instead of a spec.** You record each decision once and never rewrite it. Changing course is a new decision that supersedes or amends the old one, so the history of why the code looks the way it does stays complete.
+- **The current picture is generated.** Most spec tools write a spec per feature or change, which then describes what was planned at the time. DLD builds the overview docs from the decisions in effect, the way event sourcing builds a read model from events.
+- **The context sits in the code.** An annotation next to the code sends the agent straight to the reasoning, instead of leaving it to work out which spec applies.
 
 More in the [FAQ](docs/faq.md), and in the [concept paper](docs/concept/dld-concept.md) from DLD's early thinking.
 
