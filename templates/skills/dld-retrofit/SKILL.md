@@ -131,8 +131,8 @@ For each approved decision:
 ID=$({{dld}} next-id)
 {{dld}} create-decision \
   --id "$ID" \
-  --title "Title" \
-  --tags "tag1, tag2" \
+  --title 'Title' \
+  --tags 'tag1, tag2' \
   --body-stdin <<'DLD_BODY'
 ## Context
 
@@ -148,7 +148,7 @@ ID=$({{dld}} next-id)
 DLD_BODY
 ```
 
-Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` need no escaping. No line of the body may be exactly `DLD_BODY`.
+Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` in it need no escaping. Don't indent the body, and put the closing `DLD_BODY` alone on its own line, unindented; no line of the body may be exactly `DLD_BODY`. The other arguments are ordinary shell strings: put the title and tags in single quotes, and write an apostrophe in them as `'\''`.
 
 ## Step 6: Add annotations and references
 

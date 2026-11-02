@@ -26,7 +26,8 @@ Options:
     try {
       base = baseOption(values.base, { ctx, project });
     } catch (error) {
-      if (values.base !== undefined || !(error instanceof DldError)) throw error;
+      const explicit = values.base !== undefined || project.config.baseBranch !== undefined;
+      if (explicit || !(error instanceof DldError)) throw error;
       ctx.warn(`${error.message} Listing every proposed decision as unknown.`);
     }
     for (const proposed of listProposed(ctx, project, base)) {

@@ -93,9 +93,9 @@ Then create the record, passing the body on stdin through a quoted heredoc:
 ```bash
 node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" create-decision \
   --id "DL-NNN" \
-  --title "Short descriptive title" \
+  --title 'Short descriptive title' \
   --namespace "billing" \
-  --tags "payment-gateway" \
+  --tags 'payment-gateway' \
   --supersedes "DL-003" \
   --amends "DL-005" \
   --body-stdin <<'DLD_BODY'
@@ -117,7 +117,7 @@ node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" create-decision \
 DLD_BODY
 ```
 
-Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` need no escaping. No line of the body may be exactly `DLD_BODY`.
+Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` in it need no escaping. Don't indent the body, and put the closing `DLD_BODY` alone on its own line, unindented; no line of the body may be exactly `DLD_BODY`. The other arguments are ordinary shell strings: put the title and tags in single quotes, and write an apostrophe in them as `'\''`.
 
 Pass `--namespace` only in a namespaced project, with one of the configured namespaces; leave it out in a flat project. Repeat for each decision, incrementing the ID each time. Run `next-id` before each creation to ensure correct sequencing.
 

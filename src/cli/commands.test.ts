@@ -854,6 +854,10 @@ describe("list-proposed", () => {
     expect(unknown.err).toStartWith("Warning: no base branch found");
     expect(unknown.err).toContain("Listing every proposed decision as unknown.");
     expect(dld(p, "list-proposed", "--base", "missing").code).toBe(1);
+    const config = readFileSync(join(p.root, "dld.config.yaml"), "utf8");
+    p.write("dld.config.yaml", `${config}base_branch: develop\n`);
+    expect(dld(p, "list-proposed")).toMatchObject({ code: 1, out: "" });
+    p.write("dld.config.yaml", config);
     expect(dld(p, "list-proposed", "--base", "trunk").code).toBe(EXIT_OK);
   });
 });

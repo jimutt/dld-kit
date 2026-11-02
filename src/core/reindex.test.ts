@@ -89,6 +89,15 @@ describe("resolveBase", () => {
     expect(resolveBase(p.ctx)).toBe("main");
   });
 
+  test("prefers origin/master over master, and a local main over origin/master", () => {
+    const p = branched();
+    p.git("branch", "-m", "main", "master");
+    p.git("update-ref", "refs/remotes/origin/master", "master");
+    expect(resolveBase(p.ctx)).toBe("origin/master");
+    p.git("branch", "main", "master");
+    expect(resolveBase(p.ctx)).toBe("main");
+  });
+
   test("uses a local upstream branch name without a slash", () => {
     const p = branched();
     p.git("config", "branch.feature.remote", ".");

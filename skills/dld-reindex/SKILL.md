@@ -44,7 +44,7 @@ The steps below use shell variables (`BASE`, `PLAN`, `GROUP`). If your shell doe
 BASE=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" resolve-base)
 ```
 
-`resolve-base` uses `base_branch` from `dld.config.yaml` when it is set. Otherwise it prefers the branch's upstream when it tracks a *different* branch (the typical "feature → main" setup), then the remote's default branch (`origin/HEAD`), then `origin/main`, then `main`. It prints only a ref that exists. If it fails, show the user its message: they can set `base_branch`, fetch, or run `git remote set-head origin --auto`.
+`resolve-base` uses `base_branch` from `dld.config.yaml` when it is set. Otherwise it prefers the branch's upstream when it tracks a *different* branch (the typical "feature → main" setup), then the remote's default branch (`origin/HEAD`), then `origin/main`, then `main`, then `origin/master`, then `master`. It prints only a ref that exists. If it fails, show the user its message: they can set `base_branch`, fetch, or run `git remote set-head origin --auto`.
 
 The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex origin/develop`) — honor it if present. The word `squash` is not a base: it selects squash mode (`/dld-reindex squash origin/develop` does both).
 

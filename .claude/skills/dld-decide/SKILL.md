@@ -84,9 +84,9 @@ Then run `create-decision`, passing the body on stdin through a quoted heredoc:
 ```bash
 node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" create-decision \
   --id "DL-NNN" \
-  --title "Short descriptive title" \
+  --title 'Short descriptive title' \
   --namespace "billing" \
-  --tags "tag1, tag2" \
+  --tags 'tag1, tag2' \
   --supersedes "DL-003, DL-007" \
   --amends "DL-005" \
   --body-stdin <<'DLD_BODY'
@@ -108,7 +108,7 @@ What becomes easier or harder.
 DLD_BODY
 ```
 
-Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` need no escaping. No line of the body may be exactly `DLD_BODY`.
+Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` in it need no escaping. Don't indent the body, and put the closing `DLD_BODY` alone on its own line, unindented; no line of the body may be exactly `DLD_BODY`. The other arguments are ordinary shell strings: put the title and tags in single quotes, and write an apostrophe in them as `'\''`.
 
 Flags `--namespace`, `--tags`, `--supersedes`, `--amends` are optional. Pass `--namespace` only in a namespaced project, with one of the namespaces in `dld.config.yaml`; leave it out in a flat project, where it is an error. The command creates the file with YAML frontmatter and the body content, and outputs the file path.
 

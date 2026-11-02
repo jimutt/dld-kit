@@ -9412,12 +9412,29 @@ function parseTemplate(text, skill, source) {
         `'${rewritten}' is rewritten by some harnesses' skill loaders; rephrase it`
       );
     }
-    if (PRINTF_BODY.test(lines[i] ?? "")) {
+  }
+  let fenced = false;
+  let command = "";
+  let commandLine = 0;
+  for (let i = end + 1; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced;
+      command = "";
+      continue;
+    }
+    if (!fenced) continue;
+    if (command === "") commandLine = i + 1;
+    command += `${line.replace(/\\$/, "")} `;
+    if (line.endsWith("\\")) continue;
+    const problem2 = bodyStdinProblem(command);
+    if (problem2 !== void 0) {
       throw fail(
-        i + 1,
-        "pass create-decision's body through a quoted heredoc (--body-stdin <<'DLD_BODY'), not printf"
+        commandLine,
+        `create-decision ${problem2}; use --body-stdin <<'DLD_BODY' with the body after it`
       );
     }
+    command = "";
   }
   return {
     skill,
@@ -9428,8 +9445,15 @@ function parseTemplate(text, skill, source) {
     bodyLine: end + 2
   };
 }
-var PRINTF_BODY = /\bprintf\b.*\|\s*\S*\s*create-decision\b/;
 var HARNESS_TEMPLATING = /\$ARGUMENTS|\$\d|!`/;
+var QUOTED_HEREDOC = /<<-?\s*'[A-Za-z_]+'/;
+function bodyStdinProblem(command) {
+  const at = command.search(/\bcreate-decision\b/);
+  if (at === -1 || !/--body-stdin\b/.test(command)) return void 0;
+  if (command.slice(0, at).includes("|")) return "pipes the body into create-decision";
+  if (!QUOTED_HEREDOC.test(command)) return "does not pass the body through a quoted heredoc";
+  return void 0;
+}
 var BUNDLED_CLI = { skill: "dld-common", path: "scripts/dld.mjs" };
 var PLACEHOLDER_START = /\{\{\s*(?:script|dld)/g;
 var SCRIPT = /\{\{script ([a-z0-9-]+)\/([A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\}\}/y;
@@ -10970,7 +10994,8 @@ Options:
     try {
       base = baseOption(values.base, { ctx, project });
     } catch (error) {
-      if (values.base !== void 0 || !(error instanceof DldError)) throw error;
+      const explicit = values.base !== void 0 || project.config.baseBranch !== void 0;
+      if (explicit || !(error instanceof DldError)) throw error;
       ctx.warn(`${error.message} Listing every proposed decision as unknown.`);
     }
     for (const proposed of listProposed(ctx, project, base)) {
