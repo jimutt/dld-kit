@@ -1,7 +1,7 @@
 ---
 name: dld-snapshot
 description: Generate SNAPSHOT.md (detailed decision reference) and OVERVIEW.md (narrative synthesis with diagrams) from the decision log.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 metadata:
   dld-kit-version: "1.0.0-rc.5"
 ---
@@ -20,7 +20,7 @@ If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional cust
 
 ## Commands
 
-The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
 This skill uses: `detect-snapshot-changes`, `collect-active-decisions`, `update-snapshot-state`.
 

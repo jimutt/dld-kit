@@ -1,4 +1,4 @@
-// @decision(DL-003) @decision(DL-001)
+// @decision(DL-003) @decision(DL-001) @decision(DL-086)
 import { chmod } from "node:fs/promises";
 import { build } from "esbuild";
 
@@ -10,7 +10,7 @@ await build({
   bundle: true,
   platform: "node",
   format: "esm",
-  target: "node20",
+  target: "node22",
   // Bundled CommonJS dependencies (yaml) call require() for Node built-ins.
   banner: {
     js: [

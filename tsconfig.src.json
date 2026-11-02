@@ -1,5 +1,5 @@
 {
-  // @decision(DL-001)
+  // @decision(DL-001) @decision(DL-086)
   // Shipped code only, with Node types and no Bun types: any use of Bun APIs fails to typecheck.
   "extends": "./tsconfig.json",
   "compilerOptions": {

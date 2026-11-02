@@ -20,7 +20,7 @@ dld-kit's skills run their mechanical operations through a TypeScript CLI and li
 
 ## TypeScript
 
-- Node 20+ is the supported runtime. Bun is a development tool (test runner, scripts) only — nothing shipped may require Bun.
+- Node 22+ is the supported runtime, following the LTS policy in DL-086. Bun is a development tool (test runner, scripts) only — nothing shipped may require Bun.
 - ESM throughout.
 - Strict mode, including `noUncheckedIndexedAccess`. Indexing an array yields `T | undefined` and must be handled.
 - Avoid type assertions (`as`) to silence a mismatch — they turn compile errors into runtime errors. Where one is genuinely unavoidable, confine it and comment why.

@@ -1,7 +1,7 @@
 ---
 name: dld-adjust
 description: Adjust or update existing decision records. Edits drafts freely, protects the prose of decisions already on the base branch per the project setting, and correctly interprets adjustment requests.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-adjust — Adjust a Decision

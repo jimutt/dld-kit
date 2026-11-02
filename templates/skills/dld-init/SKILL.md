@@ -1,7 +1,7 @@
 ---
 name: dld-init
 description: Bootstrap DLD (Decision-Linked Development) in a repository. Creates dld.config.yaml, the decisions/ directory, and INDEX.md. Run once per project.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-init — Bootstrap DLD

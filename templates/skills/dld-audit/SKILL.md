@@ -1,7 +1,7 @@
 ---
 name: dld-audit
 description: Scan for drift between decisions and code. Finds orphaned annotations, stale references, and undocumented changes.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-audit — Audit Decision-Code Drift

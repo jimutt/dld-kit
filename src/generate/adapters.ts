@@ -24,8 +24,9 @@ export interface Adapter {
 const relativeRef = (fromSkill: string, { skill, path }: ScriptRef) =>
   skill === fromSkill ? path : `../${skill}/${path}`;
 
+// @decision(DL-086)
 const SETUP =
-  "The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+.";
+  "The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+.";
 
 // @decision(DL-032) @decision(DL-036)
 /** The portable Agent Skills layout, committed as `skills/`. */

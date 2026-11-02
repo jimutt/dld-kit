@@ -1,7 +1,7 @@
 ---
 name: dld-implement
 description: Implement one or more proposed decisions. Makes code changes, adds `@decision` annotations, and updates decision status.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-implement — Implement Decisions

@@ -13,7 +13,7 @@ You are implementing one or more `proposed` decisions by making code changes, ad
 
 ## Commands
 
-`${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
+`${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
 This skill uses: `list-proposed`, `related-decisions`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `verify-annotations`, `regenerate-index`.
 

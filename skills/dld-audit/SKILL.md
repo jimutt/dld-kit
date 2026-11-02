@@ -1,7 +1,7 @@
 ---
 name: dld-audit
 description: Scan for drift between decisions and code. Finds orphaned annotations, stale references, and undocumented changes.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 metadata:
   dld-kit-version: "1.0.0-rc.5"
 ---
@@ -13,7 +13,7 @@ You are scanning the codebase for drift between decision records and code annota
 
 ## Commands
 
-The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
 This skill uses: `find-annotations`, `related-decisions`, `find-missing-amends`, `update-audit-state`.
 

@@ -1,7 +1,7 @@
 ---
 name: dld-reindex
 description: Resolve decision ID collisions between a local branch and the base branch (and open PRs). Renames colliding local decisions with git mv, rewrites cross-references and annotations, and commits the renames on top of the branch. Squashes the branch only when the user asks.
-compatibility: Requires Node.js 20+ and git. Open-PR scanning additionally needs the `gh` CLI authenticated against a GitHub remote — the skill falls back gracefully when unavailable.
+compatibility: Requires Node.js 22+ and git. Open-PR scanning additionally needs the `gh` CLI authenticated against a GitHub remote — the skill falls back gracefully when unavailable.
 metadata:
   dld-kit-version: "1.0.0-rc.5"
 ---
@@ -23,7 +23,7 @@ Use the `AskUserQuestion` tool when asking about pushing and, in squash mode, fo
 
 ## Commands
 
-The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
 This skill uses: `resolve-base`, `plan-renames`, `rename-decision`, `find-stale-mentions`, `commit-reindex`, `regenerate-index`.
 

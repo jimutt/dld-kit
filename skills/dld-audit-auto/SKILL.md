@@ -1,7 +1,7 @@
 ---
 name: dld-audit-auto
 description: Autonomous audit — detects drift, fixes issues, and opens a PR. Designed for scheduled/CI execution without human interaction.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 metadata:
   dld-kit-version: "1.0.0-rc.5"
 ---
@@ -15,7 +15,7 @@ You are running an autonomous audit of the decision-code relationship. Unlike th
 
 ## Commands
 
-The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
 This skill uses: `find-annotations`, `find-missing-amends`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`, `update-audit-state`.
 

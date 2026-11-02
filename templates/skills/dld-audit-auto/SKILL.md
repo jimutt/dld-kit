@@ -1,7 +1,7 @@
 ---
 name: dld-audit-auto
 description: Autonomous audit — detects drift, fixes issues, and opens a PR. Designed for scheduled/CI execution without human interaction.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-audit-auto — Autonomous Audit & Fix

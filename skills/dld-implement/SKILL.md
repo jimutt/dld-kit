@@ -1,7 +1,7 @@
 ---
 name: dld-implement
 description: Implement one or more proposed decisions. Makes code changes, adds `@decision` annotations, and updates decision status.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 metadata:
   dld-kit-version: "1.0.0-rc.5"
 ---
@@ -13,7 +13,7 @@ You are implementing one or more `proposed` decisions by making code changes, ad
 
 ## Commands
 
-The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
 This skill uses: `list-proposed`, `related-decisions`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `verify-annotations`, `regenerate-index`.
 

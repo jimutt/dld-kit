@@ -80,7 +80,7 @@ describe("the bundled CLI", () => {
     const ctx = templates();
     ctx.fs.writeFile(
       `${T}/dld-plan/SKILL.md`,
-      "---\nname: dld-plan\ndescription: Plan.\ncompatibility: Requires Node.js 20+ and git.\n---\n\n{{dld-setup}}\n\n{{dld}} next-id\n",
+      "---\nname: dld-plan\ndescription: Plan.\ncompatibility: Requires Node.js 22+ and git.\n---\n\n{{dld-setup}}\n\n{{dld}} next-id\n",
     );
     return ctx;
   };
