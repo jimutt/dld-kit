@@ -8,7 +8,13 @@ A decision record is close to an ADR, and the format follows ADR conventions. DL
 
 ### We use a spec-driven tool. Do we have to stop?
 
-No. Tools such as Spec Kit, OpenSpec and Kiro work well, especially for new projects. DLD aims at long-lived code, where specs go stale. You can record decisions next to a spec tool, or use `/dld-plan` for the planning step instead of one.
+No. If a spec tool such as Spec Kit, OpenSpec or Kiro works for your team, switching isn't necessarily worth it. The differences that matter:
+
+- **The spec is generated.** A spec tool keeps a spec that has to be updated as the code changes. DLD records each decision once and generates the overview from the decisions, so there's no spec to keep in sync by hand.
+- **The history stays.** Changing course is a new decision that supersedes or amends the old one, so the record of why the code looks the way it does is never rewritten.
+- **The code points to its reasoning.** An `@decision` annotation sits on the code it explains, so an agent about to change that code is sent to the decision, instead of having to work out which part of a spec applies.
+
+You can also record decisions next to a spec tool, or use `/dld-plan` for the planning step instead of one.
 
 ### What does it cost to run?
 
