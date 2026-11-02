@@ -1,7 +1,7 @@
 import { loadProject } from "../../core/project.ts";
 import { formatRename, planRenames } from "../../core/reindex.ts";
 import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
-import { baseOption, skippedNotice } from "./base-option.ts";
+import { baseOption, DEFAULT_BASE_HELP, skippedNotice } from "./base-option.ts";
 
 export const planRenamesCommand: Command = {
   name: "plan-renames",
@@ -13,12 +13,13 @@ Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning 
 IDs. Prints nothing when there are no collisions.
 
 Options:
-  --base <ref>  Base ref (default: origin/main)
+  --base <ref>  Base ref (${DEFAULT_BASE_HELP})
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
-    const base = baseOption(values.base);
-    const { renames, skipped } = planRenames(ctx, loadProject(ctx), base);
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    const { renames, skipped } = planRenames(ctx, project, base);
     for (const rename of renames) io.stdout(`${formatRename(rename)}\n`);
     if (skipped !== undefined) io.stderr(skippedNotice(skipped));
     return EXIT_OK;

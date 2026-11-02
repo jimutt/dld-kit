@@ -44,7 +44,7 @@ The steps below use shell variables (`BASE`, `PLAN`, `GROUP`). If your shell doe
 BASE=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" resolve-base)
 ```
 
-`resolve-base` prefers the branch's upstream when it tracks a *different* branch (the typical "feature → main" setup). It falls back to `origin/main` if the upstream is unset OR if the upstream tracks the same branch name as the current branch (i.e. it's just the remote copy of this same branch, not a useful collision base).
+`resolve-base` uses `base_branch` from `dld.config.yaml` when it is set. Otherwise it prefers the branch's upstream when it tracks a *different* branch (the typical "feature → main" setup), then the remote's default branch (`origin/HEAD`), then `origin/main`, then `main`. It prints only a ref that exists. If it fails, show the user its message: they can set `base_branch`, fetch, or run `git remote set-head origin --auto`.
 
 The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex origin/develop`) — honor it if present. The word `squash` is not a base: it selects squash mode (`/dld-reindex squash origin/develop` does both).
 
@@ -115,6 +115,8 @@ node "<skill-dir>/../dld-common/scripts/dld.mjs" rename-decision --old DL-OLD --
 - Rewrites `` `@decision` ``(DL-OLD) annotations to `` `@decision` ``(DL-NEW) in non-decision files that are part of the local change set.
 
 The substitution is digit-aware: renaming `DL-100` will not accidentally rewrite `DL-1000`.
+
+Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default), and `rename-decision` rewrites whichever prefix is configured.
 
 **Note on plain-text DL-NNN mentions in code:** In non-decision files (source code, READMEs, etc.) `rename-decision`'s rewrite is **scoped to `` `@decision` ``(DL-NNN) annotations only**. Bare `DL-NNN` references in comments, log strings, or test fixtures are left untouched here to avoid false-positive matches against unrelated identifiers. Step 5 handles them.
 

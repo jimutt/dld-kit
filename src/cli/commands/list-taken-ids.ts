@@ -1,7 +1,7 @@
 import { loadProject } from "../../core/project.ts";
 import { listTakenIds } from "../../core/reindex.ts";
 import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
-import { baseOption, skippedNotice } from "./base-option.ts";
+import { baseOption, DEFAULT_BASE_HELP, skippedNotice } from "./base-option.ts";
 
 export const listTakenIdsCommand: Command = {
   name: "list-taken-ids",
@@ -13,12 +13,13 @@ Print the decision IDs on the base branch and in records touched by open pull re
 (via gh, when available), one per line, sorted.
 
 Options:
-  --base <ref>  Base ref (default: origin/main)
+  --base <ref>  Base ref (${DEFAULT_BASE_HELP})
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
-    const base = baseOption(values.base);
-    const { ids, skipped } = listTakenIds(ctx, loadProject(ctx), base);
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    const { ids, skipped } = listTakenIds(ctx, project, base);
     for (const id of ids) io.stdout(`${id}\n`);
     if (skipped !== undefined) io.stderr(skippedNotice(skipped));
     return EXIT_OK;

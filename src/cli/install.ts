@@ -1,4 +1,13 @@
+import { relative, sep } from "node:path";
+import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
+import { indexPath } from "../core/index-file.ts";
+import type { Project } from "../core/project.ts";
+import {
+  applyIndexMergeAttribute,
+  GITATTRIBUTES,
+  planIndexMergeAttribute,
+} from "../generate/gitattributes.ts";
 import {
   type Detection,
   findHarness,
@@ -87,8 +96,10 @@ export function cliPath(io: Io): string {
 
 /** Prints what an install wrote; warnings go to stderr. */
 export function printReport(io: Io, report: InstallReport): void {
-  for (const { dir, written, removed, unchanged } of report.skills) {
+  for (const { dir, written, removed, unchanged, removedPaths } of report.skills) {
     io.stdout(`${dir}: ${written} written, ${removed} removed, ${unchanged} unchanged\n`);
+    // @decision(DL-072)
+    for (const path of removedPaths) io.stdout(`Removed ${path}\n`);
   }
   for (const path of report.ruleWritten) {
     // @decision(DL-055)
@@ -100,4 +111,17 @@ export function printReport(io: Io, report: InstallReport): void {
   }
   for (const path of report.ruleRemoved) io.stdout(`Removed ${path} (the rule is in the block)\n`);
   for (const warning of report.warnings) io.stderr(`Warning: ${warning}\n`);
+}
+
+// @decision(DL-075)
+/** Adds the union-merge line for the project's INDEX.md to .gitattributes, and reports it. */
+export function ensureIndexMergeAttribute(io: Io, ctx: Context, project: Project): void {
+  const { root } = project.paths;
+  const index = relative(root, indexPath(project.paths)).split(sep).join("/");
+  const plan = planIndexMergeAttribute(ctx, root, index);
+  if (applyIndexMergeAttribute(ctx, root, plan)) {
+    const verb = plan.creates === true ? "Created" : "Updated";
+    io.stdout(`${verb} ${GITATTRIBUTES}: ${index} merges keep the rows from both sides\n`);
+  }
+  for (const warning of plan.warnings) io.stderr(`Warning: ${warning}\n`);
 }

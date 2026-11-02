@@ -134,6 +134,10 @@ export function createNodeContext(
     env,
     readStdin: () => fsCall("read", "standard input", () => readFileSync(0, "utf8")),
     now: () => new Date(),
+    // @decision(DL-079)
+    warn: (message) => {
+      process.stderr.write(`Warning: ${message}\n`);
+    },
   };
 }
 

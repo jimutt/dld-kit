@@ -25,7 +25,7 @@ namespaces:
   - shared
 
 # Decision annotation pattern used in code comments
-# Default: @decision(DL-XXX)
+# Default: @decision(DL-XXX). The always-on rule is installed with this prefix.
 annotation_prefix: "@decision"
 
 # Paths whose annotations are ignored (optional)
@@ -43,6 +43,11 @@ implement_review: true
 # ask: after the user confirms
 # allow: yes, to keep records accurate
 decision_edits: block
+
+# The branch decisions are checked against (optional)
+# Default: the upstream when it tracks another branch, else origin/HEAD,
+# else origin/main, else main. See "Base branch" below.
+base_branch: main
 
 # Custom snapshot artifacts (optional)
 # Additional documents generated alongside SNAPSHOT.md and OVERVIEW.md
@@ -95,7 +100,7 @@ Set `implement_review: false` to skip the step entirely — appropriate if the p
 
 ### Decision edits
 
-A decision record is a **draft** until it reaches the base branch (`origin/main`, or the branch your branch tracks; `main` itself when there is no `origin/main`, so in a local-only repository a record is integrated once it is committed to `main`): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter), `id` and `timestamp` are protected. `decision_edits` sets how strictly:
+A decision record is a **draft** until it reaches the base branch (see [Base branch](#base-branch); in a local-only repository that is usually `main`, so a record is integrated once it is committed there): edit it freely, whatever its status. Records that are still `proposed` on the base branch stay drafts too. Once a record is on the base branch, its frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can still be updated, but its prose (the body below the frontmatter), `id` and `timestamp` are protected. `decision_edits` sets how strictly:
 
 - `block` (default): agents never edit it, even when asked. They record a new decision that amends or supersedes it instead. People can still edit by hand.
 - `ask`: agents edit it after you confirm.
@@ -103,7 +108,7 @@ A decision record is a **draft** until it reaches the base branch (`origin/main`
 
 `/dld-audit-auto` always behaves as `block`. The skills that write records finish with `dld check-decision-edits --uncommitted`, which lists the decisions on the base branch whose prose, `id` or `timestamp` has uncommitted changes, or that were deleted. Edits already committed, such as a fix you made by hand, are left alone.
 
-Without `--uncommitted`, the command checks the whole branch against the base, and exits 3 under `block` when it lists anything. That makes it a CI gate for pull requests. The job needs the base branch's history to find the merge-base:
+Without `--uncommitted`, the command checks the whole branch against the base, and exits 3 under `block` when it lists an `edited` or `deleted` decision. That makes it a CI gate for pull requests. The job needs the base branch's history to find the merge-base:
 
 ```yaml
 - uses: actions/checkout@v7
@@ -111,6 +116,33 @@ Without `--uncommitted`, the command checks the whole branch against the base, a
     fetch-depth: 0
 - run: npx dld-kit@latest check-decision-edits --base origin/${{ github.base_ref }}
 ```
+
+`check-decision-edits` is part of the CLI's semver contract: its options, its output lines (`<path>`, a tab, `<DL-NNN>`, a tab, the state) and its exit codes (0 nothing blocked, 1 error, 2 usage error, 3 blocked) only change in a major version.
+
+To land a deliberate edit under `block`, such as fixing a typo, add a `Decision-Edit:` trailer naming the decisions to a commit on the branch:
+
+```
+Fix a typo in DL-012
+
+Decision-Edit: DL-012
+```
+
+The gate then prints those decisions as `allowed` and does not fail for them. Several IDs can share a trailer, separated by commas or spaces. git only reads trailers from the last paragraph of the commit message, after a blank line, and only when that paragraph holds nothing but trailers: `git commit -m "Fix a typo in DL-012" -m "Decision-Edit: DL-012"` works, while a trailer on the line right after the subject, or mixed with other text, is ignored. The trailer is visible in review and in the history, which is the point: it stops accidental edits, not deliberate ones.
+
+### Base branch
+
+Reindex (`/dld-reindex`) and the decision-edit checks compare the current branch with a base branch. dld-kit picks it in this order:
+
+1. `base_branch` from `dld.config.yaml`: `origin/<base_branch>` if that ref exists, else the local `<base_branch>`.
+2. The current branch's upstream, when it tracks a branch with a different name.
+3. The remote's default branch, `origin/HEAD` (set by `git clone`, or by `git remote set-head origin --auto`).
+4. `origin/main`, then the local `main`.
+
+Only a ref that exists is used. When none does, the commands fail and say what they tried. Set `base_branch` when the branch decisions merge into is not the remote's default, for example a long-lived `develop` branch.
+
+### Unknown keys
+
+Keys that are not part of this schema are ignored, with a warning on stderr from every `dld` command that reads the config, for example `Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?`. Unknown keys stay warnings, never errors, throughout 1.x.
 
 ### Snapshot Artifacts
 

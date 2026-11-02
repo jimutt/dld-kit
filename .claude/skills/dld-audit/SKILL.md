@@ -15,7 +15,7 @@ You are scanning the codebase for drift between decision records and code annota
 
 `${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
-This skill uses: `find-annotations`, `find-missing-amends`, `update-audit-state`.
+This skill uses: `find-annotations`, `related-decisions`, `find-missing-amends`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ Run `find-annotations`:
 node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" find-annotations
 ```
 
-This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation occurrence.
+This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation occurrence. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. On stderr it also prints `Warning: <file>:<line>: not an annotation: <text>` for text that looks like an annotation and names a decision but does not match the syntax, such as `` `@decision` ``( DL-002 ) with spaces, a lower-case `dl-003`, or two IDs in one pair of parentheses. Keep those lines for check (a2).
 
 ### 2. Collect all decision records
 
@@ -47,13 +47,17 @@ Perform these drift checks:
 
 Annotations in code that reference non-existent decision IDs. These indicate decisions that were deleted or IDs that were mistyped.
 
+#### a2) Malformed annotations
+
+Every `not an annotation` warning from step 1. The code looks linked to a decision but is not, so `verify-annotations` and the other checks do not count it. Report each one with the fix: one ID per annotation, exactly `<prefix>(DL-NNN)`.
+
 #### b) Annotations referencing non-accepted decisions
 
 Annotations referencing decisions with status `deprecated` or `superseded`. Code is still tied to a decision that's no longer active.
 
 #### b2) Annotations referencing amended decisions
 
-Annotations referencing decisions that have been amended by a newer decision (check all decisions for `amends` fields that reference this ID). This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
+Annotations referencing decisions that have been amended by a newer decision: `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" related-decisions DL-NNN` prints an `amended-by` line for each. Report only amenders whose status is `accepted`; a `proposed` one is not in effect yet. This is **informational, not an error** — the original decision is still active, but the developer should be aware of the amendment. Surface these as notes, not issues.
 
 #### c) Stale references in decisions
 
@@ -113,6 +117,9 @@ Present findings grouped by severity:
 
 #### Orphaned Annotations
 - `src/billing/vat.ts:42` references `DL-099` — decision does not exist
+
+#### Malformed Annotations
+- `src/billing/vat.ts:57` — two IDs in one annotation (`` `@decision` ``(DL-012, DL-015)) is not an annotation; write one annotation per ID
 
 #### Stale References
 - **DL-012** references `src/billing/old-vat.ts` — file does not exist

@@ -8,7 +8,15 @@ Each decision is a single markdown file with YAML frontmatter for structured met
 
 Files are named by their sequential ID: `DL-001.md`, `DL-002.md`, etc.
 
-IDs are globally sequential across the entire project, even when namespaces are used. This keeps `@decision(DL-XXX)` annotations simple and allows cross-referencing across namespaces without ambiguity.
+IDs are globally sequential across the entire project, even when namespaces are used. This keeps `@decision(DL-XXX)` annotations simple and allows cross-referencing across namespaces without ambiguity. An ID belongs to exactly one record: `create-decision` refuses an ID that exists in any namespace, and commands that look a decision up by ID fail if it is in more than one file.
+
+### Decision IDs
+
+An ID is `DL-` followed by a decimal number, zero-padded to three digits. Numbers above 999 use as many digits as they need: `DL-001`, `DL-042`, `DL-999`, `DL-1000`.
+
+- This canonical spelling is the ID's identity everywhere: file names, frontmatter, annotations and references. `DL-5` and `DL-005` are not the same ID, so tools that create IDs (`create-decision`, the reindex renames) reject anything but the canonical form.
+- IDs are ordered by number, not as text. `INDEX.md`, the snapshot and the reindex plan list `DL-999` before `DL-1000`; file browsers that sort by name may not.
+- The next ID is one more than the highest existing number.
 
 ### Directory Layout
 
@@ -114,6 +122,18 @@ These references serve two purposes:
 2. `@decision()` annotations in the code point back (code → decision)
 
 Both directions should be maintained, but the in-code annotations are the primary trigger for AI agents.
+
+### Annotation syntax
+
+An annotation is the configured prefix (`annotation_prefix`, `@decision` by default), immediately followed by `(`, one decision ID in canonical form, and `)`, with no spaces. It is case-sensitive. A line can hold several annotations, usually in one comment: `// @decision(DL-012) @decision(DL-015)`.
+
+These are **not** annotations, and the tools ignore them for linking:
+
+- `@decision( DL-002 )`: spaces inside the parentheses
+- `@decision(dl-003)` or `@Decision(DL-003)`: wrong letter case
+- `@decision(DL-004, DL-005)`: more than one ID
+
+`find-annotations` and `verify-annotations` warn about text like this on stderr (`Warning: <file>:<line>: not an annotation: <text>`), and `/dld-audit` lists it. Placeholders without digits, such as `@decision(DL-XXX)` in documentation, are not reported.
 
 ### Markdown Body
 

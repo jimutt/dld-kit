@@ -8,3 +8,6 @@
 /plugin.json linguist-generated=true
 /.agents/plugins/marketplace.json linguist-generated=true
 /.github/plugin/marketplace.json linguist-generated=true
+
+# dld-kit: keep both sides' rows when merging the decision index
+/decisions/INDEX.md merge=union

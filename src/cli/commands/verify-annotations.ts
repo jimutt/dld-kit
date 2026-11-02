@@ -1,4 +1,9 @@
-import { formatSkipped, missingAnnotations, scanOptionsFor } from "../../core/annotations.ts";
+import {
+  formatNearMiss,
+  formatSkipped,
+  missingAnnotations,
+  scanOptionsFor,
+} from "../../core/annotations.ts";
 import { loadProject } from "../../core/project.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 
@@ -19,8 +24,13 @@ export const verifyAnnotationsCommand: Command = {
     if (ids.length === 0) throw new UsageError("expected at least one decision ID");
     const options = scanOptionsFor(loadProject(ctx));
     const prefix = options.prefix;
-    const missing = missingAnnotations(ctx, options, ids, (skipped) =>
-      io.stderr(`${formatSkipped(skipped)}\n`),
+    const missing = missingAnnotations(
+      ctx,
+      options,
+      ids,
+      (skipped) => io.stderr(`${formatSkipped(skipped)}\n`),
+      // @decision(DL-074)
+      (nearMiss) => ctx.warn(formatNearMiss(nearMiss)),
     );
     if (missing.length > 0) {
       io.stdout(`MISSING annotations in source code for: ${missing.join(" ")}\n`);

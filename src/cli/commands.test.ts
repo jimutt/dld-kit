@@ -61,8 +61,15 @@ describe("init commands", () => {
     expect(dld(project, "create-directories").out).toBe("Created decisions directory structure.\n");
     expect(existsSync(join(project.root, "decisions/records/billing/.gitkeep"))).toBe(true);
     const index = join(project.root, "decisions/INDEX.md");
-    expect(dld(project, "create-empty-index").out).toBe(`Created ${index}\n`);
+    expect(dld(project, "create-empty-index").out).toBe(
+      `Created ${index}\nCreated .gitattributes: decisions/INDEX.md merges keep the rows from both sides\n`,
+    );
     expect(readFileSync(index, "utf8")).toContain("| ID | Title | Status | Namespace | Tags |");
+    // @decision(DL-075)
+    expect(readFileSync(join(project.root, ".gitattributes"), "utf8")).toBe(
+      "# dld-kit: keep both sides' rows when merging the decision index\n/decisions/INDEX.md merge=union\n",
+    );
+    expect(dld(project, "create-empty-index").out).toBe(`Created ${index}\n`);
   });
 });
 
@@ -106,11 +113,9 @@ describe("create-decision", () => {
       ["--id", "DL-001"],
       ["--title", "No ID"],
     ]) {
-      expect(dld(project, "create-decision", ...args)).toEqual({
-        code: 1,
-        out: "",
-        err: "Error: --id and --title are required.\n",
-      });
+      const result = dld(project, "create-decision", ...args);
+      expect(result).toMatchObject({ code: EXIT_USAGE, out: "" });
+      expect(result.err).toStartWith("dld create-decision: --id and --title are required.\n");
     }
     expect(existsSync(join(project.root, "decisions/records"))).toBe(false);
   });
@@ -135,6 +140,19 @@ describe("update-status", () => {
   });
 });
 
+// @decision(DL-079)
+describe("config warnings", () => {
+  test("print once per run on stderr, and the command carries on", () => {
+    project = tempProject("decisions_dir: decisions\nmode: flat\ndecision_edit: allow\n");
+    expect(dld(project, "next-id")).toEqual({
+      code: EXIT_OK,
+      out: "DL-001\n",
+      err: "Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?\n",
+    });
+    expect(dld(project, "regenerate-index").err.match(/Warning:/g)?.length).toBe(1);
+  });
+});
+
 describe("regenerate-index", () => {
   test("reports an empty or populated index", () => {
     project = tempProject();
@@ -145,6 +163,22 @@ describe("regenerate-index", () => {
     expect(readFileSync(join(project.root, "decisions/INDEX.md"), "utf8")).toContain(
       "| DL-001 | Test decision DL-001 | accepted | test, example |",
     );
+  });
+
+  // @decision(DL-080)
+  test("warns about IDs that are in more than one file", () => {
+    project = tempProject(NAMESPACED_CONFIG);
+    project.write("decisions/records/auth/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/billing/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/DL-02.md", recordText("DL-02"));
+    project.write("decisions/records/DL-002.md", recordText("DL-002"));
+    expect(dld(project, "regenerate-index")).toEqual({
+      code: EXIT_OK,
+      out: "INDEX.md regenerated.\n",
+      err:
+        "Warning: DL-001 is in more than one file: decisions/records/auth/DL-001.md, decisions/records/billing/DL-001.md\n" +
+        "Warning: DL-002 / DL-02 is in more than one file: decisions/records/DL-002.md, decisions/records/DL-02.md\n",
+    });
   });
 
   test("fails when the records directory is missing", () => {
@@ -212,6 +246,19 @@ describe("verify-annotations", () => {
   test("needs at least one ID", () => {
     project = tempProject();
     expect(dld(project, "verify-annotations").code).toBe(EXIT_USAGE);
+  });
+
+  // @decision(DL-074)
+  test("warns about near-misses on stderr, and the result is unchanged", () => {
+    project = tempProject();
+    project.write("src/a.ts", "// @decision(DL-001)\n// @decision( DL-002 )\n");
+    const warning = "Warning: src/a.ts:2: not an annotation: @decision( DL-002 )\n";
+    expect(dld(project, "find-annotations")).toEqual({
+      code: EXIT_OK,
+      out: "src/a.ts:1:DL-001\n",
+      err: warning,
+    });
+    expect(dld(project, "verify-annotations", "DL-002")).toMatchObject({ code: 1, err: warning });
   });
 
   // @decision(DL-069)
@@ -301,9 +348,14 @@ describe("reindex commands", () => {
   const plan = "decisions/records/DL-002.md\tDL-002\tDL-003\n";
   const notice = "[dld-reindex] open PRs not scanned: gh CLI not installed\n";
 
-  test("resolve-base prints the base", () => {
-    project = tempProject(null);
-    expect(dld(project, "resolve-base")).toEqual({ code: EXIT_OK, out: "origin/main\n", err: "" });
+  test("resolve-base prints the base, from base_branch when the config sets it", () => {
+    const p = collide();
+    expect(dld(p, "resolve-base")).toEqual({ code: EXIT_OK, out: "main\n", err: "" });
+    p.git("branch", "develop", "main");
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nbase_branch: develop\n");
+    expect(dld(p, "resolve-base")).toEqual({ code: EXIT_OK, out: "develop\n", err: "" });
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nbase_branch: gone\n");
+    expect(dld(p, "resolve-base")).toMatchObject({ code: 1, out: "" });
   });
 
   test("planning commands print their results and the scan notice", () => {
@@ -323,7 +375,10 @@ describe("reindex commands", () => {
       out: plan,
       err: notice,
     });
-    expect(dld(p, "plan-renames").err).toBe("Error: base ref 'origin/main' not found.\n");
+    // @decision(DL-071) Without --base, the base resolve-base picks: here the local main.
+    expect(dld(p, "plan-renames")).toEqual({ code: EXIT_OK, out: plan, err: notice });
+    p.git("branch", "-m", "main", "trunk");
+    expect(dld(p, "plan-renames").err).toStartWith("Error: no base branch found");
     expect(dld(p, "plan-renames", "--base", "-x").code).toBe(EXIT_USAGE);
     expect(dld(p, "find-collisions", "--base=--output=x").err).toContain(
       "--base must be a git ref, got '--output=x'",
@@ -342,14 +397,25 @@ describe("reindex commands", () => {
       "decisions/records/DL-002.md -> decisions/records/DL-003.md\n",
     );
 
-    expect(dld(p, "find-stale-mentions").err).toBe("Error: --base is required.\n");
+    expect(dld(p, "find-stale-mentions")).toMatchObject({ code: EXIT_USAGE });
+    // @decision(DL-078) A non-canonical new ID, as a flag or in a plan, is bad input.
+    const badNew = ["--old", "DL-002", "--new", "DL-5", "--path", "decisions/records/DL-002.md"];
+    expect(dld(p, "rename-decision", ...badNew, "--base", "main")).toMatchObject({
+      code: EXIT_USAGE,
+      err: "Error: new ID 'DL-5' is not canonical; use DL-005.\n",
+    });
+    const badPlan = withStdin(p, "decisions/records/DL-002.md\tDL-002\tDL-5\n");
+    expect(run(["find-stale-mentions", "--base", "main"], captureIo(), badPlan)).toBe(EXIT_USAGE);
+    expect(dld(p, "find-stale-mentions").err).toStartWith(
+      "dld find-stale-mentions: --base is required.\n",
+    );
     const stale = run(["find-stale-mentions", "--base", "main"], captureIo(), withStdin(p, plan));
     expect(stale).toBe(EXIT_OK);
     const io = captureIo();
     run(["find-stale-mentions", "--base", "main"], io, withStdin(p, plan));
     expect(io.out).toBe("src/a.py\t2\tDL-002\tDL-003\t# see DL-002\n");
 
-    expect(dld(p, "commit-reindex").err).toBe("Error: --base is required.\n");
+    expect(dld(p, "commit-reindex").err).toStartWith("dld commit-reindex: --base is required.\n");
     const commitIo = captureIo();
     expect(run(["commit-reindex", "--base", "main"], commitIo, withStdin(p, plan))).toBe(EXIT_OK);
     expect(commitIo.out).toMatch(/^Created reindex commit [0-9a-f]+ on top of [0-9a-f]+\n$/);
@@ -397,6 +463,11 @@ describe("init", () => {
     expect(read(".claude/rules/dld-workflow.md")).toContain("the dld-lookup skill");
     expect(read("CLAUDE.md")).toBe("# Project\n");
     expect(existsSync(join(project.root, ".agents"))).toBe(false);
+    // @decision(DL-075)
+    expect(result.out).toContain(
+      "Created .gitattributes: decisions/INDEX.md merges keep the rows from both sides\n",
+    );
+    expect(read(".gitattributes")).toContain("/decisions/INDEX.md merge=union\n");
   });
 
   test("namespaced, for AGENTS.md readers named with --agent", async () => {
@@ -478,18 +549,58 @@ describe("update", () => {
     const { p, cli } = await initialised();
     project = p;
     p.write(".claude/skills/dld-audit/SKILL.md", "edited\n");
-    p.write(".claude/skills/dld-old/SKILL.md", "stale\n");
+    p.write(
+      ".claude/skills/dld-old/SKILL.md",
+      '---\nmetadata:\n  dld-kit-version: "0.9.0"\n---\n<!-- Generated by dld-kit from templates/skills/dld-old/SKILL.md. Do not edit. -->\n',
+    );
+    p.write(".claude/skills/dld-mine/SKILL.md", "mine\n");
     const result = await dldInstall(p, cli, "update", "--agent", "opencode");
     expect(result.code).toBe(EXIT_OK);
     expect(result.out).toMatch(/^\.claude\/skills: 1 written, 1 removed, \d+ unchanged\n/);
     expect(result.out).toContain(".agents/skills: ");
     // OpenCode reads only AGENTS.md; Claude Code keeps its rule file beside CLAUDE.md (DL-061).
     expect(result.out).toContain("Wrote the DLD rule to AGENTS.md\n");
-    expect(result.out).not.toContain("Removed");
+    // @decision(DL-072)
+    expect(result.out).toContain("Removed .claude/skills/dld-old/SKILL.md\n");
+    expect(result.out).not.toContain("Removed .claude/rules");
+    expect(result.err).toContain(".claude/skills/dld-mine is not a dld-kit skill");
     expect(existsSync(join(p.root, ".claude/rules/dld-workflow.md"))).toBe(true);
     expect(existsSync(join(p.root, ".claude/skills/dld-old"))).toBe(false);
+    expect(existsSync(join(p.root, ".claude/skills/dld-mine/SKILL.md"))).toBe(true);
     const again = await dldInstall(p, cli, "update");
     expect(again.out).toMatch(/^\.claude\/skills: 0 written, 0 removed, \d+ unchanged\n/);
+  });
+
+  // @decision(DL-074) @decision(DL-075)
+  test("adds the INDEX.md merge line and renders the rule with the configured prefix", async () => {
+    const { p, cli } = await initialised();
+    project = p;
+    rmSync(join(p.root, ".gitattributes"));
+    const config = readFileSync(join(p.root, "dld.config.yaml"), "utf8");
+    p.write(
+      "dld.config.yaml",
+      config.replace(/annotation_prefix: .*/, "annotation_prefix: '@adr'"),
+    );
+    const result = await dldInstall(p, cli, "update");
+    expect(result.err).toBe("");
+    expect(result.out).toContain("Created .gitattributes: decisions/INDEX.md merges keep");
+    expect(readFileSync(join(p.root, ".claude/rules/dld-workflow.md"), "utf8")).toContain(
+      "`@adr(DL-XXX)`",
+    );
+    expect((await dldInstall(p, cli, "update")).out).not.toContain(".gitattributes");
+  });
+
+  test("stops before writing anything when the config is invalid", async () => {
+    const { p, cli } = await initialised();
+    project = p;
+    p.write(".claude/skills/dld-audit/SKILL.md", "edited\n");
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: nested\n");
+    const result = await dldInstall(p, cli, "update");
+    expect(result.code).toBe(1);
+    expect(result.err).toContain("'mode' must be 'flat' or 'namespaced'");
+    expect(readFileSync(join(p.root, ".claude/skills/dld-audit/SKILL.md"), "utf8")).toBe(
+      "edited\n",
+    );
   });
 
   test("refuses to replace files from a newer dld-kit unless forced", async () => {
@@ -685,6 +796,66 @@ describe("session-context", () => {
   });
 });
 
+// @decision(DL-076)
+describe("list-proposed", () => {
+  test("marks proposed decisions added on this branch, and resolves the base itself", () => {
+    const p = branchedProject();
+    project = p;
+    p.onMain("main: proposed DL-003", () =>
+      p.write("decisions/records/DL-003.md", recordText("DL-003", "proposed")),
+    );
+    p.git("merge", "-q", "main");
+    p.write("decisions/records/DL-004.md", recordText("DL-004", "proposed"));
+    p.write("decisions/records/DL-005.md", recordText("DL-005"));
+    expect(dld(p, "list-proposed")).toEqual({
+      code: EXIT_OK,
+      out: "DL-003\tbase\tTest decision DL-003\nDL-004\tbranch\tTest decision DL-004\n",
+      err: "",
+    });
+    p.git("branch", "-m", "main", "trunk");
+    expect(dld(p, "list-proposed").err).toStartWith("Error: no base branch found");
+    expect(dld(p, "list-proposed", "--base", "trunk").code).toBe(EXIT_OK);
+  });
+});
+
+// @decision(DL-077)
+describe("related-decisions", () => {
+  test("prints relations in both directions, and fails for an unknown or missing ID", () => {
+    project = tempProject();
+    const write = (id: string, extra: { amends?: string; supersedes?: string; status?: string }) =>
+      project?.write(
+        `decisions/records/${id}.md`,
+        recordText(id, extra.status ?? "accepted")
+          .replace("amends: []", `amends: [${extra.amends ?? ""}]`)
+          .replace("supersedes: []", `supersedes: [${extra.supersedes ?? ""}]`),
+      );
+    write("DL-001", { status: "superseded" });
+    write("DL-002", { supersedes: "DL-001", amends: "DL-099" });
+    write("DL-003", { amends: "DL-002" });
+    write("DL-010", { supersedes: "DL-002", status: "proposed" });
+    expect(dld(project, "related-decisions", "DL-002")).toEqual({
+      code: EXIT_OK,
+      out: [
+        "supersedes\tDL-001\tsuperseded\tTest decision DL-001",
+        "amended-by\tDL-003\taccepted\tTest decision DL-003",
+        "superseded-by\tDL-010\tproposed\tTest decision DL-010",
+        "amends\tDL-099\tmissing\t",
+        "",
+      ].join("\n"),
+      err: "",
+    });
+    expect(dld(project, "related-decisions", "DL-003").out).toBe(
+      "amends\tDL-002\taccepted\tTest decision DL-002\n",
+    );
+    expect(dld(project, "related-decisions", "DL-050")).toMatchObject({
+      code: 1,
+      err: "Error: decision DL-050 not found.\n",
+    });
+    expect(dld(project, "related-decisions").code).toBe(EXIT_USAGE);
+    expect(dld(project, "related-decisions", "DL-002", "DL-003").code).toBe(EXIT_USAGE);
+  });
+});
+
 // @decision(DL-066) @decision(DL-067)
 describe("check-decision-edits", () => {
   test("lists edited decisions and fails only under decision_edits: block", () => {
@@ -706,6 +877,24 @@ describe("check-decision-edits", () => {
     expect(dld(p, "check-decision-edits", "DL-001")).toEqual({ code: EXIT_OK, out: line, err: "" });
     p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\ndecision_edits: ask\n");
     expect(dld(p, "check-decision-edits").code).toBe(EXIT_OK);
+  });
+
+  // @decision(DL-073)
+  test("a committed Decision-Edit trailer lets the gate pass, and the command is public", () => {
+    const p = branchedProject();
+    project = p;
+    p.write("decisions/records/DL-001.md", recordText("DL-001").replace("Test context", "Fixed"));
+    p.commitAll("Fix a typo\n\nDecision-Edit: DL-001");
+    expect(dld(p, "check-decision-edits")).toEqual({
+      code: EXIT_OK,
+      out: "decisions/records/DL-001.md\tDL-001\tallowed\n",
+      err: "",
+    });
+    const help = captureIo();
+    run(["--help"], help, p.ctx);
+    const [setup] = help.out.split("Commands the skills run");
+    expect(setup).toContain("check-decision-edits");
+    expect(dld(p, "check-decision-edits", "--help").out).not.toContain("Internal:");
   });
 
   test("rejects arguments that are not decision IDs", () => {

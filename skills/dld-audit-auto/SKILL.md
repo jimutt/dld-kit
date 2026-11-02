@@ -40,6 +40,8 @@ Perform all the same checks as `/dld-audit`:
 node "<skill-dir>/../dld-common/scripts/dld.mjs" find-annotations
 ```
 
+Its stderr also lists `Warning: <file>:<line>: not an annotation: <text>` for malformed annotations; keep those for check (7). Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default).
+
 Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references.
 
 ### b) Detect issues
@@ -52,6 +54,7 @@ Check for all drift categories:
 4. **Unreferenced code changes** — annotated files modified since last audit (if previous audit state exists)
 5. **Decisions without annotations** — accepted decisions with code references but no corresponding annotations in code
 6. **Missing amendment relationships** — decisions whose body references modifying part of a previous decision but have an empty `amends` field
+7. **Malformed annotations** — the `not an annotation` warnings from `find-annotations`
 
 For check (4), if `decisions/.dld-state.yaml` exists with an `audit.commit_hash`, first verify reachability:
 ```bash
@@ -67,7 +70,7 @@ Apply fixes for each issue category. Use judgment on what can be safely fixed au
 
 The narrative body of an accepted decision that is already on the base branch (Context, Decision, Rationale, Consequences, and any other prose sections) is **immutable**. An audit must never rewrite, refine, "clean up", or otherwise modify it. This holds whatever `decision_edits` in `dld.config.yaml` says: an unattended audit has nobody to ask.
 
-The only changes an audit may make to an accepted decision are housekeeping updates to specific frontmatter fields — `references`, `amends`, `superseded_by`, and similar relational metadata — plus adding or fixing `@decision` annotations in code.
+The only changes an audit may make to an accepted decision are housekeeping updates to specific frontmatter fields — `references`, `amends`, `supersedes` and `status` — plus adding or fixing `@decision` annotations in code.
 
 If drift suggests the substance of an accepted decision is no longer accurate, or that code has evolved beyond what the decision describes, **do not modify the original record**. Instead, create a **new decision** (status `accepted`, since the code already exists) that captures the new rationale and uses `supersedes` or `amends` to link back to the prior one. The original stays as-is to preserve the historical record of why things were done that way at the time.
 
@@ -82,6 +85,8 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 **Annotations referencing amended decisions** — Do **not** rewrite or remove these annotations. The original decision is still active. Instead, note the amendment relationship in the PR description so reviewers can verify the code aligns with the amendment.
 
 **Missing amendment relationships** — Run `node "<skill-dir>/../dld-common/scripts/dld.mjs" find-missing-amends` to get candidates. The command only emits candidates whose source decision changed since the last audit, so re-runs stay focused on new work. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
+
+**Malformed annotations** — In code comments, rewrite each into valid annotations: one ID per annotation, exactly `<prefix>(DL-NNN)`, in canonical ID form (two IDs in one pair of parentheses become two annotations). If an ID does not exist, treat it as an orphaned annotation. In prose or example files (documentation, skill files, fixtures), where the wrong syntax may be deliberate, do not rewrite: list them in the PR description and suggest adding the paths to `annotation_exclude`.
 
 **Decisions without annotations** — If an accepted decision has code references but no annotations, and the referenced files exist, add the missing `@decision(DL-NNN)` annotations to the referenced code locations.
 

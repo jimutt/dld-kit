@@ -17,6 +17,8 @@ export interface TempProject {
   /** Runs git in the project with an isolated environment and returns stdout. */
   git(...args: string[]): string;
   ctx: Context;
+  /** Messages passed to `ctx.warn`, in order. */
+  warnings: string[];
   write(path: string, content?: string): void;
   cleanup(): void;
 }
@@ -42,6 +44,7 @@ export function tempProject(
     writeFileSync(join(root, path), content);
   };
   if (config !== null) write("dld.config.yaml", config);
+  const warnings: string[] = [];
   return {
     root,
     git: (...args: string[]) => execFileSync("git", args, { cwd: root, env, encoding: "utf8" }),
@@ -53,8 +56,12 @@ export function tempProject(
       gh: () => {
         throw new ToolNotFoundError("gh");
       },
+      warn: (message) => {
+        warnings.push(message);
+      },
       ...overrides,
     },
+    warnings,
     write,
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
@@ -165,6 +172,7 @@ export function fakeContext(overrides: Partial<Context> = {}): Context {
     env: {},
     readStdin: () => "",
     now: () => FIXED_NOW,
+    warn: () => {},
     ...overrides,
   };
 }

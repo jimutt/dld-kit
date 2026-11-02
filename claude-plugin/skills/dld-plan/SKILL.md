@@ -101,7 +101,7 @@ printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n...\n\n## Con
   --body-stdin
 ```
 
-Repeat for each decision, incrementing the ID each time. Run `next-id` before each creation to ensure correct sequencing.
+Pass `--namespace` only in a namespaced project, with one of the configured namespaces; leave it out in a flat project. Repeat for each decision, incrementing the ID each time. Run `next-id` before each creation to ensure correct sequencing.
 
 If any decision supersedes an existing one, also update the old decision's status:
 ```bash
@@ -126,7 +126,7 @@ Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the com
 - `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
 - `allow`: keep the edits and list them in your report.
 
-If the command can't find the base branch, tell the user and continue.
+If the command can't find the base branch, tell the user and continue. Its message says what it tried; setting `base_branch` in `dld.config.yaml` fixes it when the branch decisions merge into is not found automatically.
 
 ### 8. Regenerate INDEX.md
 

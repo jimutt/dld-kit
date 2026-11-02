@@ -54,6 +54,55 @@ describe("checkDecisionEdits", () => {
     ]);
   });
 
+  // @decision(DL-073)
+  test("a Decision-Edit trailer allows committed edits to the decisions it names", () => {
+    const p = branched();
+    p.onMain("main: DL-003", () => p.write("decisions/records/DL-003.md", recordText("DL-003")));
+    p.git("merge", "-q", "main");
+    p.write(DL001, recordText("DL-001").replace("Test context", "Fixed typo"));
+    p.write("decisions/records/DL-003.md", recordText("DL-003").replace("Test context", "Other"));
+    p.commitAll("Fix typos\n\nDecision-Edit: DL-001, DL-009");
+    expect(check(p)).toEqual([
+      { path: DL001, id: "DL-001", state: "allowed" },
+      { path: "decisions/records/DL-003.md", id: "DL-003", state: "edited" },
+    ]);
+    expect(check(p, ["DL-001"])).toEqual([{ path: DL001, id: "DL-001", state: "allowed" }]);
+    p.write(DL001, recordText("DL-001").replace("Test context", "Uncommitted"));
+    const uncommitted = checkDecisionEdits(p.ctx, loadProject(p.ctx), "main", [], {
+      uncommitted: true,
+    });
+    expect(uncommitted).toEqual([{ path: DL001, id: "DL-001", state: "edited" }]);
+  });
+
+  test("trailers before the merge-base do not count; space-separated IDs and deletions do", () => {
+    const p = branched();
+    p.onMain("main: DL-003\n\nDecision-Edit: DL-001", () =>
+      p.write("decisions/records/DL-003.md", recordText("DL-003")),
+    );
+    p.git("merge", "-q", "main");
+    p.write(DL001, recordText("DL-001").replace("Test context", "Edited"));
+    p.commitAll("Edit DL-001");
+    expect(check(p)).toEqual([{ path: DL001, id: "DL-001", state: "edited" }]);
+    p.git("rm", "-q", "decisions/records/DL-003.md");
+    p.commitAll("Drop DL-003\n\nDecision-Edit: DL-003 DL-001");
+    expect(check(p)).toEqual([
+      { path: DL001, id: "DL-001", state: "allowed" },
+      { path: "decisions/records/DL-003.md", id: "DL-003", state: "allowed" },
+    ]);
+  });
+
+  // @decision(DL-080)
+  test("fails when an unmoved integrated record has a second copy", () => {
+    const p = branched();
+    p.write("decisions/records/sub/DL-001.md", recordText("DL-001"));
+    expect(() => check(p, ["DL-001"])).toThrow(
+      "decision DL-001 is in more than one file: decisions/records/DL-001.md, decisions/records/sub/DL-001.md",
+    );
+    expect(() => restoreDecisionProse(p.ctx, loadProject(p.ctx), "main", ["DL-001"])).toThrow(
+      "decision DL-001 is in more than one file",
+    );
+  });
+
   test("reports body edits, committed or not, and ignores line endings", () => {
     const p = branched();
     p.write(DL001, recordText("DL-001").replace(/\n/g, "\r\n"));
@@ -111,19 +160,19 @@ describe("checkDecisionEdits", () => {
 });
 
 describe("editBase", () => {
-  test("uses the given base, else resolve-base, else its local branch", () => {
+  test("uses the given base, else resolve-base", () => {
     const p = branched();
-    const paths = loadProject(p.ctx).paths;
-    expect(editBase(p.ctx, paths, "main")).toBe("main");
-    expect(() => editBase(p.ctx, paths, "nope")).toThrow("base ref 'nope' not found.");
-    expect(editBase(p.ctx, paths)).toBe("main");
+    const project = loadProject(p.ctx);
+    expect(editBase(p.ctx, project, "main")).toBe("main");
+    expect(() => editBase(p.ctx, project, "nope")).toThrow("base ref 'nope' not found.");
+    expect(editBase(p.ctx, project)).toBe("main");
     p.git("update-ref", "refs/remotes/origin/main", "main");
-    expect(editBase(p.ctx, paths)).toBe("origin/main");
+    expect(editBase(p.ctx, project)).toBe("origin/main");
     p.git("update-ref", "-d", "refs/remotes/origin/main");
     p.git("branch", "-m", "main", "trunk");
-    expect(() => editBase(p.ctx, paths)).toThrow(
-      "base ref 'origin/main' not found. Fetch first or pass --base.",
-    );
+    expect(() => editBase(p.ctx, project)).toThrow("no base branch found");
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nbase_branch: trunk\n");
+    expect(editBase(p.ctx, loadProject(p.ctx))).toBe("trunk");
   });
 });
 

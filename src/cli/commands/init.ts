@@ -8,7 +8,14 @@ import { findProjectRoot, loadProject } from "../../core/project.ts";
 import { detectHarnesses, targetsFor } from "../../generate/harnesses.ts";
 import { applyInstall, packageSource, planInstall } from "../../generate/install.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
-import { AGENT_HELP, cliPath, parseAgents, printReport, selectHarnesses } from "../install.ts";
+import {
+  AGENT_HELP,
+  cliPath,
+  ensureIndexMergeAttribute,
+  parseAgents,
+  printReport,
+  selectHarnesses,
+} from "../install.ts";
 
 // @decision(DL-040)
 export const initCommand: Command = {
@@ -80,6 +87,8 @@ ${AGENT_HELP}
     const index = relative(root, indexPath(project.paths));
     io.stdout(`Created ${CONFIG_FILE} and ${index}\n`);
     printReport(io, report);
+    // @decision(DL-075)
+    ensureIndexMergeAttribute(io, ctx, project);
     io.stdout(
       `\nDLD is set up for: ${harnesses.map((harness) => harness.name).join(", ")}. Commit these files so everyone gets the same skills and rule.\nNext, in your agent: the dld-retrofit skill records decisions from existing code, and dld-decide records a new one.\n`,
     );

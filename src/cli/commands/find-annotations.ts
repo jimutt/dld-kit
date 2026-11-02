@@ -1,5 +1,6 @@
 import {
   formatAnnotation,
+  formatNearMiss,
   formatSkipped,
   scanAnnotations,
   scanOptionsFor,
@@ -15,8 +16,12 @@ export const findAnnotationsCommand: Command = {
     "Usage: dld find-annotations\n\nPrint <file>:<line>:<DL-NNN> for every annotation, one per line.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
-    const annotations = scanAnnotations(ctx, scanOptionsFor(loadProject(ctx)), (skipped) =>
-      io.stderr(`${formatSkipped(skipped)}\n`),
+    const annotations = scanAnnotations(
+      ctx,
+      scanOptionsFor(loadProject(ctx)),
+      (skipped) => io.stderr(`${formatSkipped(skipped)}\n`),
+      // @decision(DL-074)
+      (nearMiss) => ctx.warn(formatNearMiss(nearMiss)),
     );
     for (const annotation of annotations) {
       io.stdout(`${formatAnnotation(annotation)}\n`);

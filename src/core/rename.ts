@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { join, posix } from "node:path";
 import { BINARY_SNIFF_BYTES, listScannableFiles, scanOptionsFor } from "./annotations.ts";
 import type { Context } from "./context.ts";
-import { DldError } from "./errors.ts";
+import { DldError, EXIT_USAGE } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
 import { decisionsPathspec, gitAt, nulSeparated } from "./git.ts";
 import type { Project, ProjectPaths } from "./project.ts";
@@ -61,7 +61,7 @@ export function renameDecision(
   const { paths, config } = project;
   const { path, oldId, newId } = rename;
   const problem = renameProblem(paths, rename);
-  if (problem !== undefined) throw new DldError(problem);
+  if (problem !== undefined) throw new DldError(problem, EXIT_USAGE);
   const full = join(paths.root, path);
   if (!ctx.fs.isRegularFile(full)) throw new DldError(`${path} not found.`);
   const record = parseRecord(ctx.fs.readFile(full), path);

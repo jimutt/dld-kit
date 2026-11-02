@@ -3,7 +3,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DldError, GhCommandError, GitCommandError, ToolNotFoundError } from "./core/errors.ts";
-import { nodeGh } from "./node-context.ts";
+import { createNodeContext, nodeGh } from "./node-context.ts";
 import { type TempProject, tempProject } from "./test-helpers.ts";
 
 let project: TempProject | undefined;
@@ -13,6 +13,22 @@ afterEach(() => {
 });
 
 describe("node context", () => {
+  // @decision(DL-079)
+  test("warn writes a prefixed line to stderr", () => {
+    const written: string[] = [];
+    const original = process.stderr.write;
+    process.stderr.write = ((chunk: string) => {
+      written.push(chunk);
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      createNodeContext("/", {}).warn("careful");
+    } finally {
+      process.stderr.write = original;
+    }
+    expect(written).toEqual(["Warning: careful\n"]);
+  });
+
   test("git returns stdout", () => {
     project = tempProject();
     expect(project.ctx.git(["rev-parse", "--is-inside-work-tree"]).trim()).toBe("true");

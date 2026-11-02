@@ -33,13 +33,30 @@ export function compareIds(a: string, b: string): number {
   return idNumber(a) - idNumber(b) || (a < b ? -1 : a > b ? 1 : 0);
 }
 
-// @decision(DL-027)
+// @decision(DL-027) @decision(DL-071)
 /**
- * The upstream branch, when it tracks a branch with a different name than the current one;
- * otherwise `origin/main`. Needs no dld.config.yaml.
+ * The ref decisions are checked against: `origin/<baseBranch>` or `<baseBranch>` when the config
+ * sets it; else the upstream, when it tracks a differently named branch; else the remote's
+ * default branch (`origin/HEAD`); else `origin/main`, then `main`. Only a ref that resolves to a
+ * commit is returned; when none does, it fails naming the refs it tried.
  */
-export function resolveBase(ctx: Context): string {
+export function resolveBase(ctx: Context, baseBranch?: string): string {
   const git: Git = (...args) => ctx.git(args);
+  const tried: string[] = [];
+  const firstExisting = (...refs: string[]) =>
+    refs.find((ref) => {
+      tried.push(ref);
+      return gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`) !== "";
+    });
+
+  if (baseBranch !== undefined) {
+    const found = firstExisting(`origin/${baseBranch}`, baseBranch);
+    if (found !== undefined) return found;
+    throw new DldError(
+      `base_branch '${baseBranch}' not found (tried ${tried.join(", ")}). Fetch first, or fix base_branch in dld.config.yaml.`,
+    );
+  }
+
   const current = gitOrEmpty(git, "rev-parse", "--abbrev-ref", "HEAD").trim();
   const upstream = gitOrEmpty(
     git,
@@ -48,12 +65,27 @@ export function resolveBase(ctx: Context): string {
     "--symbolic-full-name",
     "@{upstream}",
   ).trim();
+  const candidates: string[] = [];
   if (upstream !== "") {
     const slash = upstream.indexOf("/");
     const branch = slash === -1 ? upstream : upstream.slice(slash + 1);
-    if (branch !== "" && branch !== current) return upstream;
+    if (branch !== "" && branch !== current) candidates.push(upstream);
   }
-  return DEFAULT_BASE;
+  const remoteDefault = gitOrEmpty(
+    git,
+    "symbolic-ref",
+    "--quiet",
+    "--short",
+    "refs/remotes/origin/HEAD",
+  ).trim();
+  if (remoteDefault !== "") candidates.push(remoteDefault);
+  candidates.push(DEFAULT_BASE, "main");
+
+  const found = firstExisting(...new Set(candidates));
+  if (found !== undefined) return found;
+  throw new DldError(
+    `no base branch found (tried ${tried.join(", ")}). Set base_branch in dld.config.yaml, or run git remote set-head origin --auto.`,
+  );
 }
 
 /**

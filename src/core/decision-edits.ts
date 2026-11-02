@@ -4,14 +4,22 @@ import { DldError } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
 import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
 import type { Project, ProjectPaths } from "./project.ts";
-import { findRecordFile, parseRecord, RECORD_FILE, recordBody, recordHead } from "./records.ts";
+import {
+  DECISION_ID,
+  findRecordFile,
+  parseRecord,
+  RECORD_FILE,
+  recordBody,
+  recordHead,
+} from "./records.ts";
 import { mergeBase, resolveBase, verifyBase } from "./reindex.ts";
 
 /**
  * A record's state against the base branch: not on it (`draft`), on it and unchanged
- * (`integrated`), on it with a changed body (`edited`), or on it and gone here (`deleted`).
+ * (`integrated`), on it with a changed body (`edited`), on it and gone here (`deleted`), or
+ * edited or deleted but named in a `Decision-Edit:` trailer on the branch (`allowed`, DL-073).
  */
-export type RecordState = "draft" | "integrated" | "edited" | "deleted";
+export type RecordState = "draft" | "integrated" | "edited" | "deleted" | "allowed";
 
 export interface RecordEdit {
   /** Root-relative, `/`-separated path. */
@@ -20,24 +28,14 @@ export interface RecordEdit {
   state: RecordState;
 }
 
-// @decision(DL-066)
-/**
- * The base to check against: `base` when given, else `resolve-base`'s answer, falling back to
- * the local branch when that is a remote branch that doesn't exist (`origin/main` → `main`).
- */
-export function editBase(ctx: Context, paths: ProjectPaths, base?: string): string {
+// @decision(DL-066) @decision(DL-071)
+/** The base to check against: `base` when given and it exists, else `resolve-base`'s answer. */
+export function editBase(ctx: Context, project: Project, base?: string): string {
   if (base !== undefined) {
-    verifyBase(ctx, paths, base, " Fetch first or pass --base.");
+    verifyBase(ctx, project.paths, base, " Fetch first or pass --base.");
     return base;
   }
-  const resolved = resolveBase(ctx);
-  const git = gitAt(ctx, paths.root);
-  const exists = (ref: string) =>
-    gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`) !== "";
-  if (exists(resolved)) return resolved;
-  const local = resolved.startsWith("origin/") ? resolved.slice("origin/".length) : undefined;
-  if (local !== undefined && exists(local)) return local;
-  throw new DldError(`base ref '${resolved}' not found. Fetch first or pass --base.`);
+  return resolveBase(ctx, project.config.baseBranch);
 }
 
 export interface CheckOptions {
@@ -75,11 +73,18 @@ export function checkDecisionEdits(
 ): RecordEdit[] {
   const git = gitAt(ctx, paths.root);
   const records = integratedRecords(ctx, paths, base);
+  // @decision(DL-073)
+  const allowed = uncommitted ? new Set<string>() : trailerIds(git, records.onto);
+  const allow = (edit: RecordEdit): RecordEdit =>
+    (edit.state === "edited" || edit.state === "deleted") && allowed.has(edit.id)
+      ? { ...edit, state: "allowed" }
+      : edit;
 
-  const stateOf = (id: string): RecordEdit => {
+  const stateOf = (id: string): RecordEdit => allow(rawStateOf(id));
+  const rawStateOf = (id: string): RecordEdit => {
     const located = locate(ctx, paths, records, id);
     if (located === undefined) {
-      const local = findRecordFile(ctx, paths.recordsDir, id);
+      const local = findRecordFile(ctx, paths.recordsDir, id, paths.root);
       if (local === undefined) throw new DldError(`decision ${id} not found.`);
       return { path: toPosix(relative(paths.root, local)), id, state: "draft" };
     }
@@ -117,8 +122,23 @@ export function checkDecisionEdits(
   );
   return [...candidates]
     .map(stateOf)
-    .filter(({ state }) => state === "edited" || state === "deleted")
+    .filter(({ state }) => state === "edited" || state === "deleted" || state === "allowed")
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+// @decision(DL-073)
+export const EDIT_TRAILER = "Decision-Edit";
+
+// @decision(DL-073)
+/** The decision IDs named in `Decision-Edit:` trailers of the commits after `onto`. */
+function trailerIds(git: (...args: string[]) => string, onto: string): Set<string> {
+  const values = gitOrEmpty(
+    git,
+    "log",
+    `--format=%(trailers:key=${EDIT_TRAILER},valueonly)`,
+    `${onto}..HEAD`,
+  );
+  return new Set(values.split(/[\s,]+/).filter((value) => DECISION_ID.test(value)));
 }
 
 interface Integrated {
@@ -128,7 +148,7 @@ interface Integrated {
 }
 
 /** The merge-base of `base` and HEAD, and the record paths that exist there. */
-function integratedRecords(ctx: Context, paths: ProjectPaths, base: string): Integrated {
+export function integratedRecords(ctx: Context, paths: ProjectPaths, base: string): Integrated {
   const onto = mergeBase(ctx, paths, base);
   const byId = new Map<string, string>();
   const listing = gitOrEmpty(
@@ -158,10 +178,11 @@ function locate(
   const basePath = byId.get(id);
   if (basePath === undefined) return undefined;
   const baseText = gitAt(ctx, paths.root)("show", `${onto}:${basePath}`);
+  // @decision(DL-080) Looked up even when the record is unmoved, so a second copy fails.
+  const moved = findRecordFile(ctx, paths.recordsDir, id, paths.root);
   if (ctx.fs.isRegularFile(join(paths.root, basePath))) {
     return { id, basePath, baseText, current: basePath };
   }
-  const moved = findRecordFile(ctx, paths.recordsDir, id);
   const current = moved === undefined ? undefined : toPosix(relative(paths.root, moved));
   return { id, basePath, baseText, current };
 }

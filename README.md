@@ -174,10 +174,11 @@ Run `npx dld-kit <command>`, or `npm install --global dld-kit` for a `dld` comma
 | `dld update` | Update the installed skills and rule; `--agent` adds agents |
 | `dld install-rule --agent <names>` | Install or refresh only the always-on rule |
 | `dld session-context --agent <name>` | Print the rule for a session hook, unless the agent loads it already (used by the Claude Code plugin) |
+| `dld check-decision-edits` | List edits to the prose of decisions already on the base branch; exits 3 under `decision_edits: block`, for a CI gate ([details](docs/framework/project-configuration.md#decision-edits)) |
 
 `init` and `update` won't overwrite files from a newer dld-kit unless you pass `--force`.
 
-These four commands, with their flags, exit codes and documented output, follow semantic versioning, as do `--help` and `--version`. The other commands in `dld --help` (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their bundled copy, and they can change in a minor release. Don't script against them.
+These five commands, with their flags, exit codes and documented output, follow semantic versioning, as do `--help` and `--version`. The other commands in `dld --help` (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their bundled copy, and they can change in a minor release. Don't script against them.
 
 ## Learn more
 
