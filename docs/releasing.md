@@ -4,9 +4,9 @@
 
 ## What a version number promises
 
-Semantic versioning covers the setup commands, `dld init`, `update`, `install-rule` and `session-context` (their flags, exit codes and documented output), plus `--help` and `--version` (DL-056). A breaking change to those needs a major version.
+Semantic versioning covers the setup and CI commands, `dld init`, `update`, `install-rule`, `session-context` and `check-decision-edits` (their flags, exit codes and documented output), plus `--help` and `--version` (DL-056, DL-073). A breaking change to those needs a major version.
 
-All other commands are internal: the skills run them from the CLI copy bundled with the same version of the skills. A minor release may rename them or change their arguments or output, as long as the skill templates change with them. `dld --help` lists them under "Commands the skills run". The library API is internal too (DL-002).
+All other commands are internal: the skills run them from the CLI copy bundled with the same version of the skills. A minor release may rename them or change their arguments or output, as long as the skill templates change with them. `dld --help` lists them under "Commands the skills run", apart from the "Setup and CI commands". The library API is internal too (DL-002).
 
 ## Release branch
 
