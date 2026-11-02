@@ -98,6 +98,16 @@ describe("create-decision", () => {
     expect(text).toEndWith("\nFrom stdin\n");
   });
 
+  // @decision(DL-083)
+  test("warns when the body states a relationship the flags do not list", () => {
+    project = tempProject(undefined, { readStdin: () => "Amends DL-002 and supersedes DL-003.\n" });
+    const args = ["--id", "DL-004", "--title", "T", "--amends", "DL-002", "--body-stdin"];
+    expect(dld(project, "create-decision", ...args)).toMatchObject({
+      code: EXIT_OK,
+      err: "Warning: DL-004: the body says it supersedes DL-003, but --supersedes does not list it\n",
+    });
+  });
+
   test("does not read stdin unless asked", () => {
     project = tempProject(undefined, {
       readStdin: () => {
@@ -294,11 +304,27 @@ describe("audit commands", () => {
     });
   });
 
-  test("find-missing-amends lists pairs; --all ignores the audit state", () => {
+  test("find-missing-amends lists pairs with tiers; --mentions adds plain mentions", () => {
     project = tempProject();
-    project.write("decisions/records/DL-002.md", `${recordText("DL-002")}Changes DL-001.\n`);
-    expect(dld(project, "find-missing-amends").out).toBe("DL-002:DL-001\n");
-    expect(dld(project, "find-missing-amends", "--all").out).toBe("DL-002:DL-001\n");
+    project.write(
+      "decisions/records/DL-003.md",
+      `${recordText("DL-003")}Amends DL-001. Uses DL-002.\n`,
+    );
+    expect(dld(project, "find-missing-amends").out).toBe("DL-003:DL-001\texplicit\n");
+    expect(dld(project, "find-missing-amends", "--all", "--mentions").out).toBe(
+      "DL-003:DL-001\texplicit\nDL-003:DL-002\tmention\n",
+    );
+    expect(dld(project, "find-missing-amends", "DL-003").out).toBe("DL-003:DL-001\texplicit\n");
+  });
+
+  test("find-missing-amends rejects --all with decision IDs", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-003.md", recordText("DL-003"));
+    const result = dld(project, "find-missing-amends", "--all", "DL-003");
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.err).toStartWith(
+      "dld find-missing-amends: --all cannot be combined with decision IDs.\n",
+    );
   });
 
   test("update-audit-state reports the time and commit", () => {
