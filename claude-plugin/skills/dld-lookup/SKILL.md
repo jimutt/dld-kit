@@ -72,4 +72,4 @@ After reading the decision:
 3. **If they conflict** — stop and inform the user. Explain the conflict and suggest recording a new decision via `/dld-decide` that supersedes the existing one. Do not silently modify code in a way that contradicts an active decision.
 4. **If they're compatible** — proceed with the modification
 
-This is the core DLD feedback loop — `@decision` annotations are mechanical triggers that ensure design rationale is consulted before code is changed.
+This is the core DLD feedback loop — `@decision` annotations are mechanical triggers that ensure design rationale is consulted before code is changed. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default.

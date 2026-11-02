@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { version } from "../../../package.json";
 import { CONFIG_FILE } from "../../core/config.ts";
 import { DldError } from "../../core/errors.ts";
-import { findProjectRoot } from "../../core/project.ts";
+import { findProjectRoot, loadProject } from "../../core/project.ts";
 import { HARNESS_NAMES, targetsFor } from "../../generate/harnesses.ts";
 import {
   applyInstall,
@@ -11,8 +11,15 @@ import {
   packageSource,
   planInstall,
 } from "../../generate/install.ts";
+import { projectRuleText } from "../../generate/rule.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
-import { AGENT_HELP, cliPath, parseAgents, printReport } from "../install.ts";
+import {
+  AGENT_HELP,
+  cliPath,
+  ensureIndexMergeAttribute,
+  parseAgents,
+  printReport,
+} from "../install.ts";
 
 // @decision(DL-040) @decision(DL-043)
 export const updateCommand: Command = {
@@ -56,10 +63,14 @@ ${AGENT_HELP}
       version,
       force: values.force === true,
       harnesses: requested,
+      // @decision(DL-074)
+      ruleText: projectRuleText(ctx, root),
     });
     const report = applyInstall(ctx, root, plan);
     report.warnings.push(...missingAgentsRuleWarning({ layouts, rules }));
     printReport(io, report);
+    // @decision(DL-075)
+    ensureIndexMergeAttribute(io, ctx, loadProject(ctx));
     return EXIT_OK;
   },
 };

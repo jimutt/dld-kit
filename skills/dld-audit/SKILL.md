@@ -30,7 +30,7 @@ Run `find-annotations`:
 node "<skill-dir>/../dld-common/scripts/dld.mjs" find-annotations
 ```
 
-This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation occurrence.
+This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation occurrence. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. On stderr it also prints `Warning: <file>:<line>: not an annotation: <text>` for text that looks like an annotation and names a decision but does not match the syntax, such as `@decision( DL-002 )`, `@decision(dl-003)` or `@decision(DL-004, DL-005)`. Keep those lines for check (a2).
 
 ### 2. Collect all decision records
 
@@ -46,6 +46,10 @@ Perform these drift checks:
 #### a) Orphaned annotations
 
 Annotations in code that reference non-existent decision IDs. These indicate decisions that were deleted or IDs that were mistyped.
+
+#### a2) Malformed annotations
+
+Every `not an annotation` warning from step 1. The code looks linked to a decision but is not, so `verify-annotations` and the other checks do not count it. Report each one with the fix: one ID per annotation, exactly `<prefix>(DL-NNN)`.
 
 #### b) Annotations referencing non-accepted decisions
 
@@ -113,6 +117,9 @@ Present findings grouped by severity:
 
 #### Orphaned Annotations
 - `src/billing/vat.ts:42` references `DL-099` — decision does not exist
+
+#### Malformed Annotations
+- `src/billing/vat.ts:57` — `@decision(DL-012, DL-015)` is not an annotation; write `@decision(DL-012) @decision(DL-015)`
 
 #### Stale References
 - **DL-012** references `src/billing/old-vat.ts` — file does not exist

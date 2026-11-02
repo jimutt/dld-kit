@@ -89,6 +89,7 @@ def calculate_vat(order: Order) -> Money:
 - One annotation per decision per code location
 - Multiple decisions can annotate the same code: `// @decision(DL-012) @decision(DL-015)`
 - Use the `annotation_prefix` from `dld.config.yaml` (default: `@decision`)
+- Write one ID per annotation, exactly `<prefix>(DL-NNN)`: no spaces, no lists like `(DL-012, DL-015)`. Anything else is not an annotation, and `verify-annotations` warns about it
 
 **Keep annotations lean — the decision record is the single source of truth.**
 

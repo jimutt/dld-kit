@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
-import { type GeneratedFiles, generateSkills, writeOutput } from "./generate.ts";
+import { type GeneratedFiles, generateSkills, type OwnsSkill, writeOutput } from "./generate.ts";
 import {
   AGENTS_LAYOUT,
   CLAUDE_LAYOUT,
@@ -43,18 +43,53 @@ export function packageSource(ctx: Context, cliPath: string, command: string): I
   return { templatesDir, cli: ctx.fs.readFile(cliPath) };
 }
 
-/** Owned skill directories are `dld-*` (DL-033). */
-const isOwned = (name: string) => name.startsWith("dld-");
+// @decision(DL-072)
+/**
+ * Every skill dld-kit has shipped, in any version. Kept even after a skill is renamed or
+ * dropped, so `update` can still recognise and remove old copies.
+ */
+export const SHIPPED_SKILLS: ReadonlySet<string> = new Set([
+  "dld-adjust",
+  "dld-audit",
+  "dld-audit-auto",
+  "dld-common",
+  "dld-decide",
+  "dld-implement",
+  "dld-init",
+  "dld-lookup",
+  "dld-plan",
+  "dld-reindex",
+  "dld-retrofit",
+  "dld-snapshot",
+  "dld-status",
+]);
 
-/** The `dld-*` skills in a layout's directory: directories, and symlinks to them (DL-051). */
-function ownedSkills(ctx: Context, root: string, layout: SkillLayout): string[] {
+const isShipped = (name: string) => SHIPPED_SKILLS.has(name);
+
+// @decision(DL-072)
+/** A skill directory dld-kit installed: a name it has shipped, or a SKILL.md with its stamp. */
+function isDldKitSkill(ctx: Context, layoutDir: string, name: string): boolean {
+  if (isShipped(name)) return true;
+  if (!name.startsWith("dld-")) return false;
+  const skillMd = join(layoutDir, name, "SKILL.md");
+  return ctx.fs.isRegularFile(skillMd) && SKILL_STAMP.test(ctx.fs.readFile(skillMd));
+}
+
+/** The `dld-*` entries in a layout's directory that are directories or symlinks. */
+function dldEntries(ctx: Context, root: string, layout: SkillLayout): string[] {
   const dir = join(root, layout.dir);
   if (!ctx.fs.isDirectory(dir)) return [];
   return ctx.fs
     .readDir(dir)
-    .filter((entry) => !entry.isFile && isOwned(entry.name))
+    .filter((entry) => !entry.isFile && entry.name.startsWith("dld-"))
     .map((entry) => entry.name)
     .sort();
+}
+
+/** dld-kit's skills in a layout's directory: directories, and symlinks to them (DL-051). */
+function ownedSkills(ctx: Context, root: string, layout: SkillLayout): string[] {
+  const dir = join(root, layout.dir);
+  return dldEntries(ctx, root, layout).filter((name) => isDldKitSkill(ctx, dir, name));
 }
 
 // @decision(DL-051)
@@ -64,7 +99,7 @@ function refuseSymlinkedSkills(ctx: Context, root: string, layout: SkillLayout):
   if (!ctx.fs.isDirectory(dir)) return;
   const linked = ctx.fs
     .readDir(dir)
-    .filter((entry) => isOwned(entry.name) && !entry.isDirectory && !entry.isFile)
+    .filter((entry) => isShipped(entry.name) && !entry.isDirectory && !entry.isFile)
     .map((entry) => `${layout.dir}/${entry.name}`)
     .sort();
   if (linked.length === 0) return;
@@ -87,7 +122,7 @@ export function skillsLockWarning(ctx: Context, root: string): string[] {
     return [];
   }
   if (typeof skills !== "object" || skills === null) return [];
-  const listed = Object.keys(skills).filter(isOwned).sort();
+  const listed = Object.keys(skills).filter(isShipped).sort();
   if (listed.length === 0) return [];
   return [
     `${SKILLS_LOCK} lists ${listed.join(", ")}: npx skills manages those skills, so dld update and npx skills update overwrite each other's copies. Update them with one of the two.`,
@@ -196,10 +231,12 @@ export interface InstallRequest {
   force?: boolean;
   /** The harnesses being installed for: they decide where a new rule block goes (DL-061). */
   harnesses?: readonly Harness[];
+  /** The rule text, rendered with the project's annotation prefix (DL-074). */
+  ruleText?: string;
 }
 
 export interface InstallPlan {
-  skills: { layout: SkillLayout; files: GeneratedFiles }[];
+  skills: { layout: SkillLayout; files: GeneratedFiles; owns: OwnsSkill }[];
   rule: RulePlan;
   warnings: string[];
 }
@@ -225,33 +262,59 @@ export function planInstall(ctx: Context, root: string, request: InstallRequest)
     const files = generateSkills(ctx, source.templatesDir, layout.adapter, request.version, {
       extraFiles: cli,
     });
-    return { layout, files };
+    const dir = join(root, layout.dir);
+    // @decision(DL-072)
+    const owns: OwnsSkill = (skill) => isDldKitSkill(ctx, dir, skill);
+    return { layout, files, owns };
   });
-  const rule = planRule(ctx, root, request.rules, request.version, {
-    harnesses: request.harnesses,
-  });
+  const rule = planRule(
+    ctx,
+    root,
+    request.rules,
+    request.version,
+    { harnesses: request.harnesses },
+    request.ruleText,
+  );
   const warnings = layouts.length > 0 ? skillsLockWarning(ctx, root) : [];
+  for (const { layout, files } of skills) {
+    const generated = new Set([...files.keys()].map((path) => path.split("/", 1)[0] ?? ""));
+    const dir = join(root, layout.dir);
+    for (const name of dldEntries(ctx, root, layout)) {
+      if (generated.has(name) || isDldKitSkill(ctx, dir, name)) continue;
+      warnings.push(
+        `${layout.dir}/${name} is not a dld-kit skill (no dld-kit stamp), so it is left in place.`,
+      );
+    }
+  }
   return { skills, rule, warnings };
 }
 
 export interface InstallReport {
-  skills: { dir: string; written: number; removed: number; unchanged: number }[];
+  skills: {
+    dir: string;
+    written: number;
+    removed: number;
+    unchanged: number;
+    /** The files removed, relative to the project root. */
+    removedPaths: string[];
+  }[];
   /** Rule files written or removed, relative to the project root. */
   ruleWritten: string[];
   ruleRemoved: string[];
   warnings: string[];
 }
 
-// @decision(DL-043)
+// @decision(DL-043) @decision(DL-072)
 export function applyInstall(ctx: Context, root: string, plan: InstallPlan): InstallReport {
-  const skills = plan.skills.map(({ layout, files }) => {
-    const diff = writeOutput(ctx, join(root, layout.dir), files);
+  const skills = plan.skills.map(({ layout, files, owns }) => {
+    const diff = writeOutput(ctx, join(root, layout.dir), files, owns);
     const written = diff.changed.length + diff.missing.length;
     return {
       dir: layout.dir,
       written,
       removed: diff.extra.length,
       unchanged: files.size - written,
+      removedPaths: diff.extra.map((path) => `${layout.dir}/${path}`),
     };
   });
   applyRulePlan(ctx, root, plan.rule);

@@ -2,6 +2,7 @@ import { version } from "../../../package.json";
 import { findProjectRoot } from "../../core/project.ts";
 import { HARNESS_NAMES, targetsFor } from "../../generate/harnesses.ts";
 import { applyInstall, installedTargets, planInstall } from "../../generate/install.ts";
+import { projectRuleText } from "../../generate/rule.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 import { AGENT_HELP, parseAgents, printReport } from "../install.ts";
 
@@ -37,6 +38,8 @@ ${AGENT_HELP}
       version,
       force: values.force === true,
       harnesses: requested,
+      // @decision(DL-074)
+      ruleText: projectRuleText(ctx, root),
     });
     const report = applyInstall(ctx, root, plan);
     printReport(io, report);

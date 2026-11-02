@@ -37,6 +37,8 @@ Perform all the same checks as `/dld-audit`:
 {{dld}} find-annotations
 ```
 
+Its stderr also lists `Warning: <file>:<line>: not an annotation: <text>` for malformed annotations; keep those for check (7). Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default).
+
 Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references.
 
 ### b) Detect issues
@@ -49,6 +51,7 @@ Check for all drift categories:
 4. **Unreferenced code changes** — annotated files modified since last audit (if previous audit state exists)
 5. **Decisions without annotations** — accepted decisions with code references but no corresponding annotations in code
 6. **Missing amendment relationships** — decisions whose body references modifying part of a previous decision but have an empty `amends` field
+7. **Malformed annotations** — the `not an annotation` warnings from `find-annotations`
 
 For check (4), if `decisions/.dld-state.yaml` exists with an `audit.commit_hash`, first verify reachability:
 ```bash
@@ -79,6 +82,8 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 **Annotations referencing amended decisions** — Do **not** rewrite or remove these annotations. The original decision is still active. Instead, note the amendment relationship in the PR description so reviewers can verify the code aligns with the amendment.
 
 **Missing amendment relationships** — Run `{{dld}} find-missing-amends` to get candidates. The command only emits candidates whose source decision changed since the last audit, so re-runs stay focused on new work. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
+
+**Malformed annotations** — Rewrite each into valid annotations: one ID per annotation, exactly `<prefix>(DL-NNN)`, in canonical ID form (for example `@decision(DL-004, DL-005)` becomes `@decision(DL-004) @decision(DL-005)`). If an ID does not exist, treat it as an orphaned annotation.
 
 **Decisions without annotations** — If an accepted decision has code references but no annotations, and the referenced files exist, add the missing `@decision(DL-NNN)` annotations to the referenced code locations.
 

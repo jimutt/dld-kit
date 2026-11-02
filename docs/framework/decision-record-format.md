@@ -123,6 +123,18 @@ These references serve two purposes:
 
 Both directions should be maintained, but the in-code annotations are the primary trigger for AI agents.
 
+### Annotation syntax
+
+An annotation is the configured prefix (`annotation_prefix`, `@decision` by default), immediately followed by `(`, one decision ID in canonical form, and `)`, with no spaces. It is case-sensitive. A line can hold several annotations, usually in one comment: `// @decision(DL-012) @decision(DL-015)`.
+
+These are **not** annotations, and the tools ignore them for linking:
+
+- `@decision( DL-002 )`: spaces inside the parentheses
+- `@decision(dl-003)` or `@Decision(DL-003)`: wrong letter case
+- `@decision(DL-004, DL-005)`: more than one ID
+
+`find-annotations` and `verify-annotations` warn about text like this on stderr (`Warning: <file>:<line>: not an annotation: <text>`), and `/dld-audit` lists it. Placeholders without digits, such as `@decision(DL-XXX)` in documentation, are not reported.
+
 ### Markdown Body
 
 The body uses a consistent heading structure. Not all sections are required for every decision — a minor bugfix rationale needs less detail than a major architectural choice.

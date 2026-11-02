@@ -25,7 +25,7 @@ namespaces:
   - shared
 
 # Decision annotation pattern used in code comments
-# Default: @decision(DL-XXX)
+# Default: @decision(DL-XXX). The always-on rule is installed with this prefix.
 annotation_prefix: "@decision"
 
 # Paths whose annotations are ignored (optional)

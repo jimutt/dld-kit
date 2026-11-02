@@ -50,6 +50,15 @@ export interface SkippedFile {
   reason: string;
 }
 
+// @decision(DL-074)
+/** Text that looks like an annotation but is not one, such as one with spaces inside its parentheses. */
+export interface NearMiss {
+  /** Path relative to the project root, with `/` separators. */
+  file: string;
+  line: number;
+  text: string;
+}
+
 export interface ScanOptions {
   root: string;
   decisionsDir: string;
@@ -128,28 +137,45 @@ function readScannable(
   return text.slice(0, BINARY_SNIFF_BYTES).includes("\0") ? undefined : text;
 }
 
-// @decision(DL-019) @decision(DL-022) @decision(DL-069)
+// @decision(DL-019) @decision(DL-022) @decision(DL-069) @decision(DL-074)
 /**
  * Every `<prefix>(DL-NNN)` annotation in the project's scannable files, in file and line order.
- * Files that are too large or unreadable are reported to `onSkip` and left out.
+ * Files that are too large or unreadable are reported to `onSkip` and left out. Text that starts
+ * like an annotation and holds a decision number but is not one goes to `onNearMiss`.
  */
 export function scanAnnotations(
   ctx: Context,
   options: ScanOptions,
   onSkip: (skipped: SkippedFile) => void = () => {},
+  onNearMiss: (nearMiss: NearMiss) => void = () => {},
 ): Annotation[] {
-  const pattern = new RegExp(`${escapeRegExp(options.prefix)}\\((DL-\\d+)\\)`, "g");
+  const prefix = escapeRegExp(options.prefix);
+  const pattern = new RegExp(`${prefix}\\((DL-\\d+)\\)`, "g");
+  const exact = new RegExp(`^${prefix}\\(DL-\\d+\\)$`);
+  const loose = new RegExp(`${prefix}\\([^()\\n]*\\)`, "gi");
   const found: Annotation[] = [];
   for (const file of listScannableFiles(ctx, options)) {
     const text = readScannable(ctx, options.root, file, onSkip);
     if (text === undefined) continue;
     text.split("\n").forEach((content, index) => {
+      const line = index + 1;
       for (const match of content.matchAll(pattern)) {
-        if (match[1] !== undefined) found.push({ file, line: index + 1, id: match[1] });
+        if (match[1] !== undefined) found.push({ file, line, id: match[1] });
+      }
+      for (const [candidate] of content.matchAll(loose)) {
+        if (!exact.test(candidate) && /dl-\d/i.test(candidate)) {
+          onNearMiss({ file, line, text: candidate });
+        }
       }
     });
   }
   return found;
+}
+
+// @decision(DL-074)
+/** The warning for a near-miss, as find-annotations and verify-annotations print it. */
+export function formatNearMiss({ file, line, text }: NearMiss): string {
+  return `${file}:${line}: not an annotation: ${text}`;
 }
 
 // @decision(DL-019)
@@ -159,9 +185,10 @@ export function missingAnnotations(
   options: ScanOptions,
   ids: readonly string[],
   onSkip?: (skipped: SkippedFile) => void,
+  onNearMiss?: (nearMiss: NearMiss) => void,
 ): string[] {
   const annotated = new Set(
-    scanAnnotations(ctx, options, onSkip).map((annotation) => annotation.id),
+    scanAnnotations(ctx, options, onSkip, onNearMiss).map((annotation) => annotation.id),
   );
   return ids.filter((id) => !annotated.has(id));
 }

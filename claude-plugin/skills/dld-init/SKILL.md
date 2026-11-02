@@ -72,7 +72,7 @@ This reads mode and namespaces from `dld.config.yaml` (created in step 2).
 node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" create-empty-index
 ```
 
-This reads mode from `dld.config.yaml`.
+This reads mode from `dld.config.yaml`. It also adds a line to `.gitattributes` (creating the file if needed) so git merges `INDEX.md` with its union driver, keeping the rows from both sides when two branches add decisions. Commit `.gitattributes` with the other files.
 
 ### 5. Offer to create a practices manifest
 

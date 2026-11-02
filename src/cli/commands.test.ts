@@ -61,8 +61,15 @@ describe("init commands", () => {
     expect(dld(project, "create-directories").out).toBe("Created decisions directory structure.\n");
     expect(existsSync(join(project.root, "decisions/records/billing/.gitkeep"))).toBe(true);
     const index = join(project.root, "decisions/INDEX.md");
-    expect(dld(project, "create-empty-index").out).toBe(`Created ${index}\n`);
+    expect(dld(project, "create-empty-index").out).toBe(
+      `Created ${index}\nUpdated .gitattributes: decisions/INDEX.md merges keep the rows from both sides\n`,
+    );
     expect(readFileSync(index, "utf8")).toContain("| ID | Title | Status | Namespace | Tags |");
+    // @decision(DL-075)
+    expect(readFileSync(join(project.root, ".gitattributes"), "utf8")).toBe(
+      "# dld-kit: keep both sides' rows when merging the decision index\n/decisions/INDEX.md merge=union\n",
+    );
+    expect(dld(project, "create-empty-index").out).toBe(`Created ${index}\n`);
   });
 });
 
@@ -239,6 +246,19 @@ describe("verify-annotations", () => {
   test("needs at least one ID", () => {
     project = tempProject();
     expect(dld(project, "verify-annotations").code).toBe(EXIT_USAGE);
+  });
+
+  // @decision(DL-074)
+  test("warns about near-misses on stderr, and the result is unchanged", () => {
+    project = tempProject();
+    project.write("src/a.ts", "// @decision(DL-001)\n// @decision( DL-002 )\n");
+    const warning = "Warning: src/a.ts:2: not an annotation: @decision( DL-002 )\n";
+    expect(dld(project, "find-annotations")).toEqual({
+      code: EXIT_OK,
+      out: "src/a.ts:1:DL-001\n",
+      err: warning,
+    });
+    expect(dld(project, "verify-annotations", "DL-002")).toMatchObject({ code: 1, err: warning });
   });
 
   // @decision(DL-069)
@@ -524,16 +544,21 @@ describe("update", () => {
     const { p, cli } = await initialised();
     project = p;
     p.write(".claude/skills/dld-audit/SKILL.md", "edited\n");
-    p.write(".claude/skills/dld-old/SKILL.md", "stale\n");
+    p.write(".claude/skills/dld-old/SKILL.md", '---\nmetadata:\n  dld-kit-version: "0.9.0"\n---\n');
+    p.write(".claude/skills/dld-mine/SKILL.md", "mine\n");
     const result = await dldInstall(p, cli, "update", "--agent", "opencode");
     expect(result.code).toBe(EXIT_OK);
     expect(result.out).toMatch(/^\.claude\/skills: 1 written, 1 removed, \d+ unchanged\n/);
     expect(result.out).toContain(".agents/skills: ");
     // OpenCode reads only AGENTS.md; Claude Code keeps its rule file beside CLAUDE.md (DL-061).
     expect(result.out).toContain("Wrote the DLD rule to AGENTS.md\n");
-    expect(result.out).not.toContain("Removed");
+    // @decision(DL-072)
+    expect(result.out).toContain("Removed .claude/skills/dld-old/SKILL.md\n");
+    expect(result.out).not.toContain("Removed .claude/rules");
+    expect(result.err).toContain(".claude/skills/dld-mine is not a dld-kit skill");
     expect(existsSync(join(p.root, ".claude/rules/dld-workflow.md"))).toBe(true);
     expect(existsSync(join(p.root, ".claude/skills/dld-old"))).toBe(false);
+    expect(existsSync(join(p.root, ".claude/skills/dld-mine/SKILL.md"))).toBe(true);
     const again = await dldInstall(p, cli, "update");
     expect(again.out).toMatch(/^\.claude\/skills: 0 written, 0 removed, \d+ unchanged\n/);
   });

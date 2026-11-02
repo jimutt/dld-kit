@@ -152,10 +152,22 @@ export interface OutputDiff {
   extra: string[];
 }
 
-/** Skill directories the generator owns in an output: those it generates, and any `dld-*`. */
-function ownedSkill(path: string, files: GeneratedFiles, generated: Set<string>): boolean {
+// @decision(DL-072)
+/** Decides whether a skill directory the output does not generate belongs to dld-kit. */
+export type OwnsSkill = (skill: string) => boolean;
+
+/** In dld-kit's own outputs, every `dld-*` directory is the generator's. */
+const anyDldSkill: OwnsSkill = (skill) => skill.startsWith("dld-");
+
+/** Skill directories the generator owns in an output: those it generates, and those `owns` claims. */
+function ownedSkill(
+  path: string,
+  files: GeneratedFiles,
+  generated: Set<string>,
+  owns: OwnsSkill,
+): boolean {
   const skill = path.split("/", 1)[0] ?? "";
-  return generated.has(skill) || skill.startsWith("dld-") || files.has(path);
+  return generated.has(skill) || owns(skill) || files.has(path);
 }
 
 // @decision(DL-033)
@@ -164,10 +176,15 @@ function ownedSkill(path: string, files: GeneratedFiles, generated: Set<string>)
  * directories the generator owns are compared, so other skills in the same directory (e.g. a
  * project's own `.claude/skills/`) are never reported or removed.
  */
-export function diffOutput(ctx: Context, dir: string, files: GeneratedFiles): OutputDiff {
+export function diffOutput(
+  ctx: Context,
+  dir: string,
+  files: GeneratedFiles,
+  owns: OwnsSkill = anyDldSkill,
+): OutputDiff {
   const generated = new Set([...files.keys()].map((path) => path.split("/", 1)[0] ?? ""));
   const existing = new Set(
-    listFiles(ctx, dir).filter((path) => ownedSkill(path, files, generated)),
+    listFiles(ctx, dir).filter((path) => ownedSkill(path, files, generated, owns)),
   );
   const diff: OutputDiff = { changed: [], missing: [], extra: [] };
   for (const [path, file] of files) {
@@ -189,8 +206,13 @@ export function diffOutput(ctx: Context, dir: string, files: GeneratedFiles): Ou
  * Makes the owned skill directories under `dir` hold exactly `files`: writes what differs,
  * deletes the rest, and removes directories that deleting emptied.
  */
-export function writeOutput(ctx: Context, dir: string, files: GeneratedFiles): OutputDiff {
-  const diff = diffOutput(ctx, dir, files);
+export function writeOutput(
+  ctx: Context,
+  dir: string,
+  files: GeneratedFiles,
+  owns: OwnsSkill = anyDldSkill,
+): OutputDiff {
+  const diff = diffOutput(ctx, dir, files, owns);
   for (const path of diff.extra) ctx.fs.remove(join(dir, path));
   for (const path of [...diff.missing, ...diff.changed]) {
     const file = files.get(path);

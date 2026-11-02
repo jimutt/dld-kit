@@ -3,9 +3,11 @@ import { rmSync, symlinkSync, truncateSync } from "node:fs";
 import { type TempProject, tempProject } from "../test-helpers.ts";
 import {
   formatAnnotation,
+  formatNearMiss,
   formatSkipped,
   MAX_SCAN_BYTES,
   missingAnnotations,
+  type NearMiss,
   type ScanOptions,
   type SkippedFile,
   scanAnnotations,
@@ -29,6 +31,40 @@ function setup(files: Record<string, string>, decisionsDir = "decisions") {
   };
   return { ctx: project.ctx, options };
 }
+
+// @decision(DL-074)
+describe("near-misses", () => {
+  test("reports annotation-like text with a decision number that is not an annotation", () => {
+    const { ctx, options } = setup({
+      "src/a.ts": [
+        "// @decision( DL-002 ) @decision(dl-003) @decision(DL-004, DL-005)",
+        "// @Decision(DL-006) @decision(DL-007) @decision(DL-XXX) @decision(see DL-8)",
+        "// @decisions(DL-009) @decision(DL-010",
+      ].join("\n"),
+    });
+    const nearMisses: NearMiss[] = [];
+    const found = scanAnnotations(ctx, options, undefined, (nearMiss) => nearMisses.push(nearMiss));
+    expect(found.map(({ id }) => id)).toEqual(["DL-007"]);
+    expect(nearMisses.map(formatNearMiss)).toEqual([
+      "src/a.ts:1: not an annotation: @decision( DL-002 )",
+      "src/a.ts:1: not an annotation: @decision(dl-003)",
+      "src/a.ts:1: not an annotation: @decision(DL-004, DL-005)",
+      "src/a.ts:2: not an annotation: @Decision(DL-006)",
+      "src/a.ts:2: not an annotation: @decision(see DL-8)",
+    ]);
+  });
+
+  test("missingAnnotations passes near-misses on", () => {
+    const { ctx, options } = setup({ "src/a.ts": "// @decision(DL-1, DL-2)\n" });
+    const nearMisses: NearMiss[] = [];
+    expect(
+      missingAnnotations(ctx, options, ["DL-1"], undefined, (nearMiss) =>
+        nearMisses.push(nearMiss),
+      ),
+    ).toEqual(["DL-1"]);
+    expect(nearMisses).toHaveLength(1);
+  });
+});
 
 describe("scanAnnotations", () => {
   test("finds every annotation with its file and line, tracked or untracked", () => {

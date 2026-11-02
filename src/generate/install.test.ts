@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, symlinkSync } from "node:fs";
+import { mkdirSync, readdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { fakeContext, memoryFs, tempProject } from "../test-helpers.ts";
 import { AGENTS_LAYOUT, CLAUDE_LAYOUT, type RuleChannel, type SkillLayout } from "./harnesses.ts";
@@ -14,6 +14,7 @@ import {
   missingAgentsRuleWarning,
   packageSource,
   planInstall,
+  SHIPPED_SKILLS,
   skillsLockWarning,
 } from "./install.ts";
 import { CLAUDE_RULE_FILE, renderRuleFile } from "./rule.ts";
@@ -70,8 +71,8 @@ describe("planInstall and applyInstall", () => {
     const report = install(ctx, [CLAUDE_LAYOUT, AGENTS_LAYOUT], ["claude-file"]);
     expect(report).toEqual({
       skills: [
-        { dir: ".claude/skills", written: 2, removed: 0, unchanged: 0 },
-        { dir: ".agents/skills", written: 3, removed: 0, unchanged: 0 },
+        { dir: ".claude/skills", written: 2, removed: 0, unchanged: 0, removedPaths: [] },
+        { dir: ".agents/skills", written: 3, removed: 0, unchanged: 0, removedPaths: [] },
       ],
       ruleWritten: [CLAUDE_RULE_FILE],
       ruleRemoved: [],
@@ -81,8 +82,8 @@ describe("planInstall and applyInstall", () => {
     expect(fs.fileMode("/p/.agents/skills/dld-common/scripts/dld.mjs")).toBe(0o755);
     expect(fs.files["/p/.claude/skills/dld-plan/SKILL.md"]).toContain('dld-kit-version: "1.0.0"');
     expect(install(ctx, [CLAUDE_LAYOUT, AGENTS_LAYOUT], ["claude-file"]).skills).toEqual([
-      { dir: ".claude/skills", written: 0, removed: 0, unchanged: 2 },
-      { dir: ".agents/skills", written: 0, removed: 0, unchanged: 3 },
+      { dir: ".claude/skills", written: 0, removed: 0, unchanged: 2, removedPaths: [] },
+      { dir: ".agents/skills", written: 0, removed: 0, unchanged: 3, removedPaths: [] },
     ]);
     expect(installedLayouts(ctx, "/p")).toEqual([CLAUDE_LAYOUT, AGENTS_LAYOUT]);
   });
@@ -95,10 +96,45 @@ describe("planInstall and applyInstall", () => {
     });
     const report = install(ctx, [CLAUDE_LAYOUT]);
     expect(report.skills).toEqual([
-      { dir: ".claude/skills", written: 2, removed: 1, unchanged: 0 },
+      {
+        dir: ".claude/skills",
+        written: 2,
+        removed: 1,
+        unchanged: 0,
+        removedPaths: [".claude/skills/dld-common/scripts/next-id.sh"],
+      },
     ]);
     expect("/p/.claude/skills/dld-common/scripts/next-id.sh" in fs.files).toBe(false);
     expect(fs.files["/p/.claude/skills/my-own/SKILL.md"]).toBe("mine\n");
+  });
+
+  // @decision(DL-072)
+  test("removes stale dld-kit skills, shipped or stamped, and leaves a user's dld-* skill", () => {
+    const { fs, ctx } = project({
+      "/p/.claude/skills/dld-status/SKILL.md": "---\nname: dld-status\n---\nold\n",
+      "/p/.claude/skills/dld-renamed/SKILL.md":
+        '---\nname: dld-renamed\nmetadata:\n  dld-kit-version: "0.9.0"\n---\n',
+      "/p/.claude/skills/dld-custom/SKILL.md": "---\nname: dld-custom\n---\nmine\n",
+    });
+    const report = install(ctx, [CLAUDE_LAYOUT]);
+    expect(report.skills[0]?.removedPaths).toEqual([
+      ".claude/skills/dld-renamed/SKILL.md",
+      ".claude/skills/dld-status/SKILL.md",
+    ]);
+    expect(fs.files["/p/.claude/skills/dld-custom/SKILL.md"]).toBe(
+      "---\nname: dld-custom\n---\nmine\n",
+    );
+    expect(report.warnings).toEqual([
+      ".claude/skills/dld-custom is not a dld-kit skill (no dld-kit stamp), so it is left in place.",
+    ]);
+    expect(installedStamps(ctx, "/p").map((stamp) => stamp.path)).not.toContain(
+      ".claude/skills/dld-custom/SKILL.md",
+    );
+  });
+
+  test("every skill template is in the list of shipped skills", () => {
+    const templates = readdirSync(join(import.meta.dir, "../../templates/skills"));
+    expect(templates.filter((name) => !SHIPPED_SKILLS.has(name))).toEqual([]);
   });
 
   test("refuses to downgrade unless forced, and checks before writing anything", () => {
@@ -212,13 +248,13 @@ describe("skills managed by npx skills", () => {
 describe("version stamps", () => {
   test("installedStamps reads skill and rule stamps; unstamped files have no version", () => {
     const { ctx } = project({
-      "/p/.claude/skills/dld-old/SKILL.md": "---\nname: dld-old\n---\n",
+      "/p/.claude/skills/dld-lookup/SKILL.md": "---\nname: dld-lookup\n---\n",
       "/p/.claude/skills/dld-empty/notes.txt": "",
       [`/p/${CLAUDE_RULE_FILE}`]: renderRuleFile("claude-file", "x\n", "0.9.0"),
     });
     install(ctx, [AGENTS_LAYOUT], [], "1.0.0");
     expect(installedStamps(ctx, "/p")).toEqual([
-      { path: ".claude/skills/dld-old/SKILL.md", version: undefined },
+      { path: ".claude/skills/dld-lookup/SKILL.md", version: undefined },
       { path: ".agents/skills/dld-common/SKILL.md", version: "1.0.0" },
       { path: ".agents/skills/dld-plan/SKILL.md", version: "1.0.0" },
       { path: CLAUDE_RULE_FILE, version: "0.9.0" },

@@ -26,6 +26,7 @@ npx dld-kit init
 This writes:
 
 - `dld.config.yaml`, `decisions/records/` and `decisions/INDEX.md`
+- a line in `.gitattributes` that has git merge `INDEX.md` with its union driver, so two branches that both add decisions do not conflict on it
 - the `dld-*` skills for each selected agent: `.claude/skills/` for Claude Code, `.agents/skills/` for the others
 - the always-on rule, once per agent: a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` in `AGENTS.md` (or `CLAUDE.md`) for Codex, Cursor, OpenCode and Pi, `.agents/rules/dld-workflow.md` for Antigravity, and `.claude/rules/dld-workflow.md` for Claude Code unless Claude Code already reads the block (see [Agents](#agents)). When the block goes into `AGENTS.md` and the project has no `CLAUDE.md` or `.claude/CLAUDE.md`, it writes `.claude/CLAUDE.md` instead, which imports `AGENTS.md` for Claude Code
 
@@ -37,7 +38,7 @@ This writes:
 
 Commit the files. Teammates then need nothing installed.
 
-To upgrade, run `npx dld-kit@latest update`. It rewrites the `dld-*` skills and the rule for the agents already installed, and never touches decision records or `dld.config.yaml`. Add `--agent <name>` to install for another agent.
+To upgrade, run `npx dld-kit@latest update`. It rewrites the `dld-*` skills and the rule for the agents already installed, and never touches decision records or `dld.config.yaml`. Add `--agent <name>` to install for another agent. It names every file it removes, and leaves alone anything that is not dld-kit's: a `dld-*` skill of your own (one that is not a dld-kit skill name and has no dld-kit version stamp), and a `.claude/CLAUDE.md` you have added to.
 
 ## Claude Code plugin
 
