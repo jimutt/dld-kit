@@ -7376,6 +7376,7 @@ var version = "1.0.0-rc.4";
 
 // src/core/errors.ts
 var EXIT_ERROR = 1;
+var EXIT_USAGE = 2;
 var DldError = class extends Error {
   exitCode;
   constructor(message, exitCode = EXIT_ERROR) {
@@ -7423,7 +7424,6 @@ var GhCommandError = class extends DldError {
 // src/cli/command.ts
 import { parseArgs } from "node:util";
 var EXIT_OK = 0;
-var EXIT_USAGE = 2;
 var UsageError = class extends DldError {
   constructor(message) {
     super(message, EXIT_USAGE);
@@ -7456,7 +7456,7 @@ function requestsHelp(config) {
 }
 
 // src/core/decision-edits.ts
-import { basename as basename4, join as join3, relative as relative2, sep as sep2 } from "node:path";
+import { basename as basename4, join as join3, relative as relative3, sep as sep2 } from "node:path";
 
 // src/core/files.ts
 import { basename, dirname, join } from "node:path";
@@ -7525,7 +7525,7 @@ function resolveStateCommit(git, value) {
 
 // src/core/records.ts
 var import_yaml = __toESM(require_dist(), 1);
-import { basename as basename2, join as join2 } from "node:path";
+import { basename as basename2, join as join2, relative as relative2 } from "node:path";
 var STATUSES = ["proposed", "accepted", "deprecated", "superseded"];
 var RECORD_FILE = /^DL-(\d+)\.md$/;
 var DECISION_ID = /^DL-\d+$/;
@@ -7551,10 +7551,11 @@ function recordNumber(path) {
   if (digits === void 0) throw new Error(`not a decision record file: ${path}`);
   return Number.parseInt(digits, 10);
 }
-function findRecordFile(ctx, recordsDir, id) {
+function findRecordFile(ctx, recordsDir, id, root) {
   const matches = listRecordFiles(ctx, recordsDir).filter((path) => basename2(path) === `${id}.md`);
   if (matches.length > 1) {
-    throw new DldError(`decision ${id} is in more than one file: ${matches.join(", ")}`);
+    const shown = matches.map((path) => root === void 0 ? path : relative2(root, path));
+    throw new DldError(`decision ${id} is in more than one file: ${shown.join(", ")}`);
   }
   return matches[0];
 }
@@ -7730,8 +7731,13 @@ function formatId(n) {
   return `DL-${String(n).padStart(3, "0")}`;
 }
 function isCanonicalId(id) {
-  const digits = /^DL-(\d+)$/.exec(id)?.[1];
-  return digits !== void 0 && formatId(Number.parseInt(digits, 10)) === id;
+  return /^DL-(\d{3}|[1-9]\d{3,})$/.test(id);
+}
+function canonicalSpelling(id) {
+  const digits = /^dl-(\d+)$/i.exec(id)?.[1];
+  if (digits === void 0) return void 0;
+  const number = Number(digits);
+  return Number.isSafeInteger(number) ? formatId(number) : void 0;
 }
 function nextId(ctx, recordsDir) {
   const highest = listRecordFiles(ctx, recordsDir).map(recordNumber).reduce((max, n) => Math.max(max, n), 0);
@@ -7988,9 +7994,9 @@ function checkDecisionEdits(ctx, { paths }, base, ids = [], { uncommitted = fals
   const stateOf = (id) => {
     const located = locate(ctx, paths, records, id);
     if (located === void 0) {
-      const local = findRecordFile(ctx, paths.recordsDir, id);
+      const local = findRecordFile(ctx, paths.recordsDir, id, paths.root);
       if (local === void 0) throw new DldError(`decision ${id} not found.`);
-      return { path: toPosix(relative2(paths.root, local)), id, state: "draft" };
+      return { path: toPosix(relative3(paths.root, local)), id, state: "draft" };
     }
     const path = located.current ?? located.basePath;
     if (isProposed(located.baseText, located.basePath)) return { path, id, state: "draft" };
@@ -8042,11 +8048,11 @@ function locate(ctx, paths, { onto, byId }, id) {
   const basePath = byId.get(id);
   if (basePath === void 0) return void 0;
   const baseText = gitAt(ctx, paths.root)("show", `${onto}:${basePath}`);
+  const moved = findRecordFile(ctx, paths.recordsDir, id, paths.root);
   if (ctx.fs.isRegularFile(join3(paths.root, basePath))) {
     return { id, basePath, baseText, current: basePath };
   }
-  const moved = findRecordFile(ctx, paths.recordsDir, id);
-  const current = moved === void 0 ? void 0 : toPosix(relative2(paths.root, moved));
+  const current = moved === void 0 ? void 0 : toPosix(relative3(paths.root, moved));
   return { id, basePath, baseText, current };
 }
 function atHead(git, { basePath, current }) {
@@ -8171,6 +8177,10 @@ function parseConfig(text, warn = () => {
     throw invalid("'mode' must be 'flat' or 'namespaced'");
   }
   const namespaces = optionalStringList(raw.namespaces, "namespaces");
+  const unsafe = namespaces.find((name) => !/^[A-Za-z0-9._-]+$/.test(name) || /^\.\.?$/.test(name));
+  if (unsafe !== void 0) {
+    throw invalid(`'namespaces' entries must be plain directory names, got '${unsafe}'`);
+  }
   if (mode === "namespaced" && namespaces.length === 0) {
     throw invalid("'namespaces' must list at least one namespace when 'mode' is 'namespaced'");
   }
@@ -8188,8 +8198,13 @@ function parseConfig(text, warn = () => {
   };
 }
 function unknownKeyMessage(key) {
-  const close = CONFIG_KEYS.filter((known) => editDistance(key, known) <= 2);
-  const hint = close[0] === void 0 ? "" : `; did you mean '${close[0]}'?`;
+  let closest;
+  let best = 3;
+  for (const known of CONFIG_KEYS) {
+    const distance = editDistance(key, known);
+    if (distance < best) [closest, best] = [known, distance];
+  }
+  const hint = closest === void 0 ? "" : `; did you mean '${closest}'?`;
   return `${CONFIG_FILE}: unknown key '${key}'${hint}`;
 }
 function editDistance(a, b) {
@@ -8211,7 +8226,7 @@ function editDistance(a, b) {
 function optionalBaseBranch(value) {
   const branch = optionalString(value, "base_branch");
   if (branch === void 0) return {};
-  if (branch.startsWith("-") || /\s|\.\.|^\/|\/$|^origin\//.test(branch)) {
+  if (branch.startsWith("-") || branch === "@" || /[\s~^:?*[\\]|\.\.|@\{|^\/|\/$|\.lock$|\.$|^origin\//.test(branch)) {
     throw invalid(
       `'base_branch' must be a branch name such as main or develop, without origin/, got '${branch}'`
     );
@@ -8360,11 +8375,11 @@ Options:
 };
 
 // src/core/snapshot.ts
-import { basename as basename5, join as join7, relative as relative4 } from "node:path";
+import { basename as basename5, join as join7, relative as relative5 } from "node:path";
 
 // src/core/state.ts
 var import_yaml3 = __toESM(require_dist(), 1);
-import { join as join6, relative as relative3 } from "node:path";
+import { join as join6, relative as relative4 } from "node:path";
 var STATE_FILE = ".dld-state.yaml";
 function statePath(paths) {
   return join6(paths.decisionsDir, STATE_FILE);
@@ -8372,7 +8387,7 @@ function statePath(paths) {
 function loadStateDocument(ctx, paths) {
   const path = statePath(paths);
   if (!ctx.fs.exists(path)) return new import_yaml3.Document(void 0, { schema: "failsafe" });
-  const source = relative3(paths.root, path);
+  const source = relative4(paths.root, path);
   const doc = (0, import_yaml3.parseDocument)(ctx.fs.readFile(path), { schema: "failsafe", logLevel: "error" });
   const problem = doc.errors[0] ?? doc.warnings[0];
   if (problem !== void 0) throw new DldError(`${source}: not valid YAML: ${problem.message}`);
@@ -8410,7 +8425,7 @@ var isSnapshotted = (status) => status === "accepted" || status === "proposed";
 function readRecords(ctx, { paths }) {
   return listRecordFiles(ctx, paths.recordsDir).map((path) => {
     const text = ctx.fs.readFile(path);
-    const record = parseRecord(text, relative4(paths.root, path));
+    const record = parseRecord(text, relative5(paths.root, path));
     return { path, number: recordNumber(path), text, status: record.status };
   }).sort((a, b) => a.number - b.number);
 }
@@ -8516,7 +8531,8 @@ function renameProblem(paths, rename) {
   const { path, oldId, newId } = rename;
   if (!DECISION_ID.test(oldId) || !DECISION_ID.test(newId)) return "IDs must match DL-[0-9]+.";
   if (!isCanonicalId(newId)) {
-    return `new ID '${newId}' is not canonical; use ${formatId(Number.parseInt(newId.slice(3), 10))}.`;
+    const canonical = canonicalSpelling(newId);
+    return `new ID '${newId}' is not canonical${canonical === void 0 ? "" : `; use ${canonical}`}.`;
   }
   if (oldId === newId) return "old and new IDs are the same.";
   const segments = path.split("/");
@@ -8539,7 +8555,7 @@ function parseRenamePlan(paths, text) {
   text.split("\n").forEach((raw, index) => {
     const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
     if (line.trim() === "") return;
-    const fail = (message) => new DldError(`rename plan line ${index + 1}: ${message}`);
+    const fail = (message) => new DldError(`rename plan line ${index + 1}: ${message}`, EXIT_USAGE);
     const fields = line.split("	");
     const [path, oldId, newId] = fields;
     if (fields.length !== 3 || path === void 0 || oldId === void 0 || newId === void 0) {
@@ -8840,38 +8856,32 @@ var createConfigCommand = {
 };
 
 // src/core/decisions.ts
-import { join as join10, relative as relative5 } from "node:path";
+import { join as join10, relative as relative6 } from "node:path";
 function updateStatus(ctx, project, id, status) {
-  const path = findRecordFile(ctx, project.paths.recordsDir, id);
+  const path = findRecordFile(ctx, project.paths.recordsDir, id, project.paths.root);
   if (path === void 0) throw new DldError(`decision ${id} not found.`);
   const text = ctx.fs.readFile(path);
-  writeFileAtomic(ctx, path, setStatus(text, status, relative5(project.paths.root, path)));
+  writeFileAtomic(ctx, path, setStatus(text, status, relative6(project.paths.root, path)));
   return path;
 }
-var EXIT_USAGE2 = 2;
 function createDecision(ctx, project, input) {
-  if (!DECISION_ID.test(input.id)) {
+  if (!isCanonicalId(input.id)) {
+    const canonical = canonicalSpelling(input.id);
     throw new DldError(
-      `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`,
-      EXIT_USAGE2
+      canonical === void 0 ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.` : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
+      EXIT_USAGE
     );
   }
   const number = Number.parseInt(input.id.slice(3), 10);
-  if (!isCanonicalId(input.id)) {
-    throw new DldError(
-      `decision ID '${input.id}' is not canonical; use ${formatId(number)}.`,
-      EXIT_USAGE2
-    );
-  }
   const { config } = project;
   if (input.namespace !== void 0) {
     if (config.mode !== "namespaced") {
-      throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE2);
+      throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE);
     }
-    if (!config.namespaces.includes(input.namespace) || !isSafeDirName(input.namespace)) {
+    if (!config.namespaces.includes(input.namespace)) {
       throw new DldError(
         `unknown namespace '${input.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
-        EXIT_USAGE2
+        EXIT_USAGE
       );
     }
   }
@@ -8880,7 +8890,7 @@ function createDecision(ctx, project, input) {
   );
   if (existing !== void 0) {
     throw new DldError(
-      `decision ${input.id} already exists: ${relative5(project.paths.root, existing)}`
+      `decision ${input.id} already exists: ${relative6(project.paths.root, existing)}`
     );
   }
   const namespaced = input.namespace !== void 0;
@@ -8899,9 +8909,6 @@ function createDecision(ctx, project, input) {
   });
   createFileExclusive(ctx, path, content, `${path} already exists.`);
   return path;
-}
-function isSafeDirName(name) {
-  return name !== "." && name !== ".." && /^[A-Za-z0-9._-]+$/.test(name);
 }
 
 // src/cli/commands/create-decision.ts
@@ -8971,7 +8978,7 @@ var createDirectoriesCommand = {
 };
 
 // src/core/index-file.ts
-import { basename as basename6, join as join11, relative as relative6, sep as sep3 } from "node:path";
+import { basename as basename6, join as join11, relative as relative7, sep as sep3 } from "node:path";
 var INDEX_FILE = "INDEX.md";
 function renderIndex(rows, mode) {
   const namespaced = mode === "namespaced";
@@ -8998,7 +9005,7 @@ function collectIndexRows(ctx, paths, includeBase) {
   const localFiles = listRecordFiles(ctx, paths.recordsDir);
   const rows = localFiles.map((path) => ({
     number: recordNumber(path),
-    record: parseRecord(ctx.fs.readFile(path), relative6(paths.root, path))
+    record: parseRecord(ctx.fs.readFile(path), relative7(paths.root, path))
   }));
   if (includeBase === void 0) return rows;
   const git = (...args) => ctx.git(["-C", paths.root, ...args]);
@@ -9011,7 +9018,7 @@ function collectIndexRows(ctx, paths, includeBase) {
     throw error;
   }
   const localNames = new Set(localFiles.map((path) => basename6(path)));
-  const recordsRel = relative6(paths.root, paths.recordsDir).split(sep3).join("/");
+  const recordsRel = relative7(paths.root, paths.recordsDir).split(sep3).join("/");
   const basePaths = git("ls-tree", "-r", "--name-only", includeBase, "--", recordsRel).split("\n").filter((path) => RECORD_FILE.test(basename6(path)) && !localNames.has(basename6(path)));
   for (const path of basePaths) {
     rows.push({
@@ -9055,7 +9062,7 @@ var detectSnapshotChangesCommand = {
 };
 
 // src/core/annotations.ts
-import { join as join12, relative as relative7, sep as sep4 } from "node:path";
+import { join as join12, relative as relative8, sep as sep4 } from "node:path";
 var EXCLUDED_DIRS = /* @__PURE__ */ new Set([
   ".git",
   // Agent configuration directories, which hold installed skills.
@@ -9103,7 +9110,7 @@ function listScannableFiles(ctx, options) {
     "--",
     ...(options.exclude ?? []).map((pattern) => `:(exclude,glob)${pattern}`)
   ]);
-  const decisionsRel = relative7(options.root, options.decisionsDir).split(sep4).join("/");
+  const decisionsRel = relative8(options.root, options.decisionsDir).split(sep4).join("/");
   const files = /* @__PURE__ */ new Set();
   for (const file of output.split("\0")) {
     if (file === "" || EXCLUDED_FILE.test(file)) continue;
@@ -9210,7 +9217,7 @@ Options:
 };
 
 // src/core/audit.ts
-import { basename as basename7, relative as relative8, sep as sep5 } from "node:path";
+import { basename as basename7, relative as relative9, sep as sep5 } from "node:path";
 var MENTION = /DL-\d+/g;
 var toPosix2 = (path) => path.split(sep5).join("/");
 var idNumber2 = (id) => Number.parseInt(id.slice(3), 10);
@@ -9233,7 +9240,7 @@ function findMissingAmends(ctx, project, { all }) {
     (a, b) => recordNumber(a) - recordNumber(b)
   );
   for (const file of files) {
-    const rel = toPosix2(relative8(paths.root, file));
+    const rel = toPosix2(relative9(paths.root, file));
     if (changed !== void 0 && !changed.has(rel)) continue;
     const text = ctx.fs.readFile(file);
     const record = parseRecord(text, rel);
@@ -9303,7 +9310,7 @@ function renameDecision(ctx, project, rename, base) {
   const { paths, config } = project;
   const { path, oldId, newId } = rename;
   const problem = renameProblem(paths, rename);
-  if (problem !== void 0) throw new DldError(problem);
+  if (problem !== void 0) throw new DldError(problem, EXIT_USAGE);
   const full = join13(paths.root, path);
   if (!ctx.fs.isRegularFile(full)) throw new DldError(`${path} not found.`);
   const record = parseRecord(ctx.fs.readFile(full), path);
@@ -9390,7 +9397,7 @@ Options:
 };
 
 // src/cli/commands/init.ts
-import { join as join18, relative as relative9 } from "node:path";
+import { join as join18, relative as relative10 } from "node:path";
 
 // src/generate/harnesses.ts
 import { join as join14 } from "node:path";
@@ -10381,7 +10388,7 @@ ${AGENT_HELP}
     createDirectories(ctx, project);
     writeIndex(ctx, project.paths, renderIndex([], project.config.mode));
     const report2 = applyInstall(ctx, root, plan);
-    const index = relative9(root, indexPath(project.paths));
+    const index = relative10(root, indexPath(project.paths));
     io.stdout(`Created ${CONFIG_FILE} and ${index}
 `);
     printReport(io, report2);
@@ -10503,7 +10510,7 @@ Options:
 };
 
 // src/cli/commands/regenerate-index.ts
-import { basename as basename8, relative as relative10 } from "node:path";
+import { basename as basename8, relative as relative11 } from "node:path";
 var regenerateIndexCommand = {
   name: "regenerate-index",
   summary: "Rebuild INDEX.md from the decision records",
@@ -10526,7 +10533,7 @@ Options:
     }
     for (const files of duplicateRecordFiles(ctx, paths.recordsDir)) {
       const ids = [...new Set(files.map((path) => basename8(path, ".md")))].join(" / ");
-      const shown = files.map((path) => relative10(paths.root, path)).join(", ");
+      const shown = files.map((path) => relative11(paths.root, path)).join(", ");
       ctx.warn(`${ids} is in more than one file: ${shown}`);
     }
     const rows = collectIndexRows(ctx, paths, values["include-base"]);

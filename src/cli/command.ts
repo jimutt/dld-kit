@@ -3,7 +3,10 @@ import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
 
 export const EXIT_OK = 0;
-export const EXIT_USAGE = 2;
+
+import { EXIT_USAGE } from "../core/errors.ts";
+
+export { EXIT_USAGE };
 
 export interface Io {
   stdout(text: string): void;

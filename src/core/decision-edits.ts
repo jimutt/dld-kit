@@ -69,7 +69,7 @@ export function checkDecisionEdits(
   const stateOf = (id: string): RecordEdit => {
     const located = locate(ctx, paths, records, id);
     if (located === undefined) {
-      const local = findRecordFile(ctx, paths.recordsDir, id);
+      const local = findRecordFile(ctx, paths.recordsDir, id, paths.root);
       if (local === undefined) throw new DldError(`decision ${id} not found.`);
       return { path: toPosix(relative(paths.root, local)), id, state: "draft" };
     }
@@ -148,10 +148,11 @@ function locate(
   const basePath = byId.get(id);
   if (basePath === undefined) return undefined;
   const baseText = gitAt(ctx, paths.root)("show", `${onto}:${basePath}`);
+  // @decision(DL-080) Looked up even when the record is unmoved, so a second copy fails.
+  const moved = findRecordFile(ctx, paths.recordsDir, id, paths.root);
   if (ctx.fs.isRegularFile(join(paths.root, basePath))) {
     return { id, basePath, baseText, current: basePath };
   }
-  const moved = findRecordFile(ctx, paths.recordsDir, id);
   const current = moved === undefined ? undefined : toPosix(relative(paths.root, moved));
   return { id, basePath, baseText, current };
 }

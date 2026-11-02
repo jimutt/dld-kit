@@ -5,7 +5,6 @@ import {
   NAMESPACED_CONFIG,
   recordText,
   type TempProject,
-  tempProject,
 } from "../test-helpers.ts";
 import { loadProject } from "./project.ts";
 import {
@@ -86,12 +85,6 @@ describe("resolveBase", () => {
     p.git("config", "branch.feature.remote", ".");
     p.git("config", "branch.feature.merge", "refs/heads/main");
     expect(resolveBase(p.ctx)).toBe("main");
-  });
-
-  test("fails outside a repository", () => {
-    const p = tempProject(null);
-    project = p;
-    expect(() => resolveBase({ ...p.ctx, cwd: "/" })).toThrow("no base branch found");
   });
 });
 

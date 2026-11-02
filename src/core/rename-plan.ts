@@ -1,7 +1,7 @@
 import { posix } from "node:path";
-import { DldError } from "./errors.ts";
+import { DldError, EXIT_USAGE } from "./errors.ts";
 import { recordsPathspec } from "./git.ts";
-import { formatId, isCanonicalId } from "./ids.ts";
+import { canonicalSpelling, isCanonicalId } from "./ids.ts";
 import type { ProjectPaths } from "./project.ts";
 import { DECISION_ID } from "./records.ts";
 import type { Rename } from "./reindex.ts";
@@ -17,7 +17,8 @@ export function renameProblem(paths: ProjectPaths, rename: Rename): string | und
   if (!DECISION_ID.test(oldId) || !DECISION_ID.test(newId)) return "IDs must match DL-[0-9]+.";
   // @decision(DL-078)
   if (!isCanonicalId(newId)) {
-    return `new ID '${newId}' is not canonical; use ${formatId(Number.parseInt(newId.slice(3), 10))}.`;
+    const canonical = canonicalSpelling(newId);
+    return `new ID '${newId}' is not canonical${canonical === undefined ? "" : `; use ${canonical}`}.`;
   }
   if (oldId === newId) return "old and new IDs are the same.";
   const segments = path.split("/");
@@ -46,7 +47,8 @@ export function parseRenamePlan(paths: ProjectPaths, text: string): Rename[] {
   text.split("\n").forEach((raw, index) => {
     const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
     if (line.trim() === "") return;
-    const fail = (message: string) => new DldError(`rename plan line ${index + 1}: ${message}`);
+    const fail = (message: string) =>
+      new DldError(`rename plan line ${index + 1}: ${message}`, EXIT_USAGE);
     const fields = line.split("\t");
     const [path, oldId, newId] = fields;
     if (fields.length !== 3 || path === undefined || oldId === undefined || newId === undefined) {

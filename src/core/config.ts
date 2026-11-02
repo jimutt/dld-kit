@@ -70,6 +70,11 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
     throw invalid("'mode' must be 'flat' or 'namespaced'");
   }
   const namespaces = optionalStringList(raw.namespaces, "namespaces");
+  // @decision(DL-080)
+  const unsafe = namespaces.find((name) => !/^[A-Za-z0-9._-]+$/.test(name) || /^\.\.?$/.test(name));
+  if (unsafe !== undefined) {
+    throw invalid(`'namespaces' entries must be plain directory names, got '${unsafe}'`);
+  }
   if (mode === "namespaced" && namespaces.length === 0) {
     throw invalid("'namespaces' must list at least one namespace when 'mode' is 'namespaced'");
   }
@@ -89,8 +94,13 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
 }
 
 function unknownKeyMessage(key: string): string {
-  const close = CONFIG_KEYS.filter((known) => editDistance(key, known) <= 2);
-  const hint = close[0] === undefined ? "" : `; did you mean '${close[0]}'?`;
+  let closest: string | undefined;
+  let best = 3;
+  for (const known of CONFIG_KEYS) {
+    const distance = editDistance(key, known);
+    if (distance < best) [closest, best] = [known, distance];
+  }
+  const hint = closest === undefined ? "" : `; did you mean '${closest}'?`;
   return `${CONFIG_FILE}: unknown key '${key}'${hint}`;
 }
 
@@ -116,7 +126,12 @@ function editDistance(a: string, b: string): number {
 function optionalBaseBranch(value: unknown): { baseBranch?: string } {
   const branch = optionalString(value, "base_branch");
   if (branch === undefined) return {};
-  if (branch.startsWith("-") || /\s|\.\.|^\/|\/$|^origin\//.test(branch)) {
+  // Branch names only: no options, remote prefixes or revision syntax such as main~1 or @.
+  if (
+    branch.startsWith("-") ||
+    branch === "@" ||
+    /[\s~^:?*[\\]|\.\.|@\{|^\/|\/$|\.lock$|\.$|^origin\//.test(branch)
+  ) {
     throw invalid(
       `'base_branch' must be a branch name such as main or develop, without origin/, got '${branch}'`,
     );

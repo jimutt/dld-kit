@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { fakeContext, memoryFs } from "../test-helpers.ts";
-import { formatId, isCanonicalId, nextId } from "./ids.ts";
+import { canonicalSpelling, formatId, isCanonicalId, nextId } from "./ids.ts";
 
 const RECORDS = "/p/decisions/records";
 
@@ -35,6 +35,16 @@ describe("isCanonicalId", () => {
     ]) {
       expect(isCanonicalId(id)).toBe(false);
     }
+  });
+});
+
+describe("canonicalSpelling", () => {
+  test("respells DL- IDs in any case and padding, and gives up on others", () => {
+    expect(canonicalSpelling("DL-5")).toBe("DL-005");
+    expect(canonicalSpelling("dl-0042")).toBe("DL-042");
+    expect(canonicalSpelling("DL-01000")).toBe("DL-1000");
+    expect(canonicalSpelling("DL-99999999999999999999")).toBeUndefined();
+    expect(canonicalSpelling("../x")).toBeUndefined();
   });
 });
 

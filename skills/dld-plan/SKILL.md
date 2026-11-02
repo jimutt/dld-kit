@@ -101,7 +101,7 @@ printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n...\n\n## Con
   --body-stdin
 ```
 
-Repeat for each decision, incrementing the ID each time. Run `next-id` before each creation to ensure correct sequencing.
+Pass `--namespace` only in a namespaced project, with one of the configured namespaces; leave it out in a flat project. Repeat for each decision, incrementing the ID each time. Run `next-id` before each creation to ensure correct sequencing.
 
 If any decision supersedes an existing one, also update the old decision's status:
 ```bash

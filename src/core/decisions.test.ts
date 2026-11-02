@@ -113,6 +113,8 @@ describe("createDecision", () => {
     ["an ID that is not DL-<digits>", { id: "../../x" }, "invalid decision ID '../../x'"],
     ["an unpadded ID", { id: "DL-5" }, "decision ID 'DL-5' is not canonical; use DL-005."],
     ["an over-padded ID", { id: "DL-0042" }, "decision ID 'DL-0042' is not canonical; use DL-042."],
+    ["a lower-case ID", { id: "dl-007" }, "decision ID 'dl-007' is not canonical; use DL-007."],
+    ["an ID too long to respell", { id: "DL-099999999999999999999" }, "invalid decision ID"],
     [
       "a namespace that leaves the records directory",
       { namespace: ".." },

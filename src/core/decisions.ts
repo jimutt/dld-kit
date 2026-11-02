@@ -1,11 +1,10 @@
 import { join, relative } from "node:path";
 import type { Context } from "./context.ts";
-import { DldError } from "./errors.ts";
+import { DldError, EXIT_USAGE } from "./errors.ts";
 import { createFileExclusive, writeFileAtomic } from "./files.ts";
-import { formatId, isCanonicalId } from "./ids.ts";
+import { canonicalSpelling, isCanonicalId } from "./ids.ts";
 import type { Project } from "./project.ts";
 import {
-  DECISION_ID,
   findRecordFile,
   formatTimestamp,
   listRecordFiles,
@@ -18,7 +17,7 @@ import {
 // @decision(DL-014) @decision(DL-015)
 /** Sets a decision's status. Returns the record's path. */
 export function updateStatus(ctx: Context, project: Project, id: string, status: Status): string {
-  const path = findRecordFile(ctx, project.paths.recordsDir, id);
+  const path = findRecordFile(ctx, project.paths.recordsDir, id, project.paths.root);
   if (path === undefined) throw new DldError(`decision ${id} not found.`);
   const text = ctx.fs.readFile(path);
   writeFileAtomic(ctx, path, setStatus(text, status, relative(project.paths.root, path)));
@@ -35,30 +34,25 @@ export interface CreateDecisionInput {
   body: string;
 }
 
-const EXIT_USAGE = 2;
-
 // @decision(DL-014) @decision(DL-015) @decision(DL-016) @decision(DL-078) @decision(DL-080)
 /** Writes a new proposed record and returns its path. */
 export function createDecision(ctx: Context, project: Project, input: CreateDecisionInput): string {
-  if (!DECISION_ID.test(input.id)) {
+  if (!isCanonicalId(input.id)) {
+    const canonical = canonicalSpelling(input.id);
     throw new DldError(
-      `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`,
+      canonical === undefined
+        ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`
+        : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
       EXIT_USAGE,
     );
   }
   const number = Number.parseInt(input.id.slice(3), 10);
-  if (!isCanonicalId(input.id)) {
-    throw new DldError(
-      `decision ID '${input.id}' is not canonical; use ${formatId(number)}.`,
-      EXIT_USAGE,
-    );
-  }
   const { config } = project;
   if (input.namespace !== undefined) {
     if (config.mode !== "namespaced") {
       throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE);
     }
-    if (!config.namespaces.includes(input.namespace) || !isSafeDirName(input.namespace)) {
+    if (!config.namespaces.includes(input.namespace)) {
       throw new DldError(
         `unknown namespace '${input.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
         EXIT_USAGE,
@@ -91,8 +85,4 @@ export function createDecision(ctx: Context, project: Project, input: CreateDeci
   });
   createFileExclusive(ctx, path, content, `${path} already exists.`);
   return path;
-}
-
-function isSafeDirName(name: string): boolean {
-  return name !== "." && name !== ".." && /^[A-Za-z0-9._-]+$/.test(name);
 }

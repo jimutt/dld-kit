@@ -9,8 +9,16 @@ export function formatId(n: number): string {
 // @decision(DL-078)
 /** True for an ID in its one canonical spelling: DL-001, DL-042, DL-1000; not DL-5 or DL-0042. */
 export function isCanonicalId(id: string): boolean {
-  const digits = /^DL-(\d+)$/.exec(id)?.[1];
-  return digits !== undefined && formatId(Number.parseInt(digits, 10)) === id;
+  return /^DL-(\d{3}|[1-9]\d{3,})$/.test(id);
+}
+
+// @decision(DL-078)
+/** The canonical spelling of an ID written another way (`DL-5`, `dl-0042`), when there is one. */
+export function canonicalSpelling(id: string): string | undefined {
+  const digits = /^dl-(\d+)$/i.exec(id)?.[1];
+  if (digits === undefined) return undefined;
+  const number = Number(digits);
+  return Number.isSafeInteger(number) ? formatId(number) : undefined;
 }
 
 export function nextId(ctx: Context, recordsDir: string): string {

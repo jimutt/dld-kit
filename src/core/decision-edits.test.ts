@@ -54,6 +54,18 @@ describe("checkDecisionEdits", () => {
     ]);
   });
 
+  // @decision(DL-080)
+  test("fails when an unmoved integrated record has a second copy", () => {
+    const p = branched();
+    p.write("decisions/records/sub/DL-001.md", recordText("DL-001"));
+    expect(() => check(p, ["DL-001"])).toThrow(
+      "decision DL-001 is in more than one file: decisions/records/DL-001.md, decisions/records/sub/DL-001.md",
+    );
+    expect(() => restoreDecisionProse(p.ctx, loadProject(p.ctx), "main", ["DL-001"])).toThrow(
+      "decision DL-001 is in more than one file",
+    );
+  });
+
   test("reports body edits, committed or not, and ignores line endings", () => {
     const p = branched();
     p.write(DL001, recordText("DL-001").replace(/\n/g, "\r\n"));

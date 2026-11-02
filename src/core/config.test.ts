@@ -79,6 +79,16 @@ snapshot_artifacts:
     ]);
   });
 
+  test("suggests the closest known key", () => {
+    const warnings: string[] = [];
+    parseConfig("decisions_dir: d\nmode: flat\nnamespace: [a]\n", (message) =>
+      warnings.push(message),
+    );
+    expect(warnings).toEqual([
+      "dld.config.yaml: unknown key 'namespace'; did you mean 'namespaces'?",
+    ]);
+  });
+
   test("does not warn about any documented key", () => {
     const warnings: string[] = [];
     parseConfig(
@@ -112,6 +122,20 @@ snapshot_artifacts:
     ["decisions_dir: d\nmode: flat\nbase_branch: -x\n", "'base_branch' must be a branch name"],
     ["decisions_dir: d\nmode: flat\nbase_branch: a b\n", "'base_branch' must be a branch name"],
     ["decisions_dir: d\nmode: flat\nbase_branch: a..b\n", "'base_branch' must be a branch name"],
+    ...["main~1", "main^", "main@{1}", "'@'", "a:b", "x.lock", "a.", "'a*'", "'[a]'"].map(
+      (value) => [
+        `decisions_dir: d\nmode: flat\nbase_branch: ${value}\n`,
+        "'base_branch' must be a branch name",
+      ],
+    ),
+    [
+      "decisions_dir: d\nmode: namespaced\nnamespaces: ['../x']\n",
+      "'namespaces' entries must be plain directory names, got '../x'",
+    ],
+    [
+      "decisions_dir: d\nmode: namespaced\nnamespaces: [a, '..']\n",
+      "'namespaces' entries must be plain directory names, got '..'",
+    ],
     ["decisions_dir: d\nmode: nested\n", "'mode' must be 'flat' or 'namespaced'"],
     ["decisions_dir: d\nmode: namespaced\n", "'namespaces' must list at least one"],
     ["decisions_dir: d\nmode: flat\nnamespaces: billing\n", "'namespaces' must be a list"],

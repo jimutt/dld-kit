@@ -1,4 +1,6 @@
 export const EXIT_ERROR = 1;
+/** Bad input: the CLI's usage-error exit code (DL-012). */
+export const EXIT_USAGE = 2;
 
 // @decision(DL-012)
 export class DldError extends Error {

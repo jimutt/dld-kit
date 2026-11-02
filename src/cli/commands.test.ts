@@ -378,6 +378,14 @@ describe("reindex commands", () => {
     );
 
     expect(dld(p, "find-stale-mentions")).toMatchObject({ code: EXIT_USAGE });
+    // @decision(DL-078) A non-canonical new ID, as a flag or in a plan, is bad input.
+    const badNew = ["--old", "DL-002", "--new", "DL-5", "--path", "decisions/records/DL-002.md"];
+    expect(dld(p, "rename-decision", ...badNew, "--base", "main")).toMatchObject({
+      code: EXIT_USAGE,
+      err: "Error: new ID 'DL-5' is not canonical; use DL-005.\n",
+    });
+    const badPlan = withStdin(p, "decisions/records/DL-002.md\tDL-002\tDL-5\n");
+    expect(run(["find-stale-mentions", "--base", "main"], captureIo(), badPlan)).toBe(EXIT_USAGE);
     expect(dld(p, "find-stale-mentions").err).toStartWith(
       "dld find-stale-mentions: --base is required.\n",
     );

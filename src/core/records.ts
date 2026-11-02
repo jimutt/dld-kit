@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { parseDocument } from "yaml";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
@@ -55,11 +55,20 @@ export function recordNumber(path: string): number {
 }
 
 // @decision(DL-080)
-/** The record file for `id`, or undefined. Fails when the ID is in more than one file. */
-export function findRecordFile(ctx: Context, recordsDir: string, id: string): string | undefined {
+/**
+ * The record file for `id`, or undefined. Fails when the ID is in more than one file, listing
+ * them relative to `root` when it is given.
+ */
+export function findRecordFile(
+  ctx: Context,
+  recordsDir: string,
+  id: string,
+  root?: string,
+): string | undefined {
   const matches = listRecordFiles(ctx, recordsDir).filter((path) => basename(path) === `${id}.md`);
   if (matches.length > 1) {
-    throw new DldError(`decision ${id} is in more than one file: ${matches.join(", ")}`);
+    const shown = matches.map((path) => (root === undefined ? path : relative(root, path)));
+    throw new DldError(`decision ${id} is in more than one file: ${shown.join(", ")}`);
   }
   return matches[0];
 }
