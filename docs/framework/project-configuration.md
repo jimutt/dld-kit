@@ -50,7 +50,7 @@ decision_edits: block
 base_branch: main
 
 # Custom snapshot artifacts (optional)
-# Additional documents generated alongside SNAPSHOT.md and OVERVIEW.md
+# Additional documents generated alongside OVERVIEW.md
 # by the /dld-snapshot skill. Each entry defines a filename and a prompt
 # that steers how decisions are synthesized into the artifact.
 snapshot_artifacts:
@@ -146,14 +146,16 @@ Keys that are not part of this schema are ignored, with a warning on stderr from
 
 ### Snapshot Artifacts
 
-The optional `snapshot_artifacts` key lets you define custom documentation artifacts that are generated alongside `SNAPSHOT.md` and `OVERVIEW.md` when running `/dld-snapshot`. Each artifact is synthesized from the current set of accepted decisions using a prompt you provide. Proposed decisions are passed along too, as planned work, and are marked as proposed wherever an artifact mentions them.
+The optional `snapshot_artifacts` key lets you define custom documentation artifacts that are generated alongside `OVERVIEW.md` when running `/dld-snapshot`. Each artifact is synthesized from the current set of accepted decisions using a prompt you provide. Proposed decisions are passed along too, as planned work, and are marked as proposed wherever an artifact mentions them.
 
 Each entry has two fields:
 
-- **`title`** — The filename for the artifact. Must end in `.md`. Also used as the document's H1 heading (without the `.md` extension). Must not collide with the reserved filenames `SNAPSHOT.md`, `OVERVIEW.md`, or `INDEX.md` (case-insensitive).
+- **`title`** — The filename for the artifact. Must end in `.md`. Also used as the document's H1 heading (without the `.md` extension). Must not collide with the reserved filenames `OVERVIEW.md` or `INDEX.md` (case-insensitive).
 - **`prompt`** — A natural-language description that steers how the decisions are synthesized into the artifact. The agent uses this as the generation instruction, with the collected decisions as context.
 
-Artifacts are written to the `decisions/` directory alongside the built-in snapshot files.
+Artifacts are written to the `decisions/` directory alongside `OVERVIEW.md`.
+
+Earlier versions also generated a built-in `SNAPSHOT.md`. `/dld-snapshot` now offers to delete an existing one, unless an entry here is titled `SNAPSHOT.md`, in which case it is generated as a custom artifact.
 
 For example:
 

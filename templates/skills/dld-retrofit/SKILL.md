@@ -173,6 +173,6 @@ Do this for each generated decision.
 >
 > Next steps:
 > - Review the generated decisions for accuracy — especially the inferred rationale
-> - `/dld-snapshot` — generate SNAPSHOT.md and OVERVIEW.md from the new decisions
+> - `/dld-snapshot` — generate OVERVIEW.md from the new decisions
 > - `/dld-decide` — record new decisions as you make changes going forward
 > - `/dld-retrofit` — run again on other areas if you scoped to a specific component

@@ -1,19 +1,18 @@
 ---
 name: dld-snapshot
-description: Generate SNAPSHOT.md (detailed decision reference) and OVERVIEW.md (narrative synthesis with diagrams) from the decision log.
+description: Generate OVERVIEW.md (narrative synthesis with diagrams) and any custom artifacts from the decision log.
 compatibility: Requires Node.js 20+ and git.
 ---
 
 # /dld-snapshot — Generate Spec Projection
 
-You are generating documents that project the current state of the decision log into readable formats. The two built-in documents are always generated:
+You are generating documents that project the current state of the decision log into readable formats. The built-in document is always generated:
 
-1. **`decisions/SNAPSHOT.md`** — Detailed per-decision reference. Every active decision with its rationale and code references.
-2. **`decisions/OVERVIEW.md`** — High-level narrative synthesis with Mermaid diagrams. The document you'd hand to someone who needs to understand the system.
+- **`decisions/OVERVIEW.md`** — High-level narrative synthesis with Mermaid diagrams. The document you'd hand to someone who needs to understand the system.
 
-Both documents cover `accepted` decisions as the current state of the system, and `proposed` decisions (for example from `/dld-plan`) as planned direction, kept in a separate section so they are never mistaken for what the system does today.
+It covers `accepted` decisions as the current state of the system, and `proposed` decisions (for example from `/dld-plan`) as planned direction, kept in a separate section so they are never mistaken for what the system does today.
 
-If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional custom documents are generated as well (see Step 5).
+If the project's `dld.config.yaml` defines `snapshot_artifacts`, additional custom documents are generated as well (see Step 4).
 
 ## Commands
 
@@ -29,6 +28,18 @@ There must be at least one `accepted` or `proposed` decision. If there are none,
 
 Check for uncommitted changes to decision files. Run `git status --porcelain -- <decisions_dir>/records/` and inspect the output. If there are unstaged or staged-but-uncommitted decision files, commit them first with a message like `"Update decision records"` before proceeding. This ensures the change detection script can rely on git history. Tell the user you are committing pending decision changes.
 
+### A SNAPSHOT.md from an earlier version
+
+Earlier versions of dld-kit also generated `<decisions_dir>/SNAPSHOT.md`, a per-decision listing; it is no longer generated. If that file exists, check `snapshot_artifacts` in `dld.config.yaml` for an entry titled `SNAPSHOT.md`, compared without regard to case:
+
+- If an entry's title matches the file's name exactly, the file is a custom artifact the user defined. Generate it in Step 4 like any other, and never offer to delete it.
+- Otherwise the file is left over from an earlier version (this includes an entry titled `snapshot.md`, which writes a separate file on a case-sensitive filesystem). Tell the user that `SNAPSHOT.md` is no longer generated and will go out of date, and ask with `AskUserQuestion` whether to delete it.
+  - If they agree, run `git rm <decisions_dir>/SNAPSHOT.md`, or delete the file if git doesn't track it. If `git rm` refuses because the file has uncommitted changes, tell the user and leave it; never force.
+  - If they keep it, leave it untouched, and mention two ways to stop the question: define `SNAPSHOT.md` in `snapshot_artifacts` with their own prompt to have it generated again, or rename or move the file to keep its current content.
+- If nobody can answer (a scheduled or CI run), leave the file untouched.
+
+Whatever happened to the file, say so in the Step 6 summary.
+
 ## Step 1: Determine update mode
 
 If the user's message includes `--full` (e.g., `/dld-snapshot --full`), skip change detection and use **full mode** for all documents.
@@ -40,7 +51,7 @@ Otherwise, run:
 ```
 
 This outputs:
-- `mode: full` — no prior snapshot state exists, or SNAPSHOT.md/OVERVIEW.md are missing. Proceed with full generation.
+- `mode: full` — no prior snapshot state exists, or OVERVIEW.md is missing. Proceed with full generation.
 - `mode: incremental` — prior state exists. The output also includes:
   - `new_decisions:` — comma-separated list of accepted and proposed decision IDs not yet in the snapshot (e.g., `DL-072, DL-073`)
   - `modified_decisions:` — comma-separated list of existing decisions changed since last snapshot (status changes, content edits, deleted records)
@@ -56,93 +67,9 @@ If mode is `incremental` but both `new_decisions` and `modified_decisions` are e
 
 This outputs the full content of all `accepted` and `proposed` decisions in ID order, separated by `===DLD_DECISION_BOUNDARY===` markers. Parse the output to extract each decision's frontmatter and body; the `status` field tells accepted and proposed decisions apart. Use the project mode from `dld.config.yaml` (already checked in prerequisites) to determine the organization strategy.
 
-## Step 3: Generate or update SNAPSHOT.md
+## Step 3: Generate or update OVERVIEW.md
 
-### Full mode
-
-Write `decisions/SNAPSHOT.md` from scratch using the template and rules below.
-
-### Incremental mode
-
-Read the existing `decisions/SNAPSHOT.md` and apply targeted edits:
-
-1. **For each new decision:** Identify which group heading it belongs to: `## Namespace` or `## Tag Group` for an accepted decision, `## Namespace (proposed)` or `## Tag Group (proposed)` for a proposed one. Insert the new `### DL-NNN: Title` section in the correct position (ascending ID order within the group). If the group heading doesn't exist yet, add it: accepted groups go before the first `(proposed)` group, proposed groups after all accepted ones.
-2. **For each modified decision:** Read its current status from the decision file.
-   - If the record no longer exists (a dropped plan, for example): remove its `### DL-NNN` section.
-   - If now `superseded` or `deprecated`: remove its `### DL-NNN` section from the file.
-   - If now `accepted` but listed under a `(proposed)` group: move it to its accepted group, with updated content.
-   - If still `accepted` or `proposed` but content changed: replace its `### DL-NNN` section with updated content.
-   - If it has a new `amends` relationship: add an `*Amended by: DL-YYY*` line to the target decision's section.
-   - If a group becomes empty after a removal or move, remove the group heading too.
-3. **Update the header:** Adjust the "Active decisions" and "Proposed decisions" counts, the "DL-001 through DL-XXX" range, and the date.
-
-Do NOT rewrite the entire file. Use targeted edits to insert, remove, or modify only the affected sections.
-
-### Template
-
-```markdown
-# System Snapshot
-
-> Auto-generated from the decision log on YYYY-MM-DD. Do not edit manually.
-> Use `/dld-snapshot` to regenerate. Source of truth: individual decision records.
->
-> **Active decisions:** N (DL-001 through DL-XXX, excluding superseded/deprecated)
-> **Proposed decisions:** M (listed after the active ones, under "(proposed)" headings)
-
----
-
-## <Namespace or Tag Group>
-
-### DL-NNN: <Title>
-*Supersedes: DL-XXX* ← only if applicable
-*Amends: DL-XXX* ← only if applicable
-*Amended by: DL-YYY* ← only if another decision amends this one
-
-<The Decision section from the record — what was decided. Copy verbatim or lightly condense.>
-
-**Rationale:** <1-3 sentence summary of the Rationale section. Condense, don't copy verbatim.>
-
-**Code:** `<path>` → `<symbol>`, `<path>`
-
----
-
-### DL-NNN: <Title>
-...
-
----
-
-## <Namespace or Tag Group> (proposed)
-
-> These decisions are proposed but not yet accepted. They describe planned direction, not current state.
-
-### DL-NNN: <Title>
-...
-```
-
-### Organization rules
-
-**Namespaced projects:** Primary grouping by namespace. Within each namespace, decisions listed by ID ascending (oldest first — they build on each other).
-
-**Flat projects:** Group by tag. Decisions with multiple tags appear under their first/primary tag. Decisions with no tags go under a "General" section. Within each group, decisions listed by ID ascending.
-
-**Accepted and proposed:** All accepted groups come first. Proposed decisions follow, grouped the same way under `## <Group> (proposed)` headings, each opening with the "proposed but not yet accepted" note from the template. If nothing is proposed, there are no `(proposed)` groups; if nothing is accepted yet, the document holds only `(proposed)` groups.
-
-### Content rules
-
-- Include `accepted` decisions in the main groups and `proposed` decisions in the `(proposed)` groups
-- Skip `superseded` and `deprecated` decisions entirely
-- A proposed decision that would supersede or amend an accepted one does not change the accepted decision's section until it is accepted itself; its own `*Supersedes:*` or `*Amends:*` line is enough
-- When a decision supersedes another (check the `supersedes` field in the YAML frontmatter), include a `*Supersedes: DL-XXX*` note
-- When a decision amends another (check the `amends` field), include an `*Amends: DL-XXX*` note on the amending decision and an `*Amended by: DL-YYY*` note on the original decision
-- The **Decision** section content should be copied directly or lightly condensed — this is the authoritative statement
-- The **Rationale** should be condensed to 1-3 sentences — enough to understand *why*, not every detail
-- **Code** references should list paths and symbols from the frontmatter `references` field
-- If a decision has no Rationale section, omit the Rationale line
-- If a decision has no references, omit the Code line
-
-## Step 4: Generate or update OVERVIEW.md
-
-This is fundamentally different from SNAPSHOT.md. You are **synthesizing** across decisions to create a readable narrative that explains the system's current design. Think of it as the document you'd give a new team member or use to onboard an AI agent on the project.
+You are **synthesizing** across decisions to create a readable narrative that explains the system's current design. Think of it as the document you'd give a new team member or use to onboard an AI agent on the project.
 
 The narrative describes only `accepted` decisions. Proposed decisions appear only in the closing **Planned Direction** section, so the rest of the document stays an accurate account of the current system.
 
@@ -230,7 +157,7 @@ would supersede or amend an accepted one, say which.>
 
 ### Narrative guidelines
 
-- **Write prose, not lists.** The snapshot already provides the structured listing. The overview should read like a design document.
+- **Write prose, not lists.** INDEX.md already lists every decision, and the records hold the detail. The overview should read like a design document.
 - **Synthesize, don't enumerate.** Don't just list decisions — explain how they fit together. "The billing system uses banker's rounding for EU VAT calculations (DL-012), replacing the earlier truncation approach that caused reconciliation failures."
 - **Use present tense.** Describe what the system *does*, not what was decided. The Planned Direction section is the exception: it describes what is intended, and never presents proposed decisions as current behaviour.
 - **Reference decision IDs parenthetically.** Every claim should be traceable: "(DL-012)" after the relevant statement.
@@ -256,7 +183,7 @@ When creating Mermaid diagrams:
 - **Use `<br/>` for line breaks** inside quoted labels — do not use `\n` or literal newlines
 - **Avoid special characters** (`(`, `)`, `[`, `]`, `{`, `}`, `|`, `#`, `&`) in unquoted labels — use quoted labels or HTML entities instead
 
-## Step 5: Generate custom artifacts
+## Step 4: Generate custom artifacts
 
 Read the `snapshot_artifacts` key from `dld.config.yaml`. If the key is absent or the list is empty, skip this step entirely.
 
@@ -264,7 +191,7 @@ For each entry in `snapshot_artifacts`:
 
 1. **Validate the `title`:**
    - Must end in `.md`. If not, warn the user and skip this artifact.
-   - Must not collide (case-insensitive) with reserved filenames: `SNAPSHOT.md`, `OVERVIEW.md`, `INDEX.md`. If it collides, warn the user and skip this artifact.
+   - Must not collide (case-insensitive) with reserved filenames: `OVERVIEW.md`, `INDEX.md`. If it collides, warn the user and skip this artifact.
 
 2. **Generate `decisions/<title>`** using the collected decisions (from Step 2) as context and the `prompt` field as the generation instruction. Accepted decisions are the current state; treat proposed ones as planned work, and if the artifact mentions them, mark them as proposed. The file must begin with this standard header:
 
@@ -277,9 +204,9 @@ For each entry in `snapshot_artifacts`:
 
    Followed by the content generated according to the prompt.
 
-Keep track of which custom artifacts were successfully generated — you will need the list for Step 6 and Step 7.
+Keep track of which custom artifacts were successfully generated — you will need the list for Step 5 and Step 6.
 
-## Step 6: Update snapshot state
+## Step 5: Update snapshot state
 
 Pass any successfully generated custom artifact filenames as arguments:
 
@@ -299,12 +226,12 @@ If no custom artifacts were generated, run without arguments:
 {{dld}} update-snapshot-state
 ```
 
-## Step 7: Suggest next steps
+## Step 6: Suggest next steps
 
 > Snapshot generated:
-> - `decisions/SNAPSHOT.md` — detailed reference (N active decisions, M proposed)
-> - `decisions/OVERVIEW.md` — narrative synthesis with diagrams
+> - `decisions/OVERVIEW.md` — narrative synthesis with diagrams (N active decisions, M proposed)
 > - `decisions/<ARTIFACT>.md` — <one line per custom artifact generated, if any>
+> - `decisions/SNAPSHOT.md` — <only if the file existed: deleted, kept (no longer generated), or generated as a custom artifact>
 >
 > Next steps:
 > - Review the generated documents for accuracy

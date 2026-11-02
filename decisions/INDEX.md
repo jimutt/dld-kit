@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-084 | Make OVERVIEW.md the only built-in snapshot document and stop generating SNAPSHOT.md | accepted | snapshot |
 | DL-083 | Check new decisions for unstated relationships when they are created | accepted | missing-amends, authoring |
 | DL-082 | Tier find-missing-amends candidates and report only explicit and change-cue ones by default | accepted | missing-amends, audit |
 | DL-081 | Release through Changesets: a Version Packages pull request, then the verify, publish and release jobs | accepted | release, ci, github-actions |

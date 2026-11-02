@@ -1,6 +1,6 @@
 # DLD (Decision-Linked Development)
 
-This project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md, SNAPSHOT.md) live in the decisions directory.
+This project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md) live in the decisions directory.
 
 ## Rules
 
@@ -17,7 +17,7 @@ This project uses Decision-Linked Development. Decision records (DL-*.md) live i
 - dld-lookup: query decisions by ID, tag, or code path
 - dld-adjust: adjust or update existing decisions
 - dld-audit: scan for drift between decisions and code
-- dld-snapshot: regenerate SNAPSHOT.md and OVERVIEW.md from the decision log
+- dld-snapshot: regenerate OVERVIEW.md, and any custom artifacts, from the decision log
 - dld-status: a quick overview of the decision log state
 - dld-retrofit: generate decisions from an existing codebase
 - dld-reindex: resolve decision-ID collisions with the base branch and open PRs
