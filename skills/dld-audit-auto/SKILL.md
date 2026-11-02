@@ -17,7 +17,7 @@ You are running an autonomous audit of the decision-code relationship. Unlike th
 
 The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
-This skill uses: `find-annotations`, `find-missing-amends`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`, `update-audit-state`.
+This skill uses: `find-annotations`, `find-missing-amends`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -53,7 +53,7 @@ Check for all drift categories:
 3. **Stale references in decisions** — frontmatter references to files that no longer exist
 4. **Unreferenced code changes** — annotated files modified since last audit (if previous audit state exists)
 5. **Decisions without annotations** — accepted decisions with code references but no corresponding annotations in code
-6. **Missing amendment relationships** — decisions whose body references modifying part of a previous decision but have an empty `amends` field
+6. **Missing amendment relationships** — decisions whose body says they amend or supersede another decision that their frontmatter doesn't list
 7. **Malformed annotations** — the `not an annotation` warnings from `find-annotations`
 
 For check (4), if `decisions/.dld-state.yaml` exists with an `audit.commit_hash`, first verify reachability:
@@ -84,7 +84,10 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 
 **Annotations referencing amended decisions** — Do **not** rewrite or remove these annotations. The original decision is still active. Instead, note the amendment relationship in the PR description so reviewers can verify the code aligns with the amendment.
 
-**Missing amendment relationships** — Run `node "<skill-dir>/../dld-common/scripts/dld.mjs" find-missing-amends` to get candidates. The command only emits candidates whose source decision changed since the last audit, so re-runs stay focused on new work. For each candidate, read the source decision's body and determine if it describes a partial modification. If so, add the referenced ID to the `amends` field. Flag prominently in the PR for review, since this is an inferred relationship.
+**Missing amendment relationships** — Run `node "<skill-dir>/../dld-common/scripts/dld.mjs" find-missing-amends`. Each line is `<source-id>:<referenced-id><TAB><tier>`, and only decisions changed since the last audit are checked, so re-runs stay focused on new work.
+
+- `explicit`: the source decision's body says it amends or supersedes the referenced one, but the frontmatter doesn't list it. Add the ID to `amends` or `supersedes`, whichever the sentence says; for `supersedes`, also run `node "<skill-dir>/../dld-common/scripts/dld.mjs" update-status DL-NNN superseded` on the referenced decision. List each fix under **Relationships Added — Review Required** in the PR.
+- `cue`: a sentence in the Decision or Consequences section mentions the referenced decision with a change word. Change nothing. List these in the PR under **Possible Missing Relationships** for a reviewer to judge.
 
 **Malformed annotations** — In code comments, rewrite each into valid annotations: one ID per annotation, exactly `<prefix>(DL-NNN)`, in canonical ID form (two IDs in one pair of parentheses become two annotations). If an ID does not exist, treat it as an orphaned annotation. In prose or example files (documentation, skill files, fixtures), where the wrong syntax may be deliberate, do not rewrite: list them in the PR description and suggest adding the paths to `annotation_exclude`.
 
@@ -169,6 +172,14 @@ These decisions were created or updated based on code changes made outside the D
 
 - **DL-NNN: [Title]** (new/updated) — [What changed in the code, what context was found, what was inferred]
 
+### Relationships Added — Review Required
+
+- **DL-NNN** now amends (or supersedes) **DL-XXX** — its body says "[the sentence]"
+
+### Possible Missing Relationships
+
+- **DL-NNN** → DL-XXX — "[the sentence]"
+
 ### Audit Summary
 
 | Check | Result |
@@ -177,6 +188,7 @@ These decisions were created or updated based on code changes made outside the D
 | Stale references | N found, M fixed |
 | Superseded/deprecated refs | N found, M fixed |
 | Missing annotations | N found, M added |
+| Missing relationships | N found, M added, K possible |
 | Modified annotated files | N flagged for review |
 ```
 

@@ -2,6 +2,8 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-083 | Check new decisions for unstated relationships when they are created | proposed | missing-amends, authoring |
+| DL-082 | Tier find-missing-amends candidates and report only explicit and change-cue ones by default | proposed | missing-amends, audit |
 | DL-081 | Release through Changesets: a Version Packages pull request, then the verify, publish and release jobs | accepted | release, ci, github-actions |
 | DL-080 | Decision IDs are unique across namespaces, and create-decision accepts only configured namespaces | accepted | v1-hardening, records, namespaces |
 | DL-079 | Warn about unknown keys in dld.config.yaml | accepted | v1-hardening, config |

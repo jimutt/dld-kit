@@ -27,7 +27,9 @@ ${body}
 }
 
 const pairs = (p: TempProject, all = false) =>
-  findMissingAmends(p.ctx, loadProject(p.ctx), { all }).map((m) => `${m.source}:${m.referenced}`);
+  findMissingAmends(p.ctx, loadProject(p.ctx), { all, mentions: true }).map(
+    (m) => `${m.source}:${m.referenced}`,
+  );
 
 describe("findMissingAmends", () => {
   test("finds nothing without records", () => {
@@ -102,6 +104,46 @@ describe("findMissingAmends", () => {
       project.write("decisions/.dld-state.yaml", `audit:\n  last_run: t\n  commit_hash: ${hash}\n`);
       expect(pairs(project)).toEqual(["DL-001:DL-009"]);
     }
+  });
+});
+
+// @decision(DL-082)
+describe("findMissingAmends tiers", () => {
+  const tiered = (p: TempProject, options: Parameters<typeof findMissingAmends>[2]) =>
+    findMissingAmends(p.ctx, loadProject(p.ctx), options).map(
+      (m) => `${m.source}:${m.referenced}:${m.tier}`,
+    );
+
+  test("lists explicit and cue candidates by default, and plain mentions with mentions", () => {
+    project = tempProject();
+    project.write(
+      "decisions/records/DL-010.md",
+      record(
+        "DL-010",
+        "## Context\n\nSee DL-001.\n\n## Decision\n\nAmends DL-002 and DL-003. Replaces DL-004.",
+        { supersedes: "", amends: "DL-003" },
+      ),
+    );
+    expect(tiered(project, {})).toEqual(["DL-010:DL-002:explicit", "DL-010:DL-004:cue"]);
+    expect(tiered(project, { mentions: true })).toEqual([
+      "DL-010:DL-001:mention",
+      "DL-010:DL-002:explicit",
+      "DL-010:DL-004:cue",
+    ]);
+  });
+
+  test("checks only the given records, whatever the audit state", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-001.md", record("DL-001", "Amends DL-009."));
+    project.write("decisions/records/DL-002.md", record("DL-002", "Amends DL-008."));
+    project.git("add", ".");
+    project.git("commit", "-qm", "records");
+    updateAuditState(project.ctx, loadProject(project.ctx));
+    expect(tiered(project, {})).toEqual([]);
+    expect(tiered(project, { ids: ["DL-002"] })).toEqual(["DL-002:DL-008:explicit"]);
+    expect(() => tiered(project as TempProject, { ids: ["DL-002", "DL-003"] })).toThrow(
+      "decision DL-003 not found.",
+    );
   });
 });
 
