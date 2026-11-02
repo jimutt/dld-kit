@@ -113,7 +113,7 @@ When in doubt, leave it out — a reader who wants the "why" follows the annotat
 
 For each implemented decision:
 
-1. **Update the `references` field** in the decision record's YAML frontmatter. Edit the file directly — add the code paths and symbols that were annotated. Example:
+1. **Update the `references` field** in the decision record's YAML frontmatter. Edit the file directly — add the code paths and symbols that were annotated, and keep any frontmatter fields you don't recognise. Example:
    ```yaml
    references:
      - path: src/billing/vat.ts

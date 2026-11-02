@@ -75,7 +75,7 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 
 **Orphaned annotations** — If the annotation has an obvious typo (e.g., `DL-01` where `DL-001` exists), fix it. If the referenced ID is completely unknown, remove the annotation and note the removal in the commit message.
 
-**Stale references in decisions** — Remove file paths from the decision's `references` field that no longer exist. If the file was renamed/moved (detectable via `git log --follow --diff-filter=R`), update the path instead of removing.
+**Stale references in decisions** — Remove file paths from the decision's `references` field that no longer exist. If the file was renamed/moved (detectable via `git log --follow --diff-filter=R`), update the path instead of removing. Keep any frontmatter fields you don't recognise.
 
 **Annotations referencing superseded decisions** — Update the annotation to reference the superseding decision (read the `supersedes` field of the newer decision to find the chain). For deprecated decisions, remove the annotation.
 

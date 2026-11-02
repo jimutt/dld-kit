@@ -52,8 +52,11 @@ export function loadConfig(ctx: Context, root: string): Config {
   return parseConfig(ctx.fs.readFile(path), (message) => ctx.warn(message));
 }
 
-// @decision(DL-009) @decision(DL-079)
-/** Parses and validates the config; `warn` receives one message per unknown key. */
+// @decision(DL-009) @decision(DL-079) @decision(DL-085)
+/**
+ * Parses and validates the config; `warn` receives one message per unknown key. Keys
+ * starting with `x-` are the project's own and never warn.
+ */
 export function parseConfig(text: string, warn: (message: string) => void = () => {}): Config {
   // logLevel "silent": problems are reported through doc.errors/doc.warnings, never printed.
   const doc = parseDocument(text, { logLevel: "silent" });
@@ -62,7 +65,8 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
   const raw: unknown = doc.toJS();
   if (!isRecord(raw)) throw invalid("expected a mapping of keys to values");
   for (const key of Object.keys(raw)) {
-    if (!CONFIG_KEYS.some((known) => known === key)) warn(unknownKeyMessage(key));
+    if (key.startsWith("x-") || CONFIG_KEYS.some((known) => known === key)) continue;
+    warn(unknownKeyMessage(key));
   }
 
   const mode = raw.mode;

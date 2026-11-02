@@ -111,7 +111,7 @@ The immutability principle applies to the decision's *content* — the reasoning
 
 #### Other fields
 
-A project, or an add-on, may add frontmatter fields of its own. Every `dld` command keeps fields it doesn't know and otherwise ignores them, so they survive status changes and index rebuilds. Later versions of dld-kit may add optional fields; they won't change the meaning of the fields above within a major version.
+A project, or an add-on, may add frontmatter fields of its own. Every `dld` command keeps fields it doesn't know, and the skills keep them when they edit frontmatter. They are otherwise left alone, except that renaming a decision (`/dld-reindex`) rewrites its ID wherever it appears in a record, these fields included. dld-kit never adds a field starting with `x-`, so that prefix is safe for your own; any other field a later version adds is optional, comes in a minor release, and is named in its changeset.
 
 #### Code References
 
