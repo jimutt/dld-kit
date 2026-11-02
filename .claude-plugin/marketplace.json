@@ -9,7 +9,7 @@
     {
       "name": "dld",
       "description": "Decision-Linked Development: record, link, and audit development decisions alongside code",
-      "version": "1.0.0-rc.5",
+      "version": "1.0.0-rc.6",
       "category": "development",
       "tags": [
         "dld",
