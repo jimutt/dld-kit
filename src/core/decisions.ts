@@ -3,6 +3,7 @@ import type { Context } from "./context.ts";
 import { DldError, EXIT_USAGE } from "./errors.ts";
 import { createFileExclusive, writeFileAtomic } from "./files.ts";
 import { canonicalSpelling, isCanonicalId } from "./ids.ts";
+import { statedRelations } from "./mentions.ts";
 import type { Project } from "./project.ts";
 import {
   findRecordFile,
@@ -84,5 +85,18 @@ export function createDecision(ctx: Context, project: Project, input: CreateDeci
     body: input.body,
   });
   createFileExclusive(ctx, path, content, `${path} already exists.`);
+  warnUnstatedRelations(ctx, input);
   return path;
+}
+
+// @decision(DL-083)
+/** Warns about each relationship the body states that neither --amends nor --supersedes lists. */
+function warnUnstatedRelations(ctx: Context, input: CreateDecisionInput): void {
+  const declared = new Set(
+    `${input.amends},${input.supersedes}`.split(/[\s,]+/).filter((id) => id !== ""),
+  );
+  for (const { id, relation } of statedRelations(input.body)) {
+    if (id === input.id || declared.has(id)) continue;
+    ctx.warn(`${input.id}: the body says it ${relation} ${id}, but --${relation} does not list it`);
+  }
 }
