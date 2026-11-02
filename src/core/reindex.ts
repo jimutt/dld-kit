@@ -79,7 +79,8 @@ export function resolveBase(ctx: Context, baseBranch?: string): string {
     "refs/remotes/origin/HEAD",
   ).trim();
   if (remoteDefault !== "") candidates.push(remoteDefault);
-  candidates.push(DEFAULT_BASE, "main");
+  // @decision(DL-090)
+  candidates.push(DEFAULT_BASE, "main", "origin/master", "master");
 
   const found = firstExisting(...new Set(candidates));
   if (found !== undefined) return found;

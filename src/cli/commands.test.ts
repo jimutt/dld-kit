@@ -845,7 +845,15 @@ describe("list-proposed", () => {
       err: "",
     });
     p.git("branch", "-m", "main", "trunk");
-    expect(dld(p, "list-proposed").err).toStartWith("Error: no base branch found");
+    // @decision(DL-090)
+    const unknown = dld(p, "list-proposed");
+    expect(unknown).toMatchObject({
+      code: EXIT_OK,
+      out: "DL-003\tunknown\tTest decision DL-003\nDL-004\tunknown\tTest decision DL-004\n",
+    });
+    expect(unknown.err).toStartWith("Warning: no base branch found");
+    expect(unknown.err).toContain("Listing every proposed decision as unknown.");
+    expect(dld(p, "list-proposed", "--base", "missing").code).toBe(1);
     expect(dld(p, "list-proposed", "--base", "trunk").code).toBe(EXIT_OK);
   });
 });

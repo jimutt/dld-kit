@@ -13,7 +13,8 @@ export const resolveBaseCommand: Command = {
 
 Print the base ref: base_branch from dld.config.yaml (origin/<name>, else <name>); else the
 current branch's upstream when it tracks a differently named branch; else origin/HEAD; else
-origin/main, then main. Only a ref that exists is printed; when none does, exit 1.
+origin/main, then main, then origin/master, then master. Only a ref that exists is printed;
+when none does, exit 1.
 `,
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });

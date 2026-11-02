@@ -45,6 +45,11 @@ describe("parseTemplate", () => {
     ],
     ["a positional argument", `${HEADER}---\nx\n\`awk '{print $1}'\`\n`, ":6: '$1' is rewritten"],
     ["shell output", `${HEADER}---\nRun !\`date\`.\n`, ":5: '!`' is rewritten"],
+    [
+      "a printf body for create-decision (DL-091)",
+      `${HEADER}---\n\nprintf "## Context\\n" | {{dld}} create-decision --body-stdin\n`,
+      ":6: pass create-decision's body through a quoted heredoc",
+    ],
   ])("rejects %s", (_, text, message) => {
     expect(() => parse(text)).toThrow(`${SOURCE}${message}`);
   });

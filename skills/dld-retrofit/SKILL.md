@@ -132,12 +132,26 @@ For each approved decision:
 
 ```bash
 ID=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" next-id)
-printf "## Context\n\n...\n\n## Decision\n\n...\n\n## Rationale\n\n..." | node "<skill-dir>/../dld-common/scripts/dld.mjs" create-decision \
+node "<skill-dir>/../dld-common/scripts/dld.mjs" create-decision \
   --id "$ID" \
   --title "Title" \
   --tags "tag1, tag2" \
-  --body-stdin
+  --body-stdin <<'DLD_BODY'
+## Context
+
+...
+
+## Decision
+
+...
+
+## Rationale
+
+...
+DLD_BODY
 ```
+
+Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` need no escaping. No line of the body may be exactly `DLD_BODY`.
 
 ## Step 6: Add annotations and references
 

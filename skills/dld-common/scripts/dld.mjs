@@ -7872,7 +7872,7 @@ function resolveBase(ctx, baseBranch) {
     "refs/remotes/origin/HEAD"
   ).trim();
   if (remoteDefault !== "") candidates.push(remoteDefault);
-  candidates.push(DEFAULT_BASE, "main");
+  candidates.push(DEFAULT_BASE, "main", "origin/master", "master");
   const found = firstExisting(...new Set(candidates));
   if (found !== void 0) return found;
   throw new DldError(
@@ -9412,6 +9412,12 @@ function parseTemplate(text, skill, source) {
         `'${rewritten}' is rewritten by some harnesses' skill loaders; rephrase it`
       );
     }
+    if (PRINTF_BODY.test(lines[i] ?? "")) {
+      throw fail(
+        i + 1,
+        "pass create-decision's body through a quoted heredoc (--body-stdin <<'DLD_BODY'), not printf"
+      );
+    }
   }
   return {
     skill,
@@ -9422,6 +9428,7 @@ function parseTemplate(text, skill, source) {
     bodyLine: end + 2
   };
 }
+var PRINTF_BODY = /\bprintf\b.*\|\s*\S*\s*create-decision\b/;
 var HARNESS_TEMPLATING = /\$ARGUMENTS|\$\d|!`/;
 var BUNDLED_CLI = { skill: "dld-common", path: "scripts/dld.mjs" };
 var PLACEHOLDER_START = /\{\{\s*(?:script|dld)/g;
@@ -10926,18 +10933,19 @@ ${AGENT_HELP}
 import { basename as basename8, relative as relative12, sep as sep7 } from "node:path";
 function listProposed(ctx, project, base) {
   const { paths } = project;
-  verifyBase(ctx, paths, base, " Fetch first or pass --base.");
-  const atBase = integratedRecords(ctx, paths, base).byId;
+  if (base !== void 0) verifyBase(ctx, paths, base, " Fetch first or pass --base.");
+  const atBase = base === void 0 ? void 0 : integratedRecords(ctx, paths, base).byId;
   return listRecordFiles(ctx, paths.recordsDir).map((file) => {
     const path = relative12(paths.root, file).split(sep7).join("/");
     return { file, path, record: parseRecord(ctx.fs.readFile(file), path) };
   }).filter(({ record }) => record.status === "proposed").sort((a, b) => recordNumber(a.file) - recordNumber(b.file)).map(({ file, path, record }) => {
     const id = basename8(file, ".md");
-    return { id, title: record.title, path, addedOnBranch: !atBase.has(id) };
+    const location = atBase === void 0 ? "unknown" : atBase.has(id) ? "base" : "branch";
+    return { id, title: record.title, path, location };
   });
 }
-function formatProposed({ id, title, addedOnBranch }) {
-  return `${id}	${addedOnBranch ? "branch" : "base"}	${title}`;
+function formatProposed({ id, title, location }) {
+  return `${id}	${location}	${title}`;
 }
 
 // src/cli/commands/list-proposed.ts
@@ -10947,9 +10955,10 @@ var listProposedCommand = {
   internal: true,
   usage: `Usage: dld list-proposed [--base <ref>]
 
-Print <DL-NNN>\\t<branch|base>\\t<title> for each proposed decision, ascending by ID: branch
-when its file does not exist at the merge-base with the base branch (added on this branch,
-committed or not), base otherwise.
+Print <DL-NNN>\\t<branch|base|unknown>\\t<title> for each proposed decision, ascending by ID:
+branch when its file does not exist at the merge-base with the base branch (added on this
+branch, committed or not), base otherwise. Without --base, when no base branch is found, every
+decision is listed as unknown, with a warning.
 
 Options:
   --base <ref>  Base ref (${DEFAULT_BASE_HELP})
@@ -10957,7 +10966,13 @@ Options:
   run(args, io, ctx) {
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
     const project = loadProject(ctx);
-    const base = baseOption(values.base, { ctx, project });
+    let base;
+    try {
+      base = baseOption(values.base, { ctx, project });
+    } catch (error) {
+      if (values.base !== void 0 || !(error instanceof DldError)) throw error;
+      ctx.warn(`${error.message} Listing every proposed decision as unknown.`);
+    }
     for (const proposed of listProposed(ctx, project, base)) {
       io.stdout(`${formatProposed(proposed)}
 `);
@@ -11182,7 +11197,8 @@ var resolveBaseCommand = {
 
 Print the base ref: base_branch from dld.config.yaml (origin/<name>, else <name>); else the
 current branch's upstream when it tracks a differently named branch; else origin/HEAD; else
-origin/main, then main. Only a ref that exists is printed; when none does, exit 1.
+origin/main, then main, then origin/master, then master. Only a ref that exists is printed;
+when none does, exit 1.
 `,
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });

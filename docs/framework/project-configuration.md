@@ -57,7 +57,7 @@ decision_edits: block
 
 # The branch decisions are checked against (optional)
 # Default: the upstream when it tracks another branch, else origin/HEAD,
-# else origin/main, else main. See "Base branch" below.
+# else origin/main, main, origin/master or master. See "Base branch" below.
 base_branch: main
 
 # Custom snapshot artifacts (optional)
@@ -174,8 +174,9 @@ Reindex (`/dld-reindex`) and the decision-edit checks compare the current branch
 2. The current branch's upstream, when it tracks a branch with a different name.
 3. The remote's default branch, `origin/HEAD` (set by `git clone`, or by `git remote set-head origin --auto`).
 4. `origin/main`, then the local `main`.
+5. `origin/master`, then the local `master`.
 
-Only a ref that exists is used. When none does, the commands fail and say what they tried. Set `base_branch` when the branch decisions merge into is not the remote's default, for example a long-lived `develop` branch.
+Only a ref that exists is used. When none does, the commands fail and say what they tried; `list-proposed` instead lists every proposed decision as `unknown`, with a warning. Set `base_branch` when the branch decisions merge into is not the remote's default, for example a long-lived `develop` branch.
 
 ### Unknown keys
 

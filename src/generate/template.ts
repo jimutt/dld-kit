@@ -75,6 +75,13 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
         `'${rewritten}' is rewritten by some harnesses' skill loaders; rephrase it`,
       );
     }
+    // @decision(DL-091)
+    if (PRINTF_BODY.test(lines[i] ?? "")) {
+      throw fail(
+        i + 1,
+        "pass create-decision's body through a quoted heredoc (--body-stdin <<'DLD_BODY'), not printf",
+      );
+    }
   }
   return {
     skill,
@@ -88,6 +95,8 @@ export function parseTemplate(text: string, skill: string, source: string): Skil
 
 // @decision(DL-046)
 /** Text OpenCode's command templating replaces in a skill body: arguments and shell output. */
+/** A shell line that pipes printf into create-decision, which expands backticks, `$` and `%`. */
+const PRINTF_BODY = /\bprintf\b.*\|\s*\S*\s*create-decision\b/;
 const HARNESS_TEMPLATING = /\$ARGUMENTS|\$\d|!`/;
 
 /** A `{{script <skill>/<path>}}` reference. */
