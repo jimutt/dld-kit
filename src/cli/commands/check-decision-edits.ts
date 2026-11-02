@@ -2,7 +2,7 @@ import { checkDecisionEdits, editBase, formatRecordEdit } from "../../core/decis
 import { loadProject } from "../../core/project.ts";
 import { DECISION_ID } from "../../core/records.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
-import { baseOption } from "./base-option.ts";
+import { baseOption, DEFAULT_BASE_HELP } from "./base-option.ts";
 
 /** Distinct from errors (1) and usage errors (2), so CI can tell "blocked" apart. */
 export const EXIT_BLOCKED = 3;
@@ -23,7 +23,7 @@ Without IDs, exits 3 when decision_edits is block (the default) and an edited or
 decision was printed. With IDs, and otherwise, exits 0.
 
 Options:
-  --base <ref>     Base ref (default: the branch's upstream base, else origin/main or main)
+  --base <ref>     Base ref (${DEFAULT_BASE_HELP})
   --uncommitted    Compare with HEAD instead of the merge-base: only uncommitted changes
 `,
   run(args, io, ctx) {
@@ -37,7 +37,7 @@ Options:
     const project = loadProject(ctx);
     const base = editBase(
       ctx,
-      project.paths,
+      project,
       values.base === undefined ? undefined : baseOption(values.base),
     );
     const edits = checkDecisionEdits(ctx, project, base, ids, {

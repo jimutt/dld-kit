@@ -2,7 +2,7 @@ import { DldError } from "../../core/errors.ts";
 import { loadProject } from "../../core/project.ts";
 import { renameDecision } from "../../core/rename.ts";
 import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
-import { baseOption } from "./base-option.ts";
+import { baseOption, DEFAULT_BASE_HELP } from "./base-option.ts";
 
 export const renameDecisionCommand: Command = {
   name: "rename-decision",
@@ -17,7 +17,7 @@ Options:
   --old <DL-OLD>  Current ID (required)
   --new <DL-NEW>  New ID (required)
   --path <path>   Record path relative to the project root (required)
-  --base <ref>    Base ref for the local change set (default: origin/main)
+  --base <ref>    Base ref for the local change set (${DEFAULT_BASE_HELP})
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({
@@ -31,8 +31,9 @@ Options:
     });
     const { old: oldId, new: newId, path } = values;
     if (!oldId || !newId || !path) throw new DldError("--old, --new, and --path are required.");
-    const base = baseOption(values.base);
-    const newPath = renameDecision(ctx, loadProject(ctx), { path, oldId, newId }, base);
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    const newPath = renameDecision(ctx, project, { path, oldId, newId }, base);
     io.stdout(`${path} -> ${newPath}\n`);
     return EXIT_OK;
   },

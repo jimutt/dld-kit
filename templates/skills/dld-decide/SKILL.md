@@ -114,7 +114,7 @@ Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the com
 - `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
 - `allow`: keep the edits and list them in your report.
 
-If the command can't find the base branch, tell the user and continue.
+If the command can't find the base branch, tell the user and continue. Its message says what it tried; setting `base_branch` in `dld.config.yaml` fixes it when the branch decisions merge into is not found automatically.
 
 ### 8. Regenerate INDEX.md
 

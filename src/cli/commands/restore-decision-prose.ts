@@ -2,7 +2,7 @@ import { editBase, restoreDecisionProse } from "../../core/decision-edits.ts";
 import { loadProject } from "../../core/project.ts";
 import { DECISION_ID } from "../../core/records.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
-import { baseOption } from "./base-option.ts";
+import { baseOption, DEFAULT_BASE_HELP } from "./base-option.ts";
 
 // @decision(DL-068)
 export const restoreDecisionProseCommand: Command = {
@@ -17,7 +17,7 @@ frontmatter. A deleted decision
 is restored whole and staged. Fails for a draft.
 
 Options:
-  --base <ref>     Base ref (default: the branch's upstream base, else origin/main or main)
+  --base <ref>     Base ref (${DEFAULT_BASE_HELP})
   --uncommitted    Restore from HEAD instead of the merge-base: undo only uncommitted edits
 `,
   run(args, io, ctx) {
@@ -32,7 +32,7 @@ Options:
     const project = loadProject(ctx);
     const base = editBase(
       ctx,
-      project.paths,
+      project,
       values.base === undefined ? undefined : baseOption(values.base),
     );
     const uncommitted = values.uncommitted === true;

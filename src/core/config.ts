@@ -26,24 +26,44 @@ export interface Config {
   implementReview: boolean;
   decisionEdits: DecisionEdits;
   snapshotArtifacts: SnapshotArtifact[];
+  /** The branch decisions are checked against, when set (DL-071). */
+  baseBranch?: string;
 }
+
+// @decision(DL-079)
+/** Every top-level key of the configuration spec. */
+export const CONFIG_KEYS = [
+  "decisions_dir",
+  "mode",
+  "namespaces",
+  "annotation_prefix",
+  "annotation_exclude",
+  "implement_review",
+  "decision_edits",
+  "snapshot_artifacts",
+  "base_branch",
+] as const;
 
 export function loadConfig(ctx: Context, root: string): Config {
   const path = join(root, CONFIG_FILE);
   if (!ctx.fs.exists(path)) {
     throw new DldError(`${CONFIG_FILE} not found. Run /dld-init first.`);
   }
-  return parseConfig(ctx.fs.readFile(path));
+  return parseConfig(ctx.fs.readFile(path), (message) => ctx.warn(message));
 }
 
-// @decision(DL-009)
-export function parseConfig(text: string): Config {
+// @decision(DL-009) @decision(DL-079)
+/** Parses and validates the config; `warn` receives one message per unknown key. */
+export function parseConfig(text: string, warn: (message: string) => void = () => {}): Config {
   // logLevel "silent": problems are reported through doc.errors/doc.warnings, never printed.
   const doc = parseDocument(text, { logLevel: "silent" });
   const problem = doc.errors[0] ?? doc.warnings[0];
   if (problem !== undefined) throw invalid(`not valid YAML: ${problem.message}`);
   const raw: unknown = doc.toJS();
   if (!isRecord(raw)) throw invalid("expected a mapping of keys to values");
+  for (const key of Object.keys(raw)) {
+    if (!CONFIG_KEYS.some((known) => known === key)) warn(unknownKeyMessage(key));
+  }
 
   const mode = raw.mode;
   if (mode !== "flat" && mode !== "namespaced") {
@@ -64,7 +84,44 @@ export function parseConfig(text: string): Config {
     implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
     decisionEdits: decisionEdits(raw.decision_edits),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
+    ...optionalBaseBranch(raw.base_branch),
   };
+}
+
+function unknownKeyMessage(key: string): string {
+  const close = CONFIG_KEYS.filter((known) => editDistance(key, known) <= 2);
+  const hint = close[0] === undefined ? "" : `; did you mean '${close[0]}'?`;
+  return `${CONFIG_FILE}: unknown key '${key}'${hint}`;
+}
+
+/** Levenshtein distance. */
+function editDistance(a: string, b: string): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        (previous[j] ?? 0) + 1,
+        (current[j - 1] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + cost,
+      );
+    }
+    previous = current;
+  }
+  return previous[b.length] ?? 0;
+}
+
+// @decision(DL-071)
+function optionalBaseBranch(value: unknown): { baseBranch?: string } {
+  const branch = optionalString(value, "base_branch");
+  if (branch === undefined) return {};
+  if (branch.startsWith("-") || /\s|\.\.|^\/|\/$|^origin\//.test(branch)) {
+    throw invalid(
+      `'base_branch' must be a branch name such as main or develop, without origin/, got '${branch}'`,
+    );
+  }
+  return { baseBranch: branch };
 }
 
 function invalid(message: string): DldError {

@@ -167,3 +167,25 @@ describe("next-id", () => {
     expect(io.err).toBe("Error: dld.config.yaml not found. Run /dld-init first.\n");
   });
 });
+
+// @decision(DL-079)
+describe("warnings", () => {
+  test("print each distinct message once, prefixed, on stderr", () => {
+    const warner: Command = {
+      name: "warner",
+      summary: "Warns",
+      usage: "Usage: dld warner\n",
+      run(_args, io, ctx) {
+        ctx.warn("first");
+        ctx.warn("second");
+        ctx.warn("first");
+        io.stdout("done\n");
+        return EXIT_OK;
+      },
+    };
+    const io = captureIo();
+    expect(run(["warner"], io, fakeContext(), [warner])).toBe(EXIT_OK);
+    expect(io.out).toBe("done\n");
+    expect(io.err).toBe("Warning: first\nWarning: second\n");
+  });
+});

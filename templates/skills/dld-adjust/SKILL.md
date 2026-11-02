@@ -69,7 +69,7 @@ The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`
 
 The decision is on the base branch but its file is gone on this branch. Tell the user and stop.
 
-If the command can't find the base branch, tell the user, and ask for confirmation before editing the prose of any decision that is not `proposed`.
+If the command can't find the base branch, tell the user (setting `base_branch` in `dld.config.yaml` fixes it), and ask for confirmation before editing the prose of any decision that is not `proposed`.
 
 ## Step 3: Collect the adjustment request
 
@@ -136,7 +136,7 @@ Otherwise follow `decision_edits` in `dld.config.yaml` (default `block`; the com
 - `ask`: for each listed decision, ask the user with `AskUserQuestion` whether to keep the edit. Restore the ones they don't keep.
 - `allow`: keep the edits and list them in your report.
 
-If the command can't find the base branch, tell the user and continue.
+If the command can't find the base branch, tell the user and continue. Its message says what it tried; setting `base_branch` in `dld.config.yaml` fixes it when the branch decisions merge into is not found automatically.
 
 ## Step 6: Regenerate INDEX.md
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { fakeContext, memoryFs } from "../test-helpers.ts";
-import { formatId, nextId } from "./ids.ts";
+import { formatId, isCanonicalId, nextId } from "./ids.ts";
 
 const RECORDS = "/p/decisions/records";
 
@@ -14,6 +14,27 @@ describe("formatId", () => {
     expect(formatId(1)).toBe("DL-001");
     expect(formatId(42)).toBe("DL-042");
     expect(formatId(1000)).toBe("DL-1000");
+  });
+});
+
+// @decision(DL-078)
+describe("isCanonicalId", () => {
+  test("accepts exactly the formatId spelling", () => {
+    for (const id of ["DL-001", "DL-042", "DL-999", "DL-1000", "DL-12345"]) {
+      expect(isCanonicalId(id)).toBe(true);
+    }
+    for (const id of [
+      "DL-1",
+      "DL-01",
+      "DL-0042",
+      "DL-01000",
+      "dl-001",
+      "DL-",
+      "DL-1a",
+      "XDL-001",
+    ]) {
+      expect(isCanonicalId(id)).toBe(false);
+    }
   });
 });
 

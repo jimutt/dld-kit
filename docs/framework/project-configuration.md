@@ -44,6 +44,11 @@ implement_review: true
 # allow: yes, to keep records accurate
 decision_edits: block
 
+# The branch decisions are checked against (optional)
+# Default: the upstream when it tracks another branch, else origin/HEAD,
+# else origin/main, else main. See "Base branch" below.
+base_branch: main
+
 # Custom snapshot artifacts (optional)
 # Additional documents generated alongside SNAPSHOT.md and OVERVIEW.md
 # by the /dld-snapshot skill. Each entry defines a filename and a prompt
@@ -111,6 +116,21 @@ Without `--uncommitted`, the command checks the whole branch against the base, a
     fetch-depth: 0
 - run: npx dld-kit@latest check-decision-edits --base origin/${{ github.base_ref }}
 ```
+
+### Base branch
+
+Reindex (`/dld-reindex`) and the decision-edit checks compare the current branch with a base branch. dld-kit picks it in this order:
+
+1. `base_branch` from `dld.config.yaml`: `origin/<base_branch>` if that ref exists, else the local `<base_branch>`.
+2. The current branch's upstream, when it tracks a branch with a different name.
+3. The remote's default branch, `origin/HEAD` (set by `git clone`, or by `git remote set-head origin --auto`).
+4. `origin/main`, then the local `main`.
+
+Only a ref that exists is used. When none does, the commands fail and say what they tried. Set `base_branch` when the branch decisions merge into is not the remote's default, for example a long-lived `develop` branch.
+
+### Unknown keys
+
+Keys that are not part of this schema are ignored, with a warning on stderr from every `dld` command that reads the config, for example `Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?`. Unknown keys stay warnings, never errors, throughout 1.x.
 
 ### Snapshot Artifacts
 

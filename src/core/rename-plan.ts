@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 import { DldError } from "./errors.ts";
 import { recordsPathspec } from "./git.ts";
+import { formatId, isCanonicalId } from "./ids.ts";
 import type { ProjectPaths } from "./project.ts";
 import { DECISION_ID } from "./records.ts";
 import type { Rename } from "./reindex.ts";
@@ -14,6 +15,10 @@ import type { Rename } from "./reindex.ts";
 export function renameProblem(paths: ProjectPaths, rename: Rename): string | undefined {
   const { path, oldId, newId } = rename;
   if (!DECISION_ID.test(oldId) || !DECISION_ID.test(newId)) return "IDs must match DL-[0-9]+.";
+  // @decision(DL-078)
+  if (!isCanonicalId(newId)) {
+    return `new ID '${newId}' is not canonical; use ${formatId(Number.parseInt(newId.slice(3), 10))}.`;
+  }
   if (oldId === newId) return "old and new IDs are the same.";
   const segments = path.split("/");
   if (path.startsWith("/") || segments.some((s) => s === "" || s === "." || s === "..")) {

@@ -22,6 +22,17 @@ describe("updateStatus", () => {
     expect(readFileSync(path, "utf8")).toBe(recordText("DL-002", "accepted"));
   });
 
+  // @decision(DL-080)
+  test("fails when the ID is in more than one file", () => {
+    project = tempProject(NAMESPACED_CONFIG);
+    project.write("decisions/records/auth/DL-002.md", recordText("DL-002"));
+    project.write("decisions/records/billing/DL-002.md", recordText("DL-002"));
+    const ctx = project.ctx;
+    expect(() => updateStatus(ctx, loadProject(ctx), "DL-002", "accepted")).toThrow(
+      "decision DL-002 is in more than one file:",
+    );
+  });
+
   test("fails for an unknown decision", () => {
     project = tempProject();
     const ctx = project.ctx;
@@ -41,22 +52,42 @@ describe("createDecision", () => {
     expect(text).toEndWith("---\n\nBody\n");
   });
 
-  test("uses the namespace directory in namespaced mode and ignores it in flat mode", () => {
+  test("uses the namespace directory in namespaced mode, or the root without one", () => {
     project = tempProject(NAMESPACED_CONFIG);
     const namespaced = createDecision(project.ctx, loadProject(project.ctx), {
       ...input,
       namespace: "billing",
     });
     expect(namespaced).toBe(join(project.root, "decisions/records/billing/DL-004.md"));
-    project.cleanup();
+    const root = createDecision(project.ctx, loadProject(project.ctx), { ...input, id: "DL-005" });
+    expect(root).toBe(join(project.root, "decisions/records/DL-005.md"));
+    expect(readFileSync(root, "utf8")).not.toContain("namespace:");
+  });
 
+  // @decision(DL-080)
+  test("rejects a namespace in a flat project", () => {
     project = tempProject();
-    const flat = createDecision(project.ctx, loadProject(project.ctx), {
-      ...input,
-      namespace: "billing",
-    });
-    expect(flat).toBe(join(project.root, "decisions/records/DL-004.md"));
-    expect(readFileSync(flat, "utf8")).not.toContain("namespace:");
+    const ctx = project.ctx;
+    expect(() => createDecision(ctx, loadProject(ctx), { ...input, namespace: "billing" })).toThrow(
+      "--namespace is only valid in a namespaced project.",
+    );
+  });
+
+  test("rejects an ID that exists in any namespace, or with another spelling", () => {
+    project = tempProject(NAMESPACED_CONFIG);
+    project.write("decisions/records/auth/DL-004.md", recordText("DL-004"));
+    project.write("decisions/records/DL-07.md", recordText("DL-07"));
+    const ctx = project.ctx;
+    for (const [id, namespace, existing] of [
+      ["DL-004", "billing", "decisions/records/auth/DL-004.md"],
+      ["DL-004", undefined, "decisions/records/auth/DL-004.md"],
+      ["DL-007", "auth", "decisions/records/DL-07.md"],
+    ]) {
+      const override = { id: id ?? "", ...(namespace === undefined ? {} : { namespace }) };
+      expect(() => createDecision(ctx, loadProject(ctx), { ...input, ...override })).toThrow(
+        `decision ${id} already exists: ${existing}`,
+      );
+    }
   });
 
   test("writes the namespace into the frontmatter in namespaced mode", () => {
@@ -74,22 +105,37 @@ describe("createDecision", () => {
     const ctx = project.ctx;
     createDecision(ctx, loadProject(ctx), input);
     expect(() => createDecision(ctx, loadProject(ctx), input)).toThrow(
-      /DL-004\.md already exists\.$/,
+      "decision DL-004 already exists: decisions/records/DL-004.md",
     );
   });
 
   test.each([
     ["an ID that is not DL-<digits>", { id: "../../x" }, "invalid decision ID '../../x'"],
+    ["an unpadded ID", { id: "DL-5" }, "decision ID 'DL-5' is not canonical; use DL-005."],
+    ["an over-padded ID", { id: "DL-0042" }, "decision ID 'DL-0042' is not canonical; use DL-042."],
     [
       "a namespace that leaves the records directory",
       { namespace: ".." },
-      "invalid namespace '..'",
+      "unknown namespace '..'; configured namespaces: billing, auth.",
     ],
-    ["a namespace with a separator", { namespace: "a/b" }, "invalid namespace 'a/b'"],
-    ["a namespace that is not a plain name", { namespace: "a: b" }, "invalid namespace 'a: b'"],
-  ])("rejects %s", (_name, override, message) => {
+    ["a namespace with a separator", { namespace: "a/b" }, "unknown namespace 'a/b'"],
+    ["a namespace that is not configured", { namespace: "nope" }, "unknown namespace 'nope'"],
+  ])("rejects %s with a usage error", (_name, override, message) => {
     project = tempProject(NAMESPACED_CONFIG);
     const ctx = project.ctx;
-    expect(() => createDecision(ctx, loadProject(ctx), { ...input, ...override })).toThrow(message);
+    let error: unknown;
+    try {
+      createDecision(ctx, loadProject(ctx), { ...input, ...override });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({ exitCode: 2 });
+    expect(String(error)).toContain(message);
+  });
+
+  test("accepts IDs past DL-999", () => {
+    project = tempProject();
+    const path = createDecision(project.ctx, loadProject(project.ctx), { ...input, id: "DL-1000" });
+    expect(path).toBe(join(project.root, "decisions/records/DL-1000.md"));
   });
 });

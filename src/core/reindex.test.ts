@@ -41,13 +41,44 @@ describe("resolveBase", () => {
     expect(resolveBase(p.ctx)).toBe("origin/develop");
   });
 
-  test("falls back to origin/main without an upstream or when it is the same branch", () => {
+  test("falls back to origin/main, then main, without an upstream or when it is the same branch", () => {
     const p = branched();
+    expect(resolveBase(p.ctx)).toBe("main");
+    p.git("update-ref", "refs/remotes/origin/main", "main");
     expect(resolveBase(p.ctx)).toBe("origin/main");
     p.git("update-ref", "refs/remotes/origin/feature", "HEAD");
     p.git("config", "branch.feature.remote", "origin");
     p.git("config", "branch.feature.merge", "refs/heads/feature");
     expect(resolveBase(p.ctx)).toBe("origin/main");
+  });
+
+  // @decision(DL-071)
+  test("uses the remote's default branch before origin/main", () => {
+    const p = branched();
+    p.git("branch", "-m", "main", "master");
+    p.git("update-ref", "refs/remotes/origin/master", "master");
+    p.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master");
+    expect(resolveBase(p.ctx)).toBe("origin/master");
+  });
+
+  test("prefers base_branch, remote first, and fails when it does not exist", () => {
+    const p = branched();
+    p.git("branch", "develop", "main");
+    p.git("update-ref", "refs/remotes/origin/main", "main");
+    expect(resolveBase(p.ctx, "develop")).toBe("develop");
+    p.git("update-ref", "refs/remotes/origin/develop", "develop");
+    expect(resolveBase(p.ctx, "develop")).toBe("origin/develop");
+    expect(() => resolveBase(p.ctx, "release")).toThrow(
+      "base_branch 'release' not found (tried origin/release, release).",
+    );
+  });
+
+  test("fails naming the refs it tried when none exists", () => {
+    const p = branched();
+    p.git("branch", "-m", "main", "trunk");
+    expect(() => resolveBase(p.ctx)).toThrow(
+      "no base branch found (tried origin/main, main). Set base_branch in dld.config.yaml",
+    );
   });
 
   test("uses a local upstream branch name without a slash", () => {
@@ -57,9 +88,10 @@ describe("resolveBase", () => {
     expect(resolveBase(p.ctx)).toBe("main");
   });
 
-  test("needs no config and answers outside a repository", () => {
-    project = tempProject(null);
-    expect(resolveBase({ ...project.ctx, cwd: "/" })).toBe("origin/main");
+  test("fails outside a repository", () => {
+    const p = tempProject(null);
+    project = p;
+    expect(() => resolveBase({ ...p.ctx, cwd: "/" })).toThrow("no base branch found");
   });
 });
 

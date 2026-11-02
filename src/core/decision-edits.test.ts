@@ -111,19 +111,19 @@ describe("checkDecisionEdits", () => {
 });
 
 describe("editBase", () => {
-  test("uses the given base, else resolve-base, else its local branch", () => {
+  test("uses the given base, else resolve-base", () => {
     const p = branched();
-    const paths = loadProject(p.ctx).paths;
-    expect(editBase(p.ctx, paths, "main")).toBe("main");
-    expect(() => editBase(p.ctx, paths, "nope")).toThrow("base ref 'nope' not found.");
-    expect(editBase(p.ctx, paths)).toBe("main");
+    const project = loadProject(p.ctx);
+    expect(editBase(p.ctx, project, "main")).toBe("main");
+    expect(() => editBase(p.ctx, project, "nope")).toThrow("base ref 'nope' not found.");
+    expect(editBase(p.ctx, project)).toBe("main");
     p.git("update-ref", "refs/remotes/origin/main", "main");
-    expect(editBase(p.ctx, paths)).toBe("origin/main");
+    expect(editBase(p.ctx, project)).toBe("origin/main");
     p.git("update-ref", "-d", "refs/remotes/origin/main");
     p.git("branch", "-m", "main", "trunk");
-    expect(() => editBase(p.ctx, paths)).toThrow(
-      "base ref 'origin/main' not found. Fetch first or pass --base.",
-    );
+    expect(() => editBase(p.ctx, project)).toThrow("no base branch found");
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nbase_branch: trunk\n");
+    expect(editBase(p.ctx, loadProject(p.ctx))).toBe("trunk");
   });
 });
 

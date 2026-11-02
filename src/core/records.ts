@@ -54,8 +54,28 @@ export function recordNumber(path: string): number {
   return Number.parseInt(digits, 10);
 }
 
+// @decision(DL-080)
+/** The record file for `id`, or undefined. Fails when the ID is in more than one file. */
 export function findRecordFile(ctx: Context, recordsDir: string, id: string): string | undefined {
-  return listRecordFiles(ctx, recordsDir).find((path) => basename(path) === `${id}.md`);
+  const matches = listRecordFiles(ctx, recordsDir).filter((path) => basename(path) === `${id}.md`);
+  if (matches.length > 1) {
+    throw new DldError(`decision ${id} is in more than one file: ${matches.join(", ")}`);
+  }
+  return matches[0];
+}
+
+// @decision(DL-080)
+/** Record files that share a decision number with another, grouped by number, ascending. */
+export function duplicateRecordFiles(ctx: Context, recordsDir: string): string[][] {
+  const byNumber = new Map<number, string[]>();
+  for (const path of listRecordFiles(ctx, recordsDir)) {
+    const number = recordNumber(path);
+    byNumber.set(number, [...(byNumber.get(number) ?? []), path]);
+  }
+  return [...byNumber.entries()]
+    .filter(([, paths]) => paths.length > 1)
+    .sort(([a], [b]) => a - b)
+    .map(([, paths]) => paths);
 }
 
 interface FrontmatterBlock {

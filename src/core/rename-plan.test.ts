@@ -57,6 +57,26 @@ describe("parseRenamePlan", () => {
 
 test("renameProblem accepts a valid rename", () => {
   expect(
-    renameProblem(paths, { path: "decisions/records/DL-002.md", oldId: "DL-002", newId: "DL-9" }),
+    renameProblem(paths, {
+      path: "decisions/records/DL-002.md",
+      oldId: "DL-002",
+      newId: "DL-1009",
+    }),
   ).toBeUndefined();
+});
+
+// @decision(DL-078)
+test("renameProblem rejects a new ID that is not canonical", () => {
+  for (const [newId, canonical] of [
+    ["DL-9", "DL-009"],
+    ["DL-0042", "DL-042"],
+  ]) {
+    expect(
+      renameProblem(paths, {
+        path: "decisions/records/DL-002.md",
+        oldId: "DL-002",
+        newId: newId ?? "",
+      }),
+    ).toBe(`new ID '${newId}' is not canonical; use ${canonical}.`);
+  }
 });

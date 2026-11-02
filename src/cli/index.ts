@@ -116,8 +116,18 @@ export function run(
     return EXIT_USAGE;
   }
 
+  // @decision(DL-079)
+  const printed = new Set<string>();
+  const runCtx: Context = {
+    ...ctx,
+    warn: (message) => {
+      if (printed.has(message)) return;
+      printed.add(message);
+      io.stderr(`Warning: ${message}\n`);
+    },
+  };
   try {
-    const result = command.run(rest, io, ctx);
+    const result = command.run(rest, io, runCtx);
     if (typeof result === "number") return result;
     return result.catch((error: unknown) => report(error, command, io));
   } catch (error) {

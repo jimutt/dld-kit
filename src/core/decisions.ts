@@ -2,11 +2,14 @@ import { join, relative } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { createFileExclusive, writeFileAtomic } from "./files.ts";
+import { formatId, isCanonicalId } from "./ids.ts";
 import type { Project } from "./project.ts";
 import {
   DECISION_ID,
   findRecordFile,
   formatTimestamp,
+  listRecordFiles,
+  recordNumber,
   renderNewRecord,
   type Status,
   setStatus,
@@ -32,16 +35,45 @@ export interface CreateDecisionInput {
   body: string;
 }
 
-// @decision(DL-014) @decision(DL-015) @decision(DL-016)
+const EXIT_USAGE = 2;
+
+// @decision(DL-014) @decision(DL-015) @decision(DL-016) @decision(DL-078) @decision(DL-080)
 /** Writes a new proposed record and returns its path. */
 export function createDecision(ctx: Context, project: Project, input: CreateDecisionInput): string {
   if (!DECISION_ID.test(input.id)) {
-    throw new DldError(`invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`);
+    throw new DldError(
+      `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`,
+      EXIT_USAGE,
+    );
   }
-  const namespaced = project.config.mode === "namespaced" && input.namespace !== undefined;
-  if (namespaced && !isSafeDirName(input.namespace ?? "")) {
-    throw new DldError(`invalid namespace '${input.namespace}'.`);
+  const number = Number.parseInt(input.id.slice(3), 10);
+  if (!isCanonicalId(input.id)) {
+    throw new DldError(
+      `decision ID '${input.id}' is not canonical; use ${formatId(number)}.`,
+      EXIT_USAGE,
+    );
   }
+  const { config } = project;
+  if (input.namespace !== undefined) {
+    if (config.mode !== "namespaced") {
+      throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE);
+    }
+    if (!config.namespaces.includes(input.namespace) || !isSafeDirName(input.namespace)) {
+      throw new DldError(
+        `unknown namespace '${input.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
+        EXIT_USAGE,
+      );
+    }
+  }
+  const existing = listRecordFiles(ctx, project.paths.recordsDir).find(
+    (path) => recordNumber(path) === number,
+  );
+  if (existing !== undefined) {
+    throw new DldError(
+      `decision ${input.id} already exists: ${relative(project.paths.root, existing)}`,
+    );
+  }
+  const namespaced = input.namespace !== undefined;
   const dir = namespaced
     ? join(project.paths.recordsDir, input.namespace ?? "")
     : project.paths.recordsDir;

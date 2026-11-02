@@ -20,24 +20,14 @@ export interface RecordEdit {
   state: RecordState;
 }
 
-// @decision(DL-066)
-/**
- * The base to check against: `base` when given, else `resolve-base`'s answer, falling back to
- * the local branch when that is a remote branch that doesn't exist (`origin/main` → `main`).
- */
-export function editBase(ctx: Context, paths: ProjectPaths, base?: string): string {
+// @decision(DL-066) @decision(DL-071)
+/** The base to check against: `base` when given and it exists, else `resolve-base`'s answer. */
+export function editBase(ctx: Context, project: Project, base?: string): string {
   if (base !== undefined) {
-    verifyBase(ctx, paths, base, " Fetch first or pass --base.");
+    verifyBase(ctx, project.paths, base, " Fetch first or pass --base.");
     return base;
   }
-  const resolved = resolveBase(ctx);
-  const git = gitAt(ctx, paths.root);
-  const exists = (ref: string) =>
-    gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`) !== "";
-  if (exists(resolved)) return resolved;
-  const local = resolved.startsWith("origin/") ? resolved.slice("origin/".length) : undefined;
-  if (local !== undefined && exists(local)) return local;
-  throw new DldError(`base ref '${resolved}' not found. Fetch first or pass --base.`);
+  return resolveBase(ctx, project.config.baseBranch);
 }
 
 export interface CheckOptions {

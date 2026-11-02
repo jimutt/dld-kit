@@ -1,7 +1,6 @@
 import { createDecision } from "../../core/decisions.ts";
-import { DldError } from "../../core/errors.ts";
 import { loadProject } from "../../core/project.ts";
-import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
+import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 
 export const createDecisionCommand: Command = {
   name: "create-decision",
@@ -36,7 +35,7 @@ Options:
     const body = values["body-stdin"] === true ? ctx.readStdin() : "";
     const { id, title } = values;
     if (id === undefined || id === "" || title === undefined || title === "") {
-      throw new DldError("--id and --title are required.");
+      throw new UsageError("--id and --title are required.");
     }
     const namespace = values.namespace === "" ? undefined : values.namespace;
     const path = createDecision(ctx, loadProject(ctx), {

@@ -1,5 +1,4 @@
 import { commitReindex } from "../../core/commit-reindex.ts";
-import { DldError } from "../../core/errors.ts";
 import { loadProject } from "../../core/project.ts";
 import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 import { baseOption } from "./base-option.ts";
@@ -28,7 +27,6 @@ Options:
       args: [...args],
       options: { base: { type: "string" }, squash: { type: "boolean" } },
     });
-    if (!values.base) throw new DldError("--base is required.");
     const base = baseOption(values.base);
     const project = loadProject(ctx);
     const { commit, onto } = commitReindex(ctx, project, ctx.readStdin(), base, {

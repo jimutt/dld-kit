@@ -7552,7 +7552,19 @@ function recordNumber(path) {
   return Number.parseInt(digits, 10);
 }
 function findRecordFile(ctx, recordsDir, id) {
-  return listRecordFiles(ctx, recordsDir).find((path) => basename2(path) === `${id}.md`);
+  const matches = listRecordFiles(ctx, recordsDir).filter((path) => basename2(path) === `${id}.md`);
+  if (matches.length > 1) {
+    throw new DldError(`decision ${id} is in more than one file: ${matches.join(", ")}`);
+  }
+  return matches[0];
+}
+function duplicateRecordFiles(ctx, recordsDir) {
+  const byNumber = /* @__PURE__ */ new Map();
+  for (const path of listRecordFiles(ctx, recordsDir)) {
+    const number = recordNumber(path);
+    byNumber.set(number, [...byNumber.get(number) ?? [], path]);
+  }
+  return [...byNumber.entries()].filter(([, paths]) => paths.length > 1).sort(([a], [b]) => a - b).map(([, paths]) => paths);
 }
 var isDelimiter = (line) => line === "---" || line === "---\r";
 function frontmatterBlock(text) {
@@ -7717,6 +7729,10 @@ import { basename as basename3 } from "node:path";
 function formatId(n) {
   return `DL-${String(n).padStart(3, "0")}`;
 }
+function isCanonicalId(id) {
+  const digits = /^DL-(\d+)$/.exec(id)?.[1];
+  return digits !== void 0 && formatId(Number.parseInt(digits, 10)) === id;
+}
 function nextId(ctx, recordsDir) {
   const highest = listRecordFiles(ctx, recordsDir).map(recordNumber).reduce((max, n) => Math.max(max, n), 0);
   return formatId(highest + 1);
@@ -7814,8 +7830,20 @@ var idNumber = (id) => Number.parseInt(id.slice(3), 10);
 function compareIds(a, b) {
   return idNumber(a) - idNumber(b) || (a < b ? -1 : a > b ? 1 : 0);
 }
-function resolveBase(ctx) {
+function resolveBase(ctx, baseBranch) {
   const git = (...args) => ctx.git(args);
+  const tried = [];
+  const firstExisting = (...refs) => refs.find((ref) => {
+    tried.push(ref);
+    return gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`) !== "";
+  });
+  if (baseBranch !== void 0) {
+    const found2 = firstExisting(`origin/${baseBranch}`, baseBranch);
+    if (found2 !== void 0) return found2;
+    throw new DldError(
+      `base_branch '${baseBranch}' not found (tried ${tried.join(", ")}). Fetch first, or fix base_branch in dld.config.yaml.`
+    );
+  }
   const current = gitOrEmpty(git, "rev-parse", "--abbrev-ref", "HEAD").trim();
   const upstream = gitOrEmpty(
     git,
@@ -7824,12 +7852,26 @@ function resolveBase(ctx) {
     "--symbolic-full-name",
     "@{upstream}"
   ).trim();
+  const candidates = [];
   if (upstream !== "") {
     const slash = upstream.indexOf("/");
     const branch = slash === -1 ? upstream : upstream.slice(slash + 1);
-    if (branch !== "" && branch !== current) return upstream;
+    if (branch !== "" && branch !== current) candidates.push(upstream);
   }
-  return DEFAULT_BASE;
+  const remoteDefault = gitOrEmpty(
+    git,
+    "symbolic-ref",
+    "--quiet",
+    "--short",
+    "refs/remotes/origin/HEAD"
+  ).trim();
+  if (remoteDefault !== "") candidates.push(remoteDefault);
+  candidates.push(DEFAULT_BASE, "main");
+  const found = firstExisting(...new Set(candidates));
+  if (found !== void 0) return found;
+  throw new DldError(
+    `no base branch found (tried ${tried.join(", ")}). Set base_branch in dld.config.yaml, or run git remote set-head origin --auto.`
+  );
 }
 function verifyBase(ctx, paths, base, hint = "") {
   if (base.startsWith("-")) throw new DldError(`--base must be a git ref, got '${base}'`);
@@ -7933,18 +7975,12 @@ function formatRename({ path, oldId, newId }) {
 }
 
 // src/core/decision-edits.ts
-function editBase(ctx, paths, base) {
+function editBase(ctx, project, base) {
   if (base !== void 0) {
-    verifyBase(ctx, paths, base, " Fetch first or pass --base.");
+    verifyBase(ctx, project.paths, base, " Fetch first or pass --base.");
     return base;
   }
-  const resolved = resolveBase(ctx);
-  const git = gitAt(ctx, paths.root);
-  const exists = (ref) => gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${ref}^{commit}`) !== "";
-  if (exists(resolved)) return resolved;
-  const local = resolved.startsWith("origin/") ? resolved.slice("origin/".length) : void 0;
-  if (local !== void 0 && exists(local)) return local;
-  throw new DldError(`base ref '${resolved}' not found. Fetch first or pass --base.`);
+  return resolveBase(ctx, project.config.baseBranch);
 }
 function checkDecisionEdits(ctx, { paths }, base, ids = [], { uncommitted = false } = {}) {
   const git = gitAt(ctx, paths.root);
@@ -8102,19 +8138,34 @@ var import_yaml2 = __toESM(require_dist(), 1);
 import { join as join4 } from "node:path";
 var CONFIG_FILE = "dld.config.yaml";
 var DECISION_EDITS = ["block", "ask", "allow"];
+var CONFIG_KEYS = [
+  "decisions_dir",
+  "mode",
+  "namespaces",
+  "annotation_prefix",
+  "annotation_exclude",
+  "implement_review",
+  "decision_edits",
+  "snapshot_artifacts",
+  "base_branch"
+];
 function loadConfig(ctx, root) {
   const path = join4(root, CONFIG_FILE);
   if (!ctx.fs.exists(path)) {
     throw new DldError(`${CONFIG_FILE} not found. Run /dld-init first.`);
   }
-  return parseConfig(ctx.fs.readFile(path));
+  return parseConfig(ctx.fs.readFile(path), (message) => ctx.warn(message));
 }
-function parseConfig(text) {
+function parseConfig(text, warn = () => {
+}) {
   const doc = (0, import_yaml2.parseDocument)(text, { logLevel: "silent" });
   const problem = doc.errors[0] ?? doc.warnings[0];
   if (problem !== void 0) throw invalid(`not valid YAML: ${problem.message}`);
   const raw = doc.toJS();
   if (!isRecord2(raw)) throw invalid("expected a mapping of keys to values");
+  for (const key of Object.keys(raw)) {
+    if (!CONFIG_KEYS.some((known) => known === key)) warn(unknownKeyMessage(key));
+  }
   const mode = raw.mode;
   if (mode !== "flat" && mode !== "namespaced") {
     throw invalid("'mode' must be 'flat' or 'namespaced'");
@@ -8132,8 +8183,40 @@ function parseConfig(text) {
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
     implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
     decisionEdits: decisionEdits(raw.decision_edits),
-    snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts)
+    snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
+    ...optionalBaseBranch(raw.base_branch)
   };
+}
+function unknownKeyMessage(key) {
+  const close = CONFIG_KEYS.filter((known) => editDistance(key, known) <= 2);
+  const hint = close[0] === void 0 ? "" : `; did you mean '${close[0]}'?`;
+  return `${CONFIG_FILE}: unknown key '${key}'${hint}`;
+}
+function editDistance(a, b) {
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      current[j] = Math.min(
+        (previous[j] ?? 0) + 1,
+        (current[j - 1] ?? 0) + 1,
+        (previous[j - 1] ?? 0) + cost
+      );
+    }
+    previous = current;
+  }
+  return previous[b.length] ?? 0;
+}
+function optionalBaseBranch(value) {
+  const branch = optionalString(value, "base_branch");
+  if (branch === void 0) return {};
+  if (branch.startsWith("-") || /\s|\.\.|^\/|\/$|^origin\//.test(branch)) {
+    throw invalid(
+      `'base_branch' must be a branch name such as main or develop, without origin/, got '${branch}'`
+    );
+  }
+  return { baseBranch: branch };
 }
 function invalid(message) {
   return new DldError(`${CONFIG_FILE}: ${message}`);
@@ -8217,11 +8300,15 @@ function loadProject(ctx) {
 }
 
 // src/cli/commands/base-option.ts
-function baseOption(value, fallback = DEFAULT_BASE) {
-  const base = value ?? fallback;
-  if (base.startsWith("-")) throw new UsageError(`--base must be a git ref, got '${base}'`);
-  return base;
+function baseOption(value, defaults) {
+  if (value === void 0 && defaults !== void 0) {
+    return resolveBase(defaults.ctx, defaults.project.config.baseBranch);
+  }
+  if (value === void 0 || value === "") throw new UsageError("--base is required.");
+  if (value.startsWith("-")) throw new UsageError(`--base must be a git ref, got '${value}'`);
+  return value;
 }
+var DEFAULT_BASE_HELP = "default: the base resolve-base picks";
 function skippedNotice(reason) {
   return `[dld-reindex] open PRs not scanned: ${reason}
 `;
@@ -8244,7 +8331,7 @@ Without IDs, exits 3 when decision_edits is block (the default) and an edited or
 decision was printed. With IDs, and otherwise, exits 0.
 
 Options:
-  --base <ref>     Base ref (default: the branch's upstream base, else origin/main or main)
+  --base <ref>     Base ref (${DEFAULT_BASE_HELP})
   --uncommitted    Compare with HEAD instead of the merge-base: only uncommitted changes
 `,
   run(args, io, ctx) {
@@ -8258,7 +8345,7 @@ Options:
     const project = loadProject(ctx);
     const base = editBase(
       ctx,
-      project.paths,
+      project,
       values.base === void 0 ? void 0 : baseOption(values.base)
     );
     const edits = checkDecisionEdits(ctx, project, base, ids, {
@@ -8428,6 +8515,9 @@ import { posix } from "node:path";
 function renameProblem(paths, rename) {
   const { path, oldId, newId } = rename;
   if (!DECISION_ID.test(oldId) || !DECISION_ID.test(newId)) return "IDs must match DL-[0-9]+.";
+  if (!isCanonicalId(newId)) {
+    return `new ID '${newId}' is not canonical; use ${formatId(Number.parseInt(newId.slice(3), 10))}.`;
+  }
   if (oldId === newId) return "old and new IDs are the same.";
   const segments = path.split("/");
   if (path.startsWith("/") || segments.some((s) => s === "" || s === "." || s === "..")) {
@@ -8682,7 +8772,6 @@ Options:
       args: [...args],
       options: { base: { type: "string" }, squash: { type: "boolean" } }
     });
-    if (!values.base) throw new DldError("--base is required.");
     const base = baseOption(values.base);
     const project = loadProject(ctx);
     const { commit: commit2, onto } = commitReindex(ctx, project, ctx.readStdin(), base, {
@@ -8759,14 +8848,42 @@ function updateStatus(ctx, project, id, status) {
   writeFileAtomic(ctx, path, setStatus(text, status, relative5(project.paths.root, path)));
   return path;
 }
+var EXIT_USAGE2 = 2;
 function createDecision(ctx, project, input) {
   if (!DECISION_ID.test(input.id)) {
-    throw new DldError(`invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`);
+    throw new DldError(
+      `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`,
+      EXIT_USAGE2
+    );
   }
-  const namespaced = project.config.mode === "namespaced" && input.namespace !== void 0;
-  if (namespaced && !isSafeDirName(input.namespace ?? "")) {
-    throw new DldError(`invalid namespace '${input.namespace}'.`);
+  const number = Number.parseInt(input.id.slice(3), 10);
+  if (!isCanonicalId(input.id)) {
+    throw new DldError(
+      `decision ID '${input.id}' is not canonical; use ${formatId(number)}.`,
+      EXIT_USAGE2
+    );
   }
+  const { config } = project;
+  if (input.namespace !== void 0) {
+    if (config.mode !== "namespaced") {
+      throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE2);
+    }
+    if (!config.namespaces.includes(input.namespace) || !isSafeDirName(input.namespace)) {
+      throw new DldError(
+        `unknown namespace '${input.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
+        EXIT_USAGE2
+      );
+    }
+  }
+  const existing = listRecordFiles(ctx, project.paths.recordsDir).find(
+    (path2) => recordNumber(path2) === number
+  );
+  if (existing !== void 0) {
+    throw new DldError(
+      `decision ${input.id} already exists: ${relative5(project.paths.root, existing)}`
+    );
+  }
+  const namespaced = input.namespace !== void 0;
   const dir = namespaced ? join10(project.paths.recordsDir, input.namespace ?? "") : project.paths.recordsDir;
   ctx.fs.mkdir(dir);
   const path = join10(dir, `${input.id}.md`);
@@ -8821,7 +8938,7 @@ Options:
     const body = values["body-stdin"] === true ? ctx.readStdin() : "";
     const { id, title } = values;
     if (id === void 0 || id === "" || title === void 0 || title === "") {
-      throw new DldError("--id and --title are required.");
+      throw new UsageError("--id and --title are required.");
     }
     const namespace = values.namespace === "" ? void 0 : values.namespace;
     const path = createDecision(ctx, loadProject(ctx), {
@@ -9078,12 +9195,13 @@ Print <path>\\t<DL-NNN> for each decision added on this branch whose ID is taken
 branch or in an open pull request.
 
 Options:
-  --base <ref>  Base ref (default: origin/main)
+  --base <ref>  Base ref (${DEFAULT_BASE_HELP})
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
-    const base = baseOption(values.base);
-    const { collisions, skipped } = findCollisions(ctx, loadProject(ctx), base);
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    const { collisions, skipped } = findCollisions(ctx, project, base);
     for (const { path, id } of collisions) io.stdout(`${path}	${id}
 `);
     if (skipped !== void 0) io.stderr(skippedNotice(skipped));
@@ -9261,7 +9379,6 @@ Options:
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
-    if (!values.base) throw new DldError("--base is required.");
     const base = baseOption(values.base);
     const project = loadProject(ctx);
     for (const mention of findStaleMentions(ctx, project, ctx.readStdin(), base)) {
@@ -10331,12 +10448,13 @@ Print the decision IDs on the base branch and in records touched by open pull re
 (via gh, when available), one per line, sorted.
 
 Options:
-  --base <ref>  Base ref (default: origin/main)
+  --base <ref>  Base ref (${DEFAULT_BASE_HELP})
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
-    const base = baseOption(values.base);
-    const { ids, skipped } = listTakenIds(ctx, loadProject(ctx), base);
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    const { ids, skipped } = listTakenIds(ctx, project, base);
     for (const id of ids) io.stdout(`${id}
 `);
     if (skipped !== void 0) io.stderr(skippedNotice(skipped));
@@ -10370,12 +10488,13 @@ Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning 
 IDs. Prints nothing when there are no collisions.
 
 Options:
-  --base <ref>  Base ref (default: origin/main)
+  --base <ref>  Base ref (${DEFAULT_BASE_HELP})
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({ args: [...args], options: { base: { type: "string" } } });
-    const base = baseOption(values.base);
-    const { renames, skipped } = planRenames(ctx, loadProject(ctx), base);
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    const { renames, skipped } = planRenames(ctx, project, base);
     for (const rename of renames) io.stdout(`${formatRename(rename)}
 `);
     if (skipped !== void 0) io.stderr(skippedNotice(skipped));
@@ -10384,6 +10503,7 @@ Options:
 };
 
 // src/cli/commands/regenerate-index.ts
+import { basename as basename8, relative as relative10 } from "node:path";
 var regenerateIndexCommand = {
   name: "regenerate-index",
   summary: "Rebuild INDEX.md from the decision records",
@@ -10403,6 +10523,11 @@ Options:
     const { config, paths } = loadProject(ctx);
     if (!ctx.fs.isDirectory(paths.recordsDir)) {
       throw new DldError(`records directory not found at ${paths.recordsDir}`);
+    }
+    for (const files of duplicateRecordFiles(ctx, paths.recordsDir)) {
+      const ids = [...new Set(files.map((path) => basename8(path, ".md")))].join(" / ");
+      const shown = files.map((path) => relative10(paths.root, path)).join(", ");
+      ctx.warn(`${ids} is in more than one file: ${shown}`);
     }
     const rows = collectIndexRows(ctx, paths, values["include-base"]);
     writeIndex(ctx, paths, renderIndex(rows, config.mode));
@@ -10425,7 +10550,7 @@ Options:
   --old <DL-OLD>  Current ID (required)
   --new <DL-NEW>  New ID (required)
   --path <path>   Record path relative to the project root (required)
-  --base <ref>    Base ref for the local change set (default: origin/main)
+  --base <ref>    Base ref for the local change set (${DEFAULT_BASE_HELP})
 `,
   run(args, io, ctx) {
     const { values } = parseCommandArgs({
@@ -10439,8 +10564,9 @@ Options:
     });
     const { old: oldId, new: newId, path } = values;
     if (!oldId || !newId || !path) throw new DldError("--old, --new, and --path are required.");
-    const base = baseOption(values.base);
-    const newPath = renameDecision(ctx, loadProject(ctx), { path, oldId, newId }, base);
+    const project = loadProject(ctx);
+    const base = baseOption(values.base, { ctx, project });
+    const newPath = renameDecision(ctx, project, { path, oldId, newId }, base);
     io.stdout(`${path} -> ${newPath}
 `);
     return EXIT_OK;
@@ -10448,18 +10574,22 @@ Options:
 };
 
 // src/cli/commands/resolve-base.ts
+import { join as join19 } from "node:path";
 var resolveBaseCommand = {
   name: "resolve-base",
   summary: "Print the base ref to check decision IDs against",
   internal: true,
   usage: `Usage: dld resolve-base
 
-Print the current branch's upstream when it tracks a differently named branch, otherwise
-origin/main.
+Print the base ref: base_branch from dld.config.yaml (origin/<name>, else <name>); else the
+current branch's upstream when it tracks a differently named branch; else origin/HEAD; else
+origin/main, then main. Only a ref that exists is printed; when none does, exit 1.
 `,
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
-    io.stdout(`${resolveBase(ctx)}
+    const root = findProjectRoot(ctx);
+    const config = ctx.fs.exists(join19(root, CONFIG_FILE)) ? loadConfig(ctx, root) : void 0;
+    io.stdout(`${resolveBase(ctx, config?.baseBranch)}
 `);
     return EXIT_OK;
   }
@@ -10478,7 +10608,7 @@ frontmatter. A deleted decision
 is restored whole and staged. Fails for a draft.
 
 Options:
-  --base <ref>     Base ref (default: the branch's upstream base, else origin/main or main)
+  --base <ref>     Base ref (${DEFAULT_BASE_HELP})
   --uncommitted    Restore from HEAD instead of the merge-base: undo only uncommitted edits
 `,
   run(args, io, ctx) {
@@ -10493,7 +10623,7 @@ Options:
     const project = loadProject(ctx);
     const base = editBase(
       ctx,
-      project.paths,
+      project,
       values.base === void 0 ? void 0 : baseOption(values.base)
     );
     const uncommitted = values.uncommitted === true;
@@ -10549,7 +10679,7 @@ Agents: ${HARNESS_NAMES.join(", ")}.
 };
 
 // src/cli/commands/update.ts
-import { join as join19 } from "node:path";
+import { join as join20 } from "node:path";
 var updateCommand = {
   name: "update",
   summary: "Refresh the installed DLD skills and rule to this version",
@@ -10572,7 +10702,7 @@ ${AGENT_HELP}
     });
     const requested = parseAgents(values.agent);
     const root = findProjectRoot(ctx);
-    if (!ctx.fs.lexists(join19(root, CONFIG_FILE))) {
+    if (!ctx.fs.lexists(join20(root, CONFIG_FILE))) {
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
     const installed = installedTargets(ctx, root);
@@ -10776,8 +10906,18 @@ function run(argv, io, ctx, commands = COMMANDS) {
 ${usage(commands)}`);
     return EXIT_USAGE;
   }
+  const printed = /* @__PURE__ */ new Set();
+  const runCtx = {
+    ...ctx,
+    warn: (message) => {
+      if (printed.has(message)) return;
+      printed.add(message);
+      io.stderr(`Warning: ${message}
+`);
+    }
+  };
   try {
-    const result = command.run(rest, io, ctx);
+    const result = command.run(rest, io, runCtx);
     if (typeof result === "number") return result;
     return result.catch((error) => report(error, command, io));
   } catch (error) {
@@ -10917,7 +11057,12 @@ function createNodeContext(cwd, env) {
     gh: nodeGh(cwd, env),
     env,
     readStdin: () => fsCall("read", "standard input", () => readFileSync(0, "utf8")),
-    now: () => /* @__PURE__ */ new Date()
+    now: () => /* @__PURE__ */ new Date(),
+    // @decision(DL-079)
+    warn: (message) => {
+      process.stderr.write(`Warning: ${message}
+`);
+    }
   };
 }
 function hasCode(error, code) {

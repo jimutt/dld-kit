@@ -106,11 +106,9 @@ describe("create-decision", () => {
       ["--id", "DL-001"],
       ["--title", "No ID"],
     ]) {
-      expect(dld(project, "create-decision", ...args)).toEqual({
-        code: 1,
-        out: "",
-        err: "Error: --id and --title are required.\n",
-      });
+      const result = dld(project, "create-decision", ...args);
+      expect(result).toMatchObject({ code: EXIT_USAGE, out: "" });
+      expect(result.err).toStartWith("dld create-decision: --id and --title are required.\n");
     }
     expect(existsSync(join(project.root, "decisions/records"))).toBe(false);
   });
@@ -135,6 +133,19 @@ describe("update-status", () => {
   });
 });
 
+// @decision(DL-079)
+describe("config warnings", () => {
+  test("print once per run on stderr, and the command carries on", () => {
+    project = tempProject("decisions_dir: decisions\nmode: flat\ndecision_edit: allow\n");
+    expect(dld(project, "next-id")).toEqual({
+      code: EXIT_OK,
+      out: "DL-001\n",
+      err: "Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?\n",
+    });
+    expect(dld(project, "regenerate-index").err.match(/Warning:/g)?.length).toBe(1);
+  });
+});
+
 describe("regenerate-index", () => {
   test("reports an empty or populated index", () => {
     project = tempProject();
@@ -145,6 +156,22 @@ describe("regenerate-index", () => {
     expect(readFileSync(join(project.root, "decisions/INDEX.md"), "utf8")).toContain(
       "| DL-001 | Test decision DL-001 | accepted | test, example |",
     );
+  });
+
+  // @decision(DL-080)
+  test("warns about IDs that are in more than one file", () => {
+    project = tempProject(NAMESPACED_CONFIG);
+    project.write("decisions/records/auth/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/billing/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/DL-02.md", recordText("DL-02"));
+    project.write("decisions/records/DL-002.md", recordText("DL-002"));
+    expect(dld(project, "regenerate-index")).toEqual({
+      code: EXIT_OK,
+      out: "INDEX.md regenerated.\n",
+      err:
+        "Warning: DL-001 is in more than one file: decisions/records/auth/DL-001.md, decisions/records/billing/DL-001.md\n" +
+        "Warning: DL-002 / DL-02 is in more than one file: decisions/records/DL-002.md, decisions/records/DL-02.md\n",
+    });
   });
 
   test("fails when the records directory is missing", () => {
@@ -301,9 +328,14 @@ describe("reindex commands", () => {
   const plan = "decisions/records/DL-002.md\tDL-002\tDL-003\n";
   const notice = "[dld-reindex] open PRs not scanned: gh CLI not installed\n";
 
-  test("resolve-base prints the base", () => {
-    project = tempProject(null);
-    expect(dld(project, "resolve-base")).toEqual({ code: EXIT_OK, out: "origin/main\n", err: "" });
+  test("resolve-base prints the base, from base_branch when the config sets it", () => {
+    const p = collide();
+    expect(dld(p, "resolve-base")).toEqual({ code: EXIT_OK, out: "main\n", err: "" });
+    p.git("branch", "develop", "main");
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nbase_branch: develop\n");
+    expect(dld(p, "resolve-base")).toEqual({ code: EXIT_OK, out: "develop\n", err: "" });
+    p.write("dld.config.yaml", "decisions_dir: decisions\nmode: flat\nbase_branch: gone\n");
+    expect(dld(p, "resolve-base")).toMatchObject({ code: 1, out: "" });
   });
 
   test("planning commands print their results and the scan notice", () => {
@@ -323,7 +355,10 @@ describe("reindex commands", () => {
       out: plan,
       err: notice,
     });
-    expect(dld(p, "plan-renames").err).toBe("Error: base ref 'origin/main' not found.\n");
+    // @decision(DL-071) Without --base, the base resolve-base picks: here the local main.
+    expect(dld(p, "plan-renames")).toEqual({ code: EXIT_OK, out: plan, err: notice });
+    p.git("branch", "-m", "main", "trunk");
+    expect(dld(p, "plan-renames").err).toStartWith("Error: no base branch found");
     expect(dld(p, "plan-renames", "--base", "-x").code).toBe(EXIT_USAGE);
     expect(dld(p, "find-collisions", "--base=--output=x").err).toContain(
       "--base must be a git ref, got '--output=x'",
@@ -342,14 +377,17 @@ describe("reindex commands", () => {
       "decisions/records/DL-002.md -> decisions/records/DL-003.md\n",
     );
 
-    expect(dld(p, "find-stale-mentions").err).toBe("Error: --base is required.\n");
+    expect(dld(p, "find-stale-mentions")).toMatchObject({ code: EXIT_USAGE });
+    expect(dld(p, "find-stale-mentions").err).toStartWith(
+      "dld find-stale-mentions: --base is required.\n",
+    );
     const stale = run(["find-stale-mentions", "--base", "main"], captureIo(), withStdin(p, plan));
     expect(stale).toBe(EXIT_OK);
     const io = captureIo();
     run(["find-stale-mentions", "--base", "main"], io, withStdin(p, plan));
     expect(io.out).toBe("src/a.py\t2\tDL-002\tDL-003\t# see DL-002\n");
 
-    expect(dld(p, "commit-reindex").err).toBe("Error: --base is required.\n");
+    expect(dld(p, "commit-reindex").err).toStartWith("dld commit-reindex: --base is required.\n");
     const commitIo = captureIo();
     expect(run(["commit-reindex", "--base", "main"], commitIo, withStdin(p, plan))).toBe(EXIT_OK);
     expect(commitIo.out).toMatch(/^Created reindex commit [0-9a-f]+ on top of [0-9a-f]+\n$/);
