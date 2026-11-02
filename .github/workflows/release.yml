@@ -1,25 +1,79 @@
-# @decision(DL-052) @decision(DL-059)
-# Publishes a pushed v* tag to npm through trusted publishing, then creates its GitHub release.
-# One-time npm setup and the release steps: docs/releasing.md.
+# @decision(DL-052) @decision(DL-059) @decision(DL-062) @decision(DL-081)
+# Changesets drive releases: pending changesets open a "Version Packages" pull request; merging it
+# publishes that version to npm through trusted publishing and creates its tag and GitHub release.
+# Settings and the release steps: docs/releasing.md.
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  workflow_dispatch:
 
 permissions: {}
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
-  verify:
-    name: Check the tag and the package
+  select:
+    name: Version or publish
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      # version: changesets are pending. publish: package.json holds a version npm doesn't have yet.
+      - id: mode
+        uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+
+  version:
+    name: Open the Version Packages pull request
+    needs: select
+    if: needs.select.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      - uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          script: npm run version-packages
+          commit-message: Version Packages
+          pr-title: Version Packages
+
+  verify:
+    name: Check and pack the release
+    needs: select
+    if: needs.select.outputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      dist-tag: ${{ steps.version.outputs.dist-tag }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,20 +87,9 @@ jobs:
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
-      - name: The tag matches package.json
+      - name: Version, dist-tag and release kind
         id: version
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          version="$(node -p 'require("./package.json").version')"
-          if [ "$TAG" != "v$version" ]; then
-            echo "Tag $TAG does not match package.json version $version" >&2
-            exit 1
-          fi
-          case "$version" in
-            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
-            *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
-          esac
+        run: bun scripts/release-cli.ts info >> "$GITHUB_OUTPUT"
       - name: Biome
         run: npx biome ci .
       - name: Typecheck
@@ -55,21 +98,26 @@ jobs:
         run: npm test
       - name: Package contents
         run: npm run check:pack
-      - name: Pack
+      - name: Pack, and the release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p "$RUNNER_TEMP/package"
           npm pack --pack-destination "$RUNNER_TEMP/package"
+          bun scripts/release-cli.ts notes "$VERSION" > "$RUNNER_TEMP/package/notes.md"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: package
-          path: ${{ runner.temp }}/package/*.tgz
+          path: |
+            ${{ runner.temp }}/package/*.tgz
+            ${{ runner.temp }}/package/notes.md
           if-no-files-found: error
 
   publish:
     name: Publish to npm
     needs: verify
     runs-on: ubuntu-latest
-    # The npm trusted publisher names this environment; its deployment rule allows only v* tags.
+    # The npm trusted publisher names this environment; its deployment rule allows only main.
     environment: npm
     permissions:
       contents: read
@@ -89,30 +137,30 @@ jobs:
         run: npm install --global npm@11
       - name: Publish
         env:
-          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+          DIST_TAG: ${{ needs.verify.outputs.dist-tag }}
         run: |
           # A leading ./ keeps npm from reading "package/x.tgz" as a GitHub owner/repo.
           tarball="$(ls ./package/*.tgz)"
-          if [ "$PRERELEASE" = "true" ]; then
-            npm publish "$tarball" --tag next
-          else
-            npm publish "$tarball"
-          fi
+          npm publish "$tarball" --tag "$DIST_TAG"
 
   release:
-    name: GitHub release
+    name: Tag and GitHub release
     needs: [verify, publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Create the release
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package
+          path: package
+      - name: Create the tag and the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: v${{ needs.verify.outputs.version }}
           PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: |
-          flags=(--verify-tag --generate-notes --title "$TAG")
-          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          flags=(--target "$GITHUB_SHA" --title "$TAG" --notes-file package/notes.md --generate-notes)
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); else flags+=(--latest); fi
           gh release create "$TAG" "${flags[@]}"

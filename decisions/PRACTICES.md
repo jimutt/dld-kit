@@ -52,3 +52,4 @@ dld-kit's skills run their mechanical operations through a TypeScript CLI and li
 
 - `main` is the release branch (DL-062). Work happens on branches whose PRs target `main`, or the branch below them when stacked.
 - Commit messages are concise and factual. No buzzwords, no padding.
+- Every pull request adds a changeset (`npx changeset`), written for users: what changed for them, in one or two sentences. Use `npx changeset --empty` when nothing shipped changes. CI enforces it (DL-081).
