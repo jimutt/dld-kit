@@ -28,11 +28,11 @@ plugin.json                # GENERATED: Agent Plugins manifest over skills/ for 
 .agents/plugins/, .github/plugin/  # GENERATED: Codex and Copilot CLI marketplaces (DL-050)
 tests/cli/                 # CLI integration tests: run the built dist/dld.mjs under node
 docs/
-  install.md, workflows.md, upgrading-from-0x.md  # Reference moved out of the README (DL-063)
+  install.md, workflows.md, upgrading-from-0x.md, faq.md  # Reference linked from the README (DL-063)
   assets/                  # README workflow diagram, light and dark SVG
-  concept/                 # Design philosophy, FAQ, TL;DR, acknowledgements
+  concept/                 # The original early thinking (concept paper, FAQ, TL;DR), kept as written; acknowledgements
   framework/               # Decision record format, project configuration specs
-  plan/                    # Design plans (skill design, 1.0 plan)
+  plan/                    # Design plans (skill design is historical, 1.0 plan)
 decisions/                 # dld-kit's OWN decision log (dogfooding, not shipped content)
   records/                 # DL-*.md decision records
   PRACTICES.md             # Development practices manifest

@@ -1,5 +1,8 @@
 # Decision-Linked Development (DLD)
 
+> [!NOTE]
+> **Early thinking.** This concept paper is part of the original concept work from March 2026, written before dld-kit was built, and is kept as it was written. Parts of it no longer match how dld-kit works, and some open questions in it have since been settled. For DLD as it works today, see the [README](../../README.md), the [current FAQ](../faq.md) and the [framework docs](../framework/decision-record-format.md).
+
 ## A Framework for Preserving Decision Context in AI-Assisted Software Evolution
 
 *Jimmy — Draft concept paper, March 2026*

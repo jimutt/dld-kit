@@ -1,5 +1,8 @@
 # DLD Skill Design Plan
 
+> [!NOTE]
+> **Historical.** This is the first design plan for the skills, from March 2026, and describes the 0.x skills: bash scripts, a generated `SNAPSHOT.md`, and instructions written into `CLAUDE.md`. It is kept as a record and is not updated. The skills' current behaviour is in their sources, [`templates/skills/`](../../templates/skills/), and the choices behind it are in dld-kit's [decision log](../../decisions/INDEX.md).
+
 ## Overview
 
 DLD is implemented as a set of Claude Code skills. All user interaction happens through skills — scripts and utilities are support infrastructure only.
