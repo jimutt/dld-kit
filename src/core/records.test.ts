@@ -145,6 +145,23 @@ test("CRLF records parse and keep their line endings on status changes", () => {
   );
 });
 
+// @decision(DL-085)
+test("unknown frontmatter fields parse and survive status and id changes", () => {
+  const text = recordText(
+    "DL-002",
+    "proposed",
+    "intents: [INT-0CQEC2A8]\nreviewed_by:\n  name: someone\n",
+  );
+  expect(parseRecord(text, "f").id).toBe("DL-002");
+  const changed = setId(setStatus(text, "accepted", "f"), "DL-002", "DL-009");
+  expect(changed).toContain("intents: [INT-0CQEC2A8]\nreviewed_by:\n  name: someone\n");
+  expect(changed).toBe(
+    text
+      .replace("status: proposed\n", "status: accepted\n")
+      .replace("id: DL-002\n", "id: DL-009\n"),
+  );
+});
+
 describe("setStatus", () => {
   test("changes only the status line inside the frontmatter", () => {
     const text = `${recordText("DL-001", "proposed")}\nstatus: proposed in the body\n---\nstatus: x\n`;

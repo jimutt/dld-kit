@@ -1,7 +1,7 @@
 ---
 name: dld-lookup
 description: Look up decisions by ID, tag, code path, or keyword. IMPORTANT — use this proactively whenever you encounter `@decision` annotations in code you are about to read or modify.
-compatibility: Requires Node.js 20+.
+compatibility: Requires Node.js 22+.
 ---
 
 # /dld-lookup — Look Up Decisions

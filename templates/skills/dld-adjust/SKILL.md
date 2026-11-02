@@ -1,7 +1,7 @@
 ---
 name: dld-adjust
 description: Adjust or update existing decision records. Edits drafts freely, protects the prose of decisions already on the base branch per the project setting, and correctly interprets adjustment requests.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-adjust — Adjust a Decision
@@ -54,7 +54,7 @@ The decision is not on the base branch yet, or is still `proposed` there. Edit f
 
 ### On the base branch (`integrated`, `edited` or `allowed`)
 
-The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can always be updated, except `id` and `timestamp`, which never change. For the prose (the body below the frontmatter), follow `decision_edits` in `dld.config.yaml` (default `block`):
+The frontmatter (`status`, `references`, `amends`, `supersedes`, `tags`, `title`) can always be updated, except `id` and `timestamp`, which never change. Keep any frontmatter fields you don't recognise: projects and add-ons may add their own. For the prose (the body below the frontmatter), follow `decision_edits` in `dld.config.yaml` (default `block`):
 
 - `block`: don't edit the prose, even though the user asked. Tell them this project keeps the prose of decisions on the base branch as written, and offer to record the change as a new decision that amends or supersedes this one (`/dld-decide`). Mention that `decision_edits: ask` in `dld.config.yaml` would allow edits after confirmation. If the request also changes frontmatter fields, make only those changes; then skip to step 6.
 - `ask`: use `AskUserQuestion` to present options:

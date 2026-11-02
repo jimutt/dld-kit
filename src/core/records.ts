@@ -122,7 +122,7 @@ export function recordHead(text: string): string | undefined {
   return `${block.lines.slice(0, block.end + 1).join("\n")}\n`;
 }
 
-// @decision(DL-014)
+// @decision(DL-014) @decision(DL-085)
 /** Parses a record's frontmatter. `source` names the record in error messages. */
 export function parseRecord(text: string, source: string): DecisionRecord {
   const invalid = (message: string) => new DldError(`${source}: ${message}`);

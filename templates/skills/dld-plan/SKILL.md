@@ -1,7 +1,7 @@
 ---
 name: dld-plan
 description: Break down a feature into multiple decisions interactively. Creates a set of decision records grouped by a shared tag.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-plan — Plan a Feature as Multiple Decisions

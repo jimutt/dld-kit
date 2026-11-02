@@ -8183,7 +8183,8 @@ function parseConfig(text, warn = () => {
   const raw = doc.toJS();
   if (!isRecord2(raw)) throw invalid("expected a mapping of keys to values");
   for (const key of Object.keys(raw)) {
-    if (!CONFIG_KEYS.some((known) => known === key)) warn(unknownKeyMessage(key));
+    if (key.startsWith("x-") || CONFIG_KEYS.some((known) => known === key)) continue;
+    warn(unknownKeyMessage(key));
   }
   const mode = raw.mode;
   if (mode !== "flat" && mode !== "namespaced") {
@@ -8516,7 +8517,7 @@ function updateSnapshotState(ctx, project, customArtifacts) {
 // src/cli/commands/collect-active-decisions.ts
 var collectActiveDecisionsCommand = {
   name: "collect-active-decisions",
-  summary: "Print every accepted decision record",
+  summary: "Print every accepted decision record, and with --include-proposed the proposed ones",
   internal: true,
   usage: `Usage: dld collect-active-decisions [--include-proposed]
 
@@ -9367,7 +9368,7 @@ function isRecord3(value) {
 
 // src/generate/adapters.ts
 var relativeRef = (fromSkill, { skill, path }) => skill === fromSkill ? path : `../${skill}/${path}`;
-var SETUP = "The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+.";
+var SETUP = "The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+.";
 var agentSkillsAdapter = {
   id: "agent-skills",
   outputDir: "skills",

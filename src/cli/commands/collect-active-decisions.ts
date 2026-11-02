@@ -5,7 +5,7 @@ import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 // @decision(DL-070)
 export const collectActiveDecisionsCommand: Command = {
   name: "collect-active-decisions",
-  summary: "Print every accepted decision record",
+  summary: "Print every accepted decision record, and with --include-proposed the proposed ones",
   internal: true,
   usage: `Usage: dld collect-active-decisions [--include-proposed]
 

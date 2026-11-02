@@ -142,7 +142,7 @@ Only a ref that exists is used. When none does, the commands fail and say what t
 
 ### Unknown keys
 
-Keys that are not part of this schema are ignored, with a warning on stderr from every `dld` command that reads the config, for example `Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?`. Unknown keys stay warnings, never errors, throughout 1.x.
+Keys that are not part of this schema are ignored, with a warning on stderr from every `dld` command that reads the config, for example `Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?`. Unknown keys stay warnings, never errors, throughout 1.x. Keys starting with `x-` never warn: dld-kit will never use that prefix, so it is yours for project settings, for example `x-team: {owner: platform}`.
 
 ### Snapshot Artifacts
 

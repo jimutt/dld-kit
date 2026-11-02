@@ -1,7 +1,7 @@
 ---
 name: dld-retrofit
 description: Bootstrap DLD decisions from an existing codebase. Analyzes code to infer rationale, generates decision records, and adds `@decision` annotations.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-retrofit — Retrofit Decisions onto Existing Code
@@ -143,7 +143,7 @@ For each decision, add `@decision(DL-NNN)` annotations to the relevant code. Ann
 - **Broad mode:** Annotate at the file/module level — typically at the top of the file or on the main export/class.
 - **Detailed mode:** Annotate at the function/method/class level where the decision is embodied.
 
-Then update each decision record's `references` field directly in the YAML frontmatter with the annotated code paths and symbols.
+Then update each decision record's `references` field directly in the YAML frontmatter with the annotated code paths and symbols, keeping any other fields as they are.
 
 ## Step 7: Mark as accepted
 

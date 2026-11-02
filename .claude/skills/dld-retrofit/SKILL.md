@@ -17,7 +17,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 ## Commands
 
-`${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
+`${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
 This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
 
@@ -146,7 +146,7 @@ For each decision, add `@decision(DL-NNN)` annotations to the relevant code. Ann
 - **Broad mode:** Annotate at the file/module level — typically at the top of the file or on the main export/class.
 - **Detailed mode:** Annotate at the function/method/class level where the decision is embodied.
 
-Then update each decision record's `references` field directly in the YAML frontmatter with the annotated code paths and symbols.
+Then update each decision record's `references` field directly in the YAML frontmatter with the annotated code paths and symbols, keeping any other fields as they are.
 
 ## Step 7: Mark as accepted
 

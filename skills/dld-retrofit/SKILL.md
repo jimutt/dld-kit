@@ -1,7 +1,7 @@
 ---
 name: dld-retrofit
 description: Bootstrap DLD decisions from an existing codebase. Analyzes code to infer rationale, generates decision records, and adds `@decision` annotations.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 metadata:
   dld-kit-version: "1.0.0-rc.5"
 ---
@@ -17,7 +17,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 ## Commands
 
-The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 20+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
+The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. `<skill-dir>` stands for the absolute path of this skill's directory. If `<skill-dir>/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to install the dld-common skill: `npx skills add jimutt/dld-kit --skill dld-common`.
 
 This skill uses: `next-id`, `create-decision`, `update-status`, `regenerate-index`.
 
@@ -146,7 +146,7 @@ For each decision, add `@decision(DL-NNN)` annotations to the relevant code. Ann
 - **Broad mode:** Annotate at the file/module level — typically at the top of the file or on the main export/class.
 - **Detailed mode:** Annotate at the function/method/class level where the decision is embodied.
 
-Then update each decision record's `references` field directly in the YAML frontmatter with the annotated code paths and symbols.
+Then update each decision record's `references` field directly in the YAML frontmatter with the annotated code paths and symbols, keeping any other fields as they are.
 
 ## Step 7: Mark as accepted
 

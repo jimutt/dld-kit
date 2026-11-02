@@ -107,6 +107,10 @@ Note: A decision can also be *amended* by a newer decision without being superse
 
 The immutability principle applies to the decision's *content* — the reasoning and intent captured in the markdown body — once the record is on the base branch. How strictly agents follow it is set by `decision_edits` in [project configuration](project-configuration.md#decision-edits) (default: never edit). Frontmatter fields like `status`, `references`, `amends` and `supersedes` are maintainable: status changes when a decision is superseded or deprecated, and references are updated when code is refactored (files renamed, functions moved). This keeps the reverse index (decision → code) accurate without requiring a new decision for every rename. The `@decision` annotations in code are the authoritative link and naturally survive refactors since they move with the code.
 
+#### Other fields
+
+A project, or an add-on, may add frontmatter fields of its own. Every `dld` command keeps fields it doesn't know, and the skills keep them when they edit frontmatter. They are otherwise left alone, except that renaming a decision (`/dld-reindex`) rewrites its ID wherever it appears in a record, these fields included. dld-kit never adds a field starting with `x-`, so that prefix is safe for your own; any other field a later version adds is optional, comes in a minor release, and is named in its changeset.
+
 #### Code References
 
 References link decisions to code at the file or symbol level:

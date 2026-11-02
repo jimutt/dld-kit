@@ -9,7 +9,7 @@ DLD Kit is a toolkit of AI agent skills implementing Decision-Linked Development
 <!-- @decision(DL-053) @decision(DL-063) -->
 ```
 package.json               # npm package dld-kit (bin: dld) — DL-002
-src/                       # TypeScript CLI and library (Node 20+, ESM); *.test.ts colocated
+src/                       # TypeScript CLI and library (Node 22+, ESM); *.test.ts colocated
   core/                    # library: config, records, index, annotations, audit, snapshot, state, reindex; no stdout, no process access (DL-007)
   cli/                     # `dld` dispatch and one module per command (DL-011)
   generate/                # skill generator and per-harness adapters (DL-032)
@@ -53,7 +53,7 @@ Skill content lives only in `templates/skills/<skill>/` (DL-031). `npm run gener
 
 ## Testing
 
-Dependencies are installed with Bun from `bun.lock`: `bun install`. Bun is a development tool only; shipped code targets Node 20+ (DL-001).
+Dependencies are installed with Bun from `bun.lock`: `bun install`. Bun is a development tool only; shipped code targets Node 22+ (DL-001, DL-086).
 
 ```bash
 npm run lint         # Biome (lint + format check); lint:fix to apply

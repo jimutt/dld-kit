@@ -2,6 +2,7 @@
 
 Before 1.0, the skills were copied by hand or installed with Tessl, each skill carried `scripts/*.sh`, and `/dld-init` appended a `## DLD (Decision-Linked Development)` section to `CLAUDE.md`.
 
+- **You need Node.js 22+ and git.** 0.x ran on bash; 1.0's skills run a bundled Node CLI. Upgrade Node first.
 - **Your data carries over unchanged:** `dld.config.yaml`, `decisions/records/`, `decisions/INDEX.md` and `decisions/.dld-state.yaml`. 1.0 reads them as 0.x wrote them.
 - **Skills copied into `.claude/skills/` or `.agents/skills/`:** in the project, run `npx dld-kit@latest update --agent <names>` (e.g. `--agent claude,codex`). It rewrites the `dld-*` skills, deletes their old `scripts/*.sh`, and installs the always-on rule. Commit the result.
 - **Skills copied anywhere else** (e.g. `.cursor/skills/`, `.codex/skills/`): delete those `dld-*` directories, then run the same `update`.

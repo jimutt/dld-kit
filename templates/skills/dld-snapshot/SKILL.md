@@ -1,7 +1,7 @@
 ---
 name: dld-snapshot
 description: Generate OVERVIEW.md (narrative synthesis with diagrams) and any custom artifacts from the decision log.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-snapshot — Generate Spec Projection

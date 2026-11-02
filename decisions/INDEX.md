@@ -2,6 +2,8 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-086 | Node.js 22+ runtime, CI on 22 and 24, and floors that follow Node's LTS schedule | accepted | release, runtime |
+| DL-085 | State dld-kit's 1.0 public contract: formats, names and distribution, not only the setup commands | accepted | release, contract |
 | DL-084 | Make OVERVIEW.md the only built-in snapshot document and stop generating SNAPSHOT.md | accepted | snapshot |
 | DL-083 | Check new decisions for unstated relationships when they are created | accepted | missing-amends, authoring |
 | DL-082 | Tier find-missing-amends candidates and report only explicit and change-cue ones by default | accepted | missing-amends, audit |

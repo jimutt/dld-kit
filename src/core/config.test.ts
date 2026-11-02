@@ -68,7 +68,7 @@ snapshot_artifacts:
   test("warns about unknown keys, suggesting a close known key", () => {
     const warnings: string[] = [];
     const config = parseConfig(
-      "decisions_dir: d\nmode: flat\nfuture_key: 1\ndecision_edit: allow\n",
+      "decisions_dir: d\nmode: flat\nfuture_key: 1\ndecision_edit: allow\nx-team:\n  owner: a\n",
       (message) => warnings.push(message),
     );
     expect(config.decisionsDir).toBe("d");

@@ -4,9 +4,27 @@
 
 ## What a version number promises
 
-Semantic versioning covers the setup and CI commands, `dld init`, `update`, `install-rule`, `session-context` and `check-decision-edits` (their flags, exit codes and documented output), plus `--help` and `--version` (DL-056, DL-073). A breaking change to those needs a major version.
+From 1.0.0, a breaking change to any of these needs a major version (DL-085):
 
-All other commands are internal: the skills run them from the CLI copy bundled with the same version of the skills. A minor release may rename them or change their arguments or output, as long as the skill templates change with them. `dld --help` lists them under "Commands the skills run", apart from the "Setup and CI commands". The library API is internal too (DL-002).
+- **Decision records:** where they live (`records/` under the decisions directory, a subdirectory per namespace), their file names (`DL-<number>.md`), the ID syntax, the frontmatter fields and what they mean, the statuses and their lifecycle, and the body's section headings (Context, Decision, Rationale, Consequences), which the skills and the CLI read ([format spec](framework/decision-record-format.md)).
+- **Your own fields and keys:** frontmatter fields dld-kit doesn't know are kept, and are otherwise left alone except that renames rewrite decision IDs anywhere in a record. dld-kit never adds a frontmatter field or config key starting with `x-`, so use that prefix for your own; any other new field or key comes in a minor release and its changeset names it.
+- **Annotations:** the `@decision(DL-NNN)` syntax and `annotation_prefix`.
+- **`dld.config.yaml`:** at the repository root, with its keys, their values and defaults ([configuration spec](framework/project-configuration.md)). A minor release may add keys; an unknown key is a warning, never an error, throughout 1.x.
+- **The setup and CI commands:** `dld init`, `update`, `install-rule`, `session-context` and `check-decision-edits`, with their flags, the `--agent` names (`claude`, `antigravity`, `codex`, `cursor`, `opencode`, `pi`), exit codes and documented output, plus `--help` and `--version` (DL-056, DL-073), and the `Decision-Edit` commit trailer.
+- **The installed layout:** where `init` and `update` put the skills and the always-on rule for each agent, and the `<!-- dld-kit:start -->` / `<!-- dld-kit:end -->` markers around the rule block in instruction files. A 1.x `update` upgrades any install an earlier 1.x made.
+- **Skills:** the names `dld-init`, `dld-decide`, `dld-plan`, `dld-implement`, `dld-lookup`, `dld-adjust`, `dld-audit`, `dld-audit-auto`, `dld-snapshot`, `dld-status`, `dld-retrofit` and `dld-reindex`, the arguments their documentation gives, and the name of the shared `dld-common` skill, which every other skill needs installed beside it. Removing or renaming a skill, or dropping a documented argument, is breaking; adding one is not.
+- **Distribution:** the repository `jimutt/dld-kit` that the marketplaces and installers name; the npm package `dld-kit` and its `dld` bin; the Claude Code plugin `dld` in the marketplace `dld-kit`; the Codex and Copilot CLI plugin and marketplaces; the Pi package; and the `skills/` layout that `npx skills`, `gh skill` and manual copies read.
+- **File names in the decisions directory:** the ones dld-kit writes (`INDEX.md`, `OVERVIEW.md`, the files named in `snapshot_artifacts`, `.dld-state.yaml`) and the ones the skills read (`PRACTICES.md`, at the top and in each namespace).
+- **Supported Node.js versions:** every release line in active or maintenance LTS, currently 22, 24 and 26 (DL-086). When a line reaches end-of-life, a minor release may stop supporting it, and its changeset says so.
+
+These can change in a minor release:
+
+- the wording and steps of the skills, and the text of the always-on rule;
+- the commands the skills run: the skills run them from the CLI copy bundled with the same version of the skills, so a minor release may rename them or change their arguments or output as long as the skill templates change with them. `dld --help` lists them under "Commands the skills run", apart from the "Setup and CI commands";
+- the layout of `.dld-state.yaml`, and the content and format of generated documents such as `INDEX.md` and `OVERVIEW.md`;
+- the library API (DL-002) and where the CLI sits inside the skills.
+
+When you write a changeset, check the change against the first list: anything on it that breaks for users needs `major`.
 
 ## How a release happens
 

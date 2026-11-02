@@ -1,7 +1,7 @@
 ---
 name: dld-decide
 description: Record a single development decision as a markdown file with YAML frontmatter. Collects context, rationale, and code references interactively.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 ---
 
 # /dld-decide — Record a Decision

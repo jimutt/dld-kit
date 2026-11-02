@@ -1,7 +1,7 @@
 ---
 name: dld-reindex
 description: Resolve decision ID collisions between a local branch and the base branch (and open PRs). Renames colliding local decisions with git mv, rewrites cross-references and annotations, and commits the renames on top of the branch. Squashes the branch only when the user asks.
-compatibility: Requires Node.js 20+ and git. Open-PR scanning additionally needs the `gh` CLI authenticated against a GitHub remote — the skill falls back gracefully when unavailable.
+compatibility: Requires Node.js 22+ and git. Open-PR scanning additionally needs the `gh` CLI authenticated against a GitHub remote — the skill falls back gracefully when unavailable.
 ---
 
 # /dld-reindex — Resolve Decision ID Collisions

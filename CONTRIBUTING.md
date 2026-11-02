@@ -1,7 +1,7 @@
 # Contributing
 
 ```bash
-bun install                               # dev dependencies (Bun is a dev tool; the CLI runs on Node 20+)
+bun install                               # dev dependencies (Bun is a dev tool; the CLI runs on Node 22+)
 npm run lint && npm run typecheck && npm test
 ```
 

@@ -18,7 +18,7 @@ DLD Kit is a set of [Agent Skills](https://agentskills.io) for Claude Code, Code
 
 ## Quickstart
 
-You need Node.js 20+ and git. In the root of your repository, run:
+You need Node.js 22+ and git. In the root of your repository, run:
 
 ```bash
 npx dld-kit init
@@ -109,7 +109,7 @@ More detail, with diagrams: [workflows](docs/workflows.md).
 
 ## Install
 
-Every option installs the same skills. You need Node.js 20+ and git. `gh` is optional: `/dld-reindex` uses it to check open PRs.
+Every option installs the same skills. You need Node.js 22+ and git. `gh` is optional: `/dld-reindex` uses it to check open PRs.
 
 ### Which one to use
 
@@ -178,7 +178,7 @@ Run `npx dld-kit <command>`, or `npm install --global dld-kit` for a `dld` comma
 
 `init` and `update` won't overwrite files from a newer dld-kit unless you pass `--force`.
 
-These five commands, with their flags, exit codes and documented output, follow semantic versioning, as do `--help` and `--version`. The other commands in `dld --help` (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their bundled copy, and they can change in a minor release. Don't script against them.
+These five commands, with their flags, exit codes and documented output, follow semantic versioning, as do `--help` and `--version`. So do the formats and names your project relies on: decision records, annotations, `dld.config.yaml`, the skill names and the install channels; [What a version number promises](docs/releasing.md#what-a-version-number-promises) has the full list. The other commands in `dld --help` (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their bundled copy, and they can change in a minor release. Don't script against them.
 
 ## Learn more
 

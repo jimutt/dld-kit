@@ -1,7 +1,7 @@
 ---
 name: dld-common
 description: The dld CLI shared by the DLD skills. Not intended for direct invocation — the other DLD skills run it.
-compatibility: Requires Node.js 20+ and git.
+compatibility: Requires Node.js 22+ and git.
 metadata:
   dld-kit-version: "1.0.0-rc.5"
 ---

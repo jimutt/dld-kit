@@ -2,7 +2,7 @@
 
 The [README](../README.md#install) says which channel to use. This page has the details for each channel, how channels combine, and where each agent gets the always-on rule.
 
-Requirements: Node.js 20+ and git. `gh` is optional; `/dld-reindex` uses it to check open PRs.
+Requirements: Node.js 22+ and git. `gh` is optional; `/dld-reindex` uses it to check open PRs.
 
 Each channel below installs the same skills. They differ in which agents they reach, how the always-on rule gets into the agent's context, and how you update.
 
