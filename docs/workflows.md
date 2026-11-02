@@ -2,12 +2,13 @@
 
 The examples below use Claude Code's `/dld-plan` form. In other agents, name the skill instead, e.g. "use the dld-plan skill to plan the retry feature".
 
+Each workflow assumes DLD is set up in the repository: run `npx dld-kit init` once and commit the result, or, if you installed DLD as a plugin or with `npx skills`, run the dld-init skill once (see [install](install.md)).
+
 ## New feature or change
 
 Use `/dld-plan` to break it down into decisions, then implement:
 
 ```
-/dld-init              # Bootstrap DLD in your repo (run once)
 /dld-plan              # Break it down into decisions interactively
 /dld-adjust DL-001     # Refine decisions if details change before implementing
 /dld-implement DL-001  # Implement each decision (or batch related ones)
@@ -21,7 +22,6 @@ For a small, isolated change (a bug fix, a single design choice), `/dld-decide` 
 Use `/dld-retrofit` to generate decisions from code that already exists:
 
 ```
-/dld-init              # Bootstrap DLD in your repo (run once)
 /dld-retrofit          # Analyze code, generate decisions and annotations
 /dld-snapshot          # Generate overview docs from the decision log
 ```
@@ -44,17 +44,18 @@ The skill checks IDs against the base branch and, when `gh` is installed and aut
 
 By default the renames are a new commit, and history is left alone. Merging works: `git merge <base>`, or merging the PR with a merge commit or a squash merge. Rebasing doesn't, because the branch's earlier commits still add the old file names. If you rebase, or your repo uses "Rebase and merge", ask for a squash.
 
-## Active workflow
+## The everyday loop
 
 The core DLD loop: record decisions via `/dld-decide` or `/dld-plan`, implement them with `/dld-implement`, and the framework maintains tight coupling between the decision log and code through `@decision` annotations. `/dld-audit` periodically checks for drift, and `/dld-snapshot` regenerates the derived specification.
 
-<img width="3180" height="2100" alt="DLD high-level workflow overview showing the decision log, code annotations, generated specification, and drift detection" src="https://github.com/user-attachments/assets/fc8b7804-10ce-439b-ba0c-1f431a26a46e" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/dld-workflow-dark.svg">
+  <img src="assets/dld-workflow-light.svg" width="880" alt="DLD workflow: /dld-plan records proposed decisions; /dld-implement writes and reviews the code and links it to the decisions with @decision comments; /dld-snapshot, run on demand, on a schedule or in CI, generates OVERVIEW.md. Agents read the linked decision before editing annotated code.">
+</picture>
 
-## Passive mode
+## Hands-off
 
-For teams that want living documentation without changing how they work. Run `/dld-init` and `/dld-retrofit` once to bootstrap, then schedule `/dld-audit-auto` and `/dld-snapshot` to run automatically (e.g. nightly via CI). The audit detects unreferenced code changes, infers new decisions, and back-annotates the code — all without developers invoking any DLD commands during their normal workflow.
-
-<img width="2880" height="2760" alt="DLD passive mode showing scheduled automation that keeps decisions and docs in sync without workflow changes" src="https://github.com/user-attachments/assets/36bba4e1-e8eb-4390-a484-f18f54638fa1" />
+For teams that want living documentation without changing how they work. Set DLD up and run `/dld-retrofit` once to bootstrap, then schedule `/dld-audit-auto` and `/dld-snapshot` to run automatically (e.g. nightly via CI). The audit detects unreferenced code changes, infers new decisions, and back-annotates the code — all without developers invoking any DLD commands during their normal workflow.
 
 > [!NOTE]
 > DLD doesn't include a scheduler. How you trigger the automated runs is up to you — [Claude Code's built-in cron support](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#2171), a CI pipeline step, or any other external scheduler all work.

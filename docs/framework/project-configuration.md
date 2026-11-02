@@ -121,7 +121,7 @@ When `plan_review` is `true` (default `false`), `/dld-plan` launches a review su
 
 A team whose members use different harnesses usually leaves the models unset here and lets each developer set theirs in `dld.local.yaml` (below).
 
-You can always ask for something else in the request for one run, for example "implement DL-012 and use gpt-sol-6.1 as the reviewer"; that wins over both files.
+You can always ask for something else in the request for one run, for example "implement DL-012 and use sonnet as the reviewer"; that wins over both files.
 
 #### Personal settings: dld.local.yaml
 
@@ -129,7 +129,7 @@ You can always ask for something else in the request for one run, for example "i
 
 ```yaml
 # dld.local.yaml
-review_model: gpt-sol-6.1
+review_model: sonnet
 plan_review: true
 ```
 

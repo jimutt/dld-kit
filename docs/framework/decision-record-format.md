@@ -54,6 +54,13 @@ decisions/
       DL-003.md
 ```
 
+Besides the records:
+
+- `INDEX.md` lists every decision. The skills regenerate it; don't edit it by hand.
+- `OVERVIEW.md` is the narrative overview `/dld-snapshot` generates, along with any custom artifacts from `snapshot_artifacts`.
+- `PRACTICES.md` is optional: your testing, style and architecture conventions, which `/dld-implement` follows. In namespaced mode, a namespace can have its own.
+- `.dld-state.yaml` records the commit at which `/dld-audit` and `/dld-snapshot` last ran, so their next run only looks at what changed since. The skills write it, and it is committed with the rest.
+
 In namespaced mode, each decision belongs to exactly one namespace. The namespace is organizational — it does not affect the ID or how the decision is referenced in code.
 
 ## Decision Record Schema

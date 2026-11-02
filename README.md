@@ -24,9 +24,22 @@ You need Node.js 22+ and git. In the root of your repository, run:
 npx dld-kit init
 ```
 
-`init` asks which agents your team uses, suggesting the ones it finds. It then writes `dld.config.yaml`, a `decisions/` folder, the DLD skills and a short always-on rule that tells the agent to look decisions up. Commit the files; teammates don't need to install dld-kit.
+`init` asks which agents your team uses, suggesting the ones it finds. It then writes `dld.config.yaml`, a `decisions/` folder, the DLD skills and a short always-on rule that tells the agent to look decisions up ([every file it writes](docs/install.md#npx-dld-kit-init)). Commit the files; teammates don't need to install dld-kit. Start a new agent session so it loads the skills and the rule.
 
-Then, in your agent:
+The commands below are Claude Code's slash commands. In Pi, use `/skill:dld-decide`. In other agents, ask for the skill by name: "use the dld-decide skill to record why the payment client retries with backoff".
+
+### Try it on code you already have
+
+Pick a piece of code that looks odd without its reason, and record the reason:
+
+```
+/dld-decide the payment client retries with exponential backoff because the gateway returns 503s under load
+/dld-implement DL-001
+```
+
+`/dld-decide` asks what it needs to know and writes `decisions/records/DL-001.md` as a proposed decision. `/dld-implement` finds that the code already does what the decision says, adds `// @decision(DL-001)` above it and marks the decision accepted. Commit, start a new session, and ask the agent for a change that goes against it, such as "retry the payment client at a fixed one-second interval". The agent reads DL-001 before it edits the code, and asks you before it goes against the decision.
+
+### Build a feature
 
 ```
 /dld-plan add retries to the payment client
@@ -36,9 +49,7 @@ Then, in your agent:
 
 `/dld-plan` talks the feature through with you and records proposed decisions. `/dld-implement` writes the code, has it reviewed, and adds the `@decision` comments. `/dld-snapshot` regenerates `OVERVIEW.md` from the decisions.
 
-These are Claude Code's slash commands. In Pi, use `/skill:dld-plan`. In other agents, ask for the skill by name: "use the dld-plan skill to plan retries for the payment client".
-
-For a small, one-off choice, `/dld-decide` records a single decision. For an existing codebase, start with `/dld-retrofit`. To install DLD in your own agent setup rather than in the repository, see [Install](#install).
+To document a whole existing codebase, start with `/dld-retrofit`. To install DLD in your own agent setup rather than in the repository, see [Install](#install). Questions about cost, what runs in your repository, or how to stop using DLD: see the [FAQ](docs/faq.md).
 
 ## How it works
 
@@ -62,7 +73,7 @@ The gateway returns 503s under load. Fixed-interval retries made it worse.
 Exponential backoff with jitter, capped at 30 seconds, at most 5 attempts.
 ```
 
-A full record also has Rationale and Consequences sections; see the [decision record format](docs/framework/decision-record-format.md).
+A full record also has Rationale and Consequences sections; see the [decision record format](docs/framework/decision-record-format.md). dld-kit records its own decisions this way: browse [its decision log](decisions/INDEX.md) and the [overview](decisions/OVERVIEW.md) generated from it.
 
 An **annotation** links code to the decision:
 
@@ -73,7 +84,7 @@ function retryWithBackoff(fn: () => Promise<Response>): Promise<Response> {
 
 The **always-on rule** is a short instruction installed for each agent: read the decision behind an annotation before changing that code. If a change would contradict it, the agent checks with you, and a new decision records the change.
 
-- **Merged decisions aren't rewritten.** While a decision is only on your branch, edit it as much as you like. Once it's on the main branch, you don't edit its reasoning: to change course, record a new decision that supersedes or amends it, so the history stays complete. The frontmatter (`status`, `references`, links, title) can always be updated; `id` and `timestamp` can't. `decision_edits` in the config can relax this. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
+- **Merged decisions aren't rewritten.** While a decision is only on your branch, edit it as much as you like. Once it's on the main branch (the [base branch](docs/framework/project-configuration.md#base-branch)), you don't edit its reasoning: to change course, record a new decision that supersedes or amends it, so the history stays complete. The frontmatter (`status`, `references`, links, title) can always be updated; `id` and `timestamp` can't. `decision_edits` in the config can relax this. Statuses run `proposed` → `accepted` → `superseded` or `deprecated`.
 - **The docs are generated.** `/dld-snapshot` builds `OVERVIEW.md`, and any documents you define in `snapshot_artifacts`, from the decisions. You never edit a spec by hand.
 - **Drift gets caught.** `/dld-audit` finds annotations without a decision, references to files that no longer exist, and annotated code that changed.
 - **Conventions live in one file.** An optional `decisions/PRACTICES.md` holds your testing, style and architecture conventions, and `/dld-implement` follows it.
@@ -157,13 +168,13 @@ All the options: [project configuration](docs/framework/project-configuration.md
 
 ## DLD and spec-driven development
 
-Spec-driven tools such as [Spec Kit](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/), [OpenSpec](https://openspec.dev/) and [Kiro](https://kiro.dev/) work well, especially for new projects. If they fit your team, use them. DLD is for long-lived code, where specs tend to go stale:
+If your team uses a spec-driven tool such as [Spec Kit](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/), [OpenSpec](https://openspec.dev/) or [Kiro](https://kiro.dev/) and it works for you, switching isn't necessarily worth it. DLD differs in three ways:
 
-- **Decisions instead of a spec.** You record each decision once and never rewrite it, so the history of why the code looks the way it does stays complete.
-- **The spec is generated.** The overview docs are built from the decisions, the way event sourcing builds a read model from events.
-- **The context sits in the code.** An annotation next to the code sends the agent straight to the reasoning.
+- **Decisions instead of a spec.** You record each decision once and never rewrite it. Changing course is a new decision that supersedes or amends the old one, so the history of why the code looks the way it does stays complete.
+- **The current picture is generated.** Most spec tools write a spec per feature or change, which then describes what was planned at the time. DLD builds the overview docs from the decisions in effect, the way event sourcing builds a read model from events.
+- **The context sits in the code.** An annotation next to the code sends the agent straight to the reasoning, instead of leaving it to work out which spec applies.
 
-More in the [FAQ](docs/concept/dld-faq.md) and the [concept paper](docs/concept/dld-concept.md).
+More in the [FAQ](docs/faq.md), and in the [concept paper](docs/concept/dld-concept.md) from DLD's early thinking.
 
 ## CLI
 
@@ -179,15 +190,16 @@ Run `npx dld-kit <command>`, or `npm install --global dld-kit` for a `dld` comma
 
 `init` and `update` won't overwrite files from a newer dld-kit unless you pass `--force`.
 
-These five commands, with their flags, exit codes and documented output, follow semantic versioning, as do `--help` and `--version`. So do the formats and names your project relies on: decision records, annotations, `dld.config.yaml`, the skill names and the install channels; [What a version number promises](docs/releasing.md#what-a-version-number-promises) has the full list. The other commands in `dld --help` (`next-id`, `create-decision`, `regenerate-index` and so on) are internal: the skills run them from their bundled copy, and they can change in a minor release. Don't script against them.
+These five commands, with `--help` and `--version`, follow semantic versioning, as do the formats and names your project relies on: [what a version number promises](docs/releasing.md#what-a-version-number-promises). The other commands in `dld --help` are internal to the skills and can change in a minor release, so don't script against them.
 
 ## Learn more
 
-- [Concept paper](docs/concept/dld-concept.md): the full reasoning behind DLD
-- [TL;DR](docs/concept/dld-tldr.md) and [FAQ](docs/concept/dld-faq.md)
+- [FAQ](docs/faq.md): cost, what runs in your repository, CI, stopping
 - [Decision record format](docs/framework/decision-record-format.md) and [project configuration](docs/framework/project-configuration.md)
 - [Install details](docs/install.md), [workflows](docs/workflows.md) and [upgrading from 0.x](docs/upgrading-from-0x.md)
-- [Skill design plan](docs/plan/skill-design.md): what each skill does, in detail
+- [Skill sources](templates/skills/): what each skill does, step by step
+- [dld-kit's own decision log](decisions/INDEX.md): a real one, with its [overview](decisions/OVERVIEW.md)
+- The original early thinking, from before dld-kit was built: [concept paper](docs/concept/dld-concept.md), [TL;DR](docs/concept/dld-tldr.md) and [FAQ](docs/concept/dld-faq.md)
 - [Contributing](CONTRIBUTING.md) and [releasing](docs/releasing.md)
 
 Ideas and bug reports are welcome: [open an issue](https://github.com/jimutt/dld-kit/issues).
