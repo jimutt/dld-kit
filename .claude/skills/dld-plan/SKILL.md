@@ -19,7 +19,7 @@ Use the `AskUserQuestion` tool for all questions and prompts. This provides a st
 
 `${CLAUDE_SKILL_DIR}` is the absolute path of this skill's directory. The commands below run the `dld` CLI bundled with the dld-common skill, and need Node.js 22+. If `${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs` does not exist, stop and tell the user to reinstall dld-kit's skills, including dld-common.
 
-This skill uses: `next-id`, `create-decision`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
+This skill uses: `next-id`, `create-decision`, `find-missing-amends`, `update-status`, `check-decision-edits`, `restore-decision-prose`, `regenerate-index`.
 
 ## Prerequisites
 
@@ -111,6 +111,17 @@ node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" update-status DL-003 su
 **Do not** update the status of amended decisions — they stay `accepted`.
 
 For each decision, compose a focused body. Keep it concise — the full feature context is captured across the group. Each individual decision should capture its own specific rationale.
+
+**Check for unstated relationships.** `create-decision` warns on stderr (`Warning: DL-NNN: the body says it amends DL-XXX, but --amends does not list it`) when the body states a relationship its flags leave out. After creating all the records, passing every new ID, also run:
+
+```bash
+node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" find-missing-amends DL-NNN DL-NNN ...
+```
+
+Each line is `<source-id>:<referenced-id><TAB><tier>`. If it prints nothing, continue.
+
+- `explicit`: the body says the new decision amends or supersedes DL-XXX. If it does, add DL-XXX to the record's `amends` or `supersedes` list (the record is a new draft, so edit its frontmatter directly), and for `supersedes` also run `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" update-status DL-XXX superseded`. If the sentence doesn't describe a real relationship, reword it.
+- `cue`: the body mentions DL-XXX (possibly another decision from this plan) in a sentence with a change word such as "replaces" or "no longer". Ask the user with `AskUserQuestion` whether the new decision amends DL-XXX, supersedes it, or only cites it, and update the frontmatter to match. For supersedes, also run `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" update-status DL-XXX superseded`.
 
 ### 7. Check edits to decisions on the base branch
 

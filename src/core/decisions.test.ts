@@ -52,6 +52,22 @@ describe("createDecision", () => {
     expect(text).toEndWith("---\n\nBody\n");
   });
 
+  // @decision(DL-083)
+  test("warns about stated relationships that neither --amends nor --supersedes lists", () => {
+    project = tempProject();
+    const body = "Amends DL-001, DL-002 and DL-004. Supersedes DL-003.\nAmends DL-009.\n";
+    const path = createDecision(project.ctx, loadProject(project.ctx), {
+      ...input,
+      body,
+      amends: "DL-001, DL-003",
+      supersedes: "DL-009",
+    });
+    expect(readFileSync(path, "utf8")).toContain(body);
+    expect(project.warnings).toEqual([
+      "DL-004: the body says it amends DL-002, but --amends does not list it",
+    ]);
+  });
+
   test("uses the namespace directory in namespaced mode, or the root without one", () => {
     project = tempProject(NAMESPACED_CONFIG);
     const namespaced = createDecision(project.ctx, loadProject(project.ctx), {

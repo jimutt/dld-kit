@@ -12,7 +12,7 @@ You are scanning the codebase for drift between decision records and code annota
 
 {{dld-setup}}
 
-This skill uses: `find-annotations`, `related-decisions`, `find-missing-amends`, `update-audit-state`.
+This skill uses: `find-annotations`, `related-decisions`, `find-missing-amends`, `update-status`, `regenerate-index`, `update-audit-state`.
 
 ## Prerequisites
 
@@ -83,21 +83,20 @@ Cross-reference this list with annotated files. Files that changed but whose ass
 
 #### e) Missing amendment relationships
 
-**This check is mandatory — do not skip it.** Run `find-missing-amends` to get initial candidates:
+Run `find-missing-amends` in every audit:
 
 ```bash
 {{dld}} find-missing-amends
 ```
 
-This outputs lines in the format `<source-id>:<referenced-id>` — decisions whose body references another decision ID that isn't listed in their `supersedes` or `amends` fields. Not every candidate is a missing amendment — some are just informational references (e.g., "this is similar to DL-005").
+Each line is `<source-id>:<referenced-id><TAB><tier>`: a decision whose body mentions another decision that its `supersedes` and `amends` fields don't list. By default the command only checks decisions changed since the last audit (recorded in `.dld-state.yaml`), and lists two tiers:
 
-By default the command only emits candidates whose source decision file changed since the last audit (recorded in `.dld-state.yaml`), so references the agent has already evaluated and judged informational don't keep resurfacing. To force a full rescan — useful for cold starts or manual deep audits — pass `--all`:
+- `explicit`: a sentence of the source decision says it amends or supersedes the referenced one. The prose and the frontmatter disagree, so this is an issue. Read the sentence: if it is negated ("never supersedes") or is about another decision, it is not a missing relationship. Otherwise report it under **Missing Relationships** with the fix: add the ID to `amends` or `supersedes`, whichever the sentence says. The fix is applied after the report (step 5).
+- `cue`: the Decision or Consequences section mentions the referenced decision in a sentence with a change word such as "replaces" or "no longer". This is advisory. List these under **Possible Missing Relationships**, with a short reading of each where it is obvious, and don't spend the audit evaluating every one in depth.
 
-```bash
-{{dld}} find-missing-amends --all
-```
+The checks are tuned for decision records written in English.
 
-For each candidate, read the source decision's body and evaluate whether the reference describes a partial modification of the referenced decision. Look for language like: "supersedes the X portions of", "changes the Y behavior from DL-Z", "replaces the approach in DL-Z for...", "modifies how DL-Z handles...". If so, flag it as a missing amendment.
+Plain mentions are not listed by default: most are citations. When the user asks for a deep audit of relationships, run `{{dld}} find-missing-amends --all --mentions`, which checks every decision and adds a `mention` tier. `--all` alone checks every decision at the two default tiers, which suits a first audit of an existing log.
 
 #### f) Decisions without annotations
 
@@ -124,6 +123,12 @@ Present findings grouped by severity:
 #### Deprecated/Superseded References
 - `src/auth/login.ts:15` references `DL-003` (status: superseded by DL-012)
 
+#### Missing Relationships
+- **DL-014** says "Amends DL-009" but `amends` does not list DL-009 — add it
+
+#### Possible Missing Relationships (advisory)
+- **DL-021** → DL-015: "replaces the write path of DL-015" — may amend it
+
 #### Amended Decisions (informational)
 - `src/billing/vat.ts:42` references `DL-003` — amended by DL-012. Verify code aligns with the amendment.
 
@@ -133,6 +138,7 @@ Present findings grouped by severity:
 ### Summary
 - **X** orphaned annotations
 - **Y** stale references
+- **W** missing relationships, **V** possible ones
 - **Z** annotated files modified since last audit
 
 ### Suggested Remediation
@@ -148,14 +154,28 @@ If no issues are found:
 No drift detected. All annotations reference valid, accepted decisions. All decision references point to existing code.
 ```
 
-### 5. Update audit state
+### 5. Apply relationship fixes
+
+If the report lists **Missing Relationships**, ask the user with `AskUserQuestion` which fixes to apply. For each one they accept, add the ID to the source decision's `amends` or `supersedes` list in its frontmatter, which can always be changed, even on decisions already on the base branch. A new `supersedes` entry also marks the referenced decision superseded:
+
+```bash
+{{dld}} update-status DL-NNN superseded
+```
+
+If any fix was applied, regenerate the index:
+
+```bash
+{{dld}} regenerate-index
+```
+
+### 6. Update audit state
 
 After the audit completes (regardless of findings):
 ```bash
 {{dld}} update-audit-state
 ```
 
-### 6. Suggest next steps
+### 7. Suggest next steps
 
 > Audit complete. **N** issue(s) found.
 >

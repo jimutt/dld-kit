@@ -1,6 +1,8 @@
 import { basename, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
+import { DldError } from "./errors.ts";
 import { gitAt, nulSeparated, recordsPathspec, resolveStateCommit } from "./git.ts";
+import { type MentionTier, mentionTiers } from "./mentions.ts";
 import type { Project } from "./project.ts";
 import {
   formatTimestamp,
@@ -11,11 +13,19 @@ import {
 } from "./records.ts";
 import { readStateSection, shortHead, stateString, writeStateSection } from "./state.ts";
 
-const MENTION = /DL-\d+/g;
-
 export interface MissingAmend {
   source: string;
   referenced: string;
+  tier: MentionTier;
+}
+
+export interface MissingAmendsOptions {
+  /** Check every record, not only those changed since the last audit. */
+  all?: boolean;
+  /** Include the `mention` tier. */
+  mentions?: boolean;
+  /** Check only these records, whatever the audit state. */
+  ids?: readonly string[];
 }
 
 const toPosix = (path: string) => path.split(sep).join("/");
@@ -37,34 +47,48 @@ function recordsChangedSinceAudit(ctx: Context, { paths }: Project): Set<string>
   ]);
 }
 
-// @decision(DL-024)
+// @decision(DL-024) @decision(DL-082)
 /**
- * Decision IDs a record's body mentions without declaring them in supersedes or amends.
- * Unless `all`, only records changed since the last audit are checked.
+ * Decision IDs a record's body mentions without declaring them in supersedes or amends, each
+ * with its tier. Plain mentions only with `mentions`. Unless `all` or `ids`, only records
+ * changed since the last audit are checked.
  */
 export function findMissingAmends(
   ctx: Context,
   project: Project,
-  { all }: { all: boolean },
+  { all = false, mentions = false, ids }: MissingAmendsOptions,
 ): MissingAmend[] {
   const { paths } = project;
-  const changed = all ? undefined : recordsChangedSinceAudit(ctx, project);
-  const found: MissingAmend[] = [];
   const files = listRecordFiles(ctx, paths.recordsDir).sort(
     (a, b) => recordNumber(a) - recordNumber(b),
   );
+  let include: (file: string, rel: string) => boolean = () => true;
+  if (ids !== undefined) {
+    const wanted = new Set(ids);
+    for (const id of wanted) {
+      if (!files.some((file) => basename(file, ".md") === id)) {
+        throw new DldError(`decision ${id} not found.`);
+      }
+    }
+    include = (file) => wanted.has(basename(file, ".md"));
+  } else if (!all) {
+    const changed = recordsChangedSinceAudit(ctx, project);
+    if (changed !== undefined) include = (_, rel) => changed.has(rel);
+  }
+  const found: MissingAmend[] = [];
   for (const file of files) {
     const rel = toPosix(relative(paths.root, file));
-    if (changed !== undefined && !changed.has(rel)) continue;
+    if (!include(file, rel)) continue;
     const text = ctx.fs.readFile(file);
     const record = parseRecord(text, rel);
     const source = basename(file, ".md");
     const declared = new Set([...record.supersedes, ...record.amends]);
-    const mentioned = new Set(recordBody(text).match(MENTION) ?? []);
-    const refs = [...mentioned]
-      .filter((id) => id !== source && !declared.has(id))
-      .sort((a, b) => idNumber(a) - idNumber(b));
-    for (const referenced of refs) found.push({ source, referenced });
+    const refs = [...mentionTiers(recordBody(text))]
+      .filter(
+        ([id, tier]) => id !== source && !declared.has(id) && (mentions || tier !== "mention"),
+      )
+      .sort(([a], [b]) => idNumber(a) - idNumber(b));
+    for (const [referenced, tier] of refs) found.push({ source, referenced, tier });
   }
   return found;
 }
