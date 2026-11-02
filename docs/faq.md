@@ -44,14 +44,10 @@ Only for the agent skills. `dld check-decision-edits` is a plain command that fa
 
 Both pick the next free ID, so they can collide. When the other branch merges first, run `/dld-reindex` on yours: it renames your drafts to free IDs and updates every annotation and reference to them. `INDEX.md` merges with git's union driver, so adding decisions on two branches doesn't conflict there.
 
-### How many annotations should we add?
-
-Only where the reason isn't obvious from the code: the retry tuned to one API, the check for a production-only bug. If you'd write a comment explaining why, link a decision instead. Ordinary code needs none.
-
 ### What if we stop using it?
 
 Nothing breaks. The records are markdown files and the annotations are comments, so both stay readable without dld-kit. To remove it, delete what `init` wrote ([install details](install.md#npx-dld-kit-init) lists it): the `dld-*` skill folders, the rule file or the marked block, and `dld.config.yaml`. Keep `decisions/` and the annotations as documentation, or delete them too.
 
-### Is it worth it for a small project?
+### Is it worth it for a solo project?
 
-For a short-lived project with one developer, probably not. DLD pays off when code lives for years, several people or agents work on it, and it holds choices driven by things outside the code: customers, vendors, incidents.
+Yes, if the project runs for more than a few weeks. The decisions document the project as you go, so coming back months later takes one question to your agent: it reads the latest decisions and changes and tells you where things stand and why. For a throwaway prototype, it's probably more than you need.
