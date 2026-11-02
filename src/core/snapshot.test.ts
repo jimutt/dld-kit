@@ -103,7 +103,13 @@ describe("detectSnapshotChanges", () => {
     project = tempProject();
     snapshotted(project);
     expect(detect(project)).toMatchObject({ mode: "incremental" });
+    // A state file from before DL-084 still lists SNAPSHOT.md, which no longer exists.
+    project.write(
+      "decisions/.dld-state.yaml",
+      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 2\n  artifacts:\n    SNAPSHOT.md: 2026-01-15T10:00:00Z\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n",
+    );
     expect(detect(project)).toMatchObject({ mode: "incremental" });
+    project.write("decisions/SNAPSHOT.md");
     project.git("rm", "-q", "decisions/OVERVIEW.md");
     expect(detect(project)).toEqual({ mode: "full" });
   });

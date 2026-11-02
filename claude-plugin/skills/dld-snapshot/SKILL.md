@@ -33,10 +33,15 @@ Check for uncommitted changes to decision files. Run `git status --porcelain -- 
 
 ### A SNAPSHOT.md from an earlier version
 
-Earlier versions of dld-kit also generated `decisions/SNAPSHOT.md`, a per-decision listing; it is no longer generated. If `decisions/SNAPSHOT.md` exists, check `snapshot_artifacts` in `dld.config.yaml` for an entry titled `SNAPSHOT.md` (compared without regard to case):
+Earlier versions of dld-kit also generated `<decisions_dir>/SNAPSHOT.md`, a per-decision listing; it is no longer generated. If that file exists, check `snapshot_artifacts` in `dld.config.yaml` for an entry titled `SNAPSHOT.md`, compared without regard to case:
 
-- If there is one, the file is a custom artifact the user defined. Generate it in Step 4 like any other, and never offer to delete it.
-- If there is none, tell the user that `SNAPSHOT.md` is no longer generated and will go out of date, and ask with `AskUserQuestion` whether to delete it. If they agree, remove it (`git rm decisions/SNAPSHOT.md`, or delete the file if git doesn't track it). If they keep it, leave it untouched; mention that they can define it in `snapshot_artifacts` with their own prompt to have it generated again.
+- If an entry's title matches the file's name exactly, the file is a custom artifact the user defined. Generate it in Step 4 like any other, and never offer to delete it.
+- Otherwise the file is left over from an earlier version (this includes an entry titled `snapshot.md`, which writes a separate file on a case-sensitive filesystem). Tell the user that `SNAPSHOT.md` is no longer generated and will go out of date, and ask with `AskUserQuestion` whether to delete it.
+  - If they agree, run `git rm <decisions_dir>/SNAPSHOT.md`, or delete the file if git doesn't track it. If `git rm` refuses because the file has uncommitted changes, tell the user and leave it; never force.
+  - If they keep it, leave it untouched, and mention two ways to stop the question: define `SNAPSHOT.md` in `snapshot_artifacts` with their own prompt to have it generated again, or rename or move the file to keep its current content.
+- If nobody can answer (a scheduled or CI run), leave the file untouched.
+
+Whatever happened to the file, say so in the Step 6 summary.
 
 ## Step 1: Determine update mode
 
@@ -229,6 +234,7 @@ node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" update-snapshot-state
 > Snapshot generated:
 > - `decisions/OVERVIEW.md` — narrative synthesis with diagrams (N active decisions, M proposed)
 > - `decisions/<ARTIFACT>.md` — <one line per custom artifact generated, if any>
+> - `decisions/SNAPSHOT.md` — <only if the file existed: deleted, kept (no longer generated), or generated as a custom artifact>
 >
 > Next steps:
 > - Review the generated documents for accuracy

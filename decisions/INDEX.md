@@ -2,7 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
-| DL-084 | Make OVERVIEW.md the only built-in snapshot document and stop generating SNAPSHOT.md | proposed | snapshot |
+| DL-084 | Make OVERVIEW.md the only built-in snapshot document and stop generating SNAPSHOT.md | accepted | snapshot |
 | DL-081 | Release through Changesets: a Version Packages pull request, then the verify, publish and release jobs | accepted | release, ci, github-actions |
 | DL-080 | Decision IDs are unique across namespaces, and create-decision accepts only configured namespaces | accepted | v1-hardening, records, namespaces |
 | DL-079 | Warn about unknown keys in dld.config.yaml | accepted | v1-hardening, config |
