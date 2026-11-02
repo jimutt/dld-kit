@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createNodeContext } from "../node-context.ts";
 import { type TempProject, tempProject } from "../test-helpers.ts";
@@ -64,12 +65,37 @@ describe("planLocalSettingsIgnore", () => {
     ]);
   });
 
-  test("warns when git can't tell, outside a repository", () => {
+  test("warns about a dld.local.yaml that is already committed", () => {
     project = tempProject();
-    const outside = join(project.root, "..");
-    const ctx = createNodeContext(outside, {});
-    const plan = planLocalSettingsIgnore(ctx, join(project.root, "missing"));
-    expect(plan.content).toBeUndefined();
-    expect(plan.warnings[0]).toStartWith("could not check whether git ignores dld.local.yaml.");
+    project.write("dld.local.yaml", "review_model: opus\n");
+    project.git("add", "dld.local.yaml");
+    project.git("commit", "-qm", "settings");
+    const { plan, wrote } = ensure(project);
+    expect(wrote).toBe(true);
+    expect(plan.warnings).toEqual([
+      "dld.local.yaml is committed, so everyone gets these personal settings. Run `git rm --cached dld.local.yaml` and commit, to keep it to your checkout.",
+    ]);
+    expect(ensure(project).plan.warnings).toHaveLength(1);
+  });
+
+  test("respects a rule that deliberately keeps dld.local.yaml", () => {
+    project = tempProject();
+    project.write(".gitignore", "*.yaml\n!dld.local.yaml\n");
+    const { plan, wrote } = ensure(project);
+    expect(wrote).toBe(false);
+    expect(plan.warnings).toEqual([
+      'a "!dld.local.yaml" rule keeps dld.local.yaml out of git\'s ignore list, so dld-kit does not add one. Personal settings in it will be committed.',
+    ]);
+  });
+
+  test("warns when git can't tell, outside a repository", () => {
+    const outside = mkdtempSync(join(tmpdir(), "dld-no-repo-"));
+    try {
+      const plan = planLocalSettingsIgnore(createNodeContext(outside, {}), outside);
+      expect(plan.content).toBeUndefined();
+      expect(plan.warnings[0]).toStartWith("could not check whether git ignores dld.local.yaml.");
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

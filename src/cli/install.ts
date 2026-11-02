@@ -1,4 +1,5 @@
 import { relative, sep } from "node:path";
+import { LOCAL_FILE } from "../core/config.ts";
 import type { Context } from "../core/context.ts";
 import { DldError } from "../core/errors.ts";
 import { indexPath } from "../core/index-file.ts";
@@ -138,9 +139,7 @@ export function ensureLocalSettingsIgnored(io: Io, ctx: Context, project: Projec
   const plan = planLocalSettingsIgnore(ctx, root);
   if (applyLocalSettingsIgnore(ctx, root, plan)) {
     const verb = plan.creates === true ? "Created" : "Updated";
-    io.stdout(
-      `${verb} ${GITIGNORE}: dld.local.yaml holds personal settings and is not committed\n`,
-    );
+    io.stdout(`${verb} ${GITIGNORE}: ${LOCAL_FILE} holds personal settings and is not committed\n`);
   }
   for (const warning of plan.warnings) io.stderr(`Warning: ${warning}\n`);
 }

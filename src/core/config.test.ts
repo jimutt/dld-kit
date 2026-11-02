@@ -21,7 +21,6 @@ describe("parseConfig", () => {
       namespaces: [],
       annotationPrefix: "@decision",
       annotationExclude: [],
-      implementReview: true,
       decisionEdits: "block",
       snapshotArtifacts: [],
       personal: {},
@@ -57,7 +56,7 @@ snapshot_artifacts:
 `);
     expect(config.mode).toBe("namespaced");
     expect(config.namespaces).toEqual(["billing", "auth"]);
-    expect(config.implementReview).toBe(false);
+    expect(config.personal).toEqual({ implementReview: false });
     expect(config.decisionEdits).toBe("ask");
     expect(config.annotationExclude).toEqual(["docs/**", "*.md"]);
     expect(config.snapshotArtifacts).toEqual([
@@ -216,6 +215,14 @@ describe("review settings", () => {
     expect(parseError("decisions_dir: d\nmode: flat\nreview_model: ''\n")).toBe(
       "dld.config.yaml: 'review_model' must be a non-empty string",
     );
+    for (const name of ['" opus"', '"opus\\nreview: off"']) {
+      expect(parseError(`decisions_dir: d\nmode: flat\nplan_review_model: ${name}\n`)).toBe(
+        "dld.config.yaml: 'plan_review_model' must be a model name on one line, without surrounding spaces",
+      );
+    }
+    expect(
+      parseConfig("decisions_dir: d\nmode: flat\nreview_model: claude opus 5\n").personal,
+    ).toEqual({ reviewModel: "claude opus 5" });
   });
 
   test("dld.local.yaml takes only personal settings and x- keys", () => {

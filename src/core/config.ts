@@ -44,7 +44,6 @@ export interface Config {
   annotationPrefix: string;
   /** git glob patterns excluded from annotation scanning. */
   annotationExclude: string[];
-  implementReview: boolean;
   decisionEdits: DecisionEdits;
   snapshotArtifacts: SnapshotArtifact[];
   /** The branch decisions are checked against, when set (DL-071). */
@@ -117,7 +116,6 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
     annotationPrefix: optionalString(raw.annotation_prefix, "annotation_prefix") ?? "@decision",
     // @decision(DL-023)
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
-    implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
     personal: personalSettings(raw, CONFIG_FILE),
     decisionEdits: decisionEdits(raw.decision_edits),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
@@ -156,13 +154,22 @@ function personalSettings(raw: Record<string, unknown>, file: string): PersonalS
   if (implementReview !== undefined) settings.implementReview = implementReview;
   const planReview = optionalBoolean(raw.plan_review, "plan_review", file);
   if (planReview !== undefined) settings.planReview = planReview;
-  const reviewModel = optionalString(raw.review_model, "review_model", file);
+  const reviewModel = modelName(raw.review_model, "review_model", file);
   if (reviewModel !== undefined) settings.reviewModel = reviewModel;
-  const implementModel = optionalString(raw.implement_review_model, "implement_review_model", file);
+  const implementModel = modelName(raw.implement_review_model, "implement_review_model", file);
   if (implementModel !== undefined) settings.implementReviewModel = implementModel;
-  const planModel = optionalString(raw.plan_review_model, "plan_review_model", file);
+  const planModel = modelName(raw.plan_review_model, "plan_review_model", file);
   if (planModel !== undefined) settings.planReviewModel = planModel;
   return settings;
+}
+
+/** A model name: one line, no surrounding spaces, as `review-settings` prints it on one line. */
+function modelName(value: unknown, key: string, file: string): string | undefined {
+  const name = optionalString(value, key, file);
+  if (name !== undefined && !/^\S(?:[^\r\n]*\S)?$/.test(name)) {
+    throw invalid(`'${key}' must be a model name on one line, without surrounding spaces`, file);
+  }
+  return name;
 }
 
 function unknownKeyMessage(key: string, file: string, keys: readonly string[]): string {

@@ -38,6 +38,8 @@ export function tempProject(
   // A local identity, so tests that commit work without a global git config (as on CI).
   git("config", "user.email", "test@test.com");
   git("config", "user.name", "Test");
+  // The developer's global excludes must not decide what the fixture ignores.
+  git("config", "core.excludesFile", join(root, ".git", "no-global-excludes"));
   git("commit", "--allow-empty", "-m", "init", "--quiet");
   const write = (path: string, content = "") => {
     mkdirSync(dirname(join(root, path)), { recursive: true });

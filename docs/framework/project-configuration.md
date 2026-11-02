@@ -117,7 +117,7 @@ When `plan_review` is `true` (default `false`), `/dld-plan` launches a review su
 
 #### Review models
 
-`review_model` names the model the review subagents run on, and `implement_review_model` and `plan_review_model` override it for one step. The names are passed to the agent as written, so use the names your harness knows (for example `opus` in Claude Code). An agent whose harness can't choose a subagent's model, or doesn't know the name, runs the review on its default model and says so; the report always names the model that reviewed. Unset, reviews use the harness's default.
+`review_model` names the model the review subagents run on, and `implement_review_model` and `plan_review_model` override it for one step. The names are passed to the agent as written, so use the names your harness knows (for example `opus` in Claude Code). An agent whose harness can't choose a subagent's model, or doesn't know the name, runs the review on its default model and says so; the report always names the model that reviewed. Unset, reviews use the harness's default. Model names are one line, without surrounding spaces. In `dld.local.yaml`, `review_model: default` (or the per-step key set to `default`) puts your reviews back on the harness's default when the team's config names a model.
 
 A team whose members use different harnesses usually leaves the models unset here and lets each developer set theirs in `dld.local.yaml` (below).
 

@@ -8217,7 +8217,6 @@ function parseConfig(text, warn = () => {
     annotationPrefix: optionalString(raw.annotation_prefix, "annotation_prefix") ?? "@decision",
     // @decision(DL-023)
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
-    implementReview: optionalBoolean(raw.implement_review, "implement_review") ?? true,
     personal: personalSettings(raw, CONFIG_FILE),
     decisionEdits: decisionEdits(raw.decision_edits),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
@@ -8245,13 +8244,20 @@ function personalSettings(raw, file) {
   if (implementReview !== void 0) settings.implementReview = implementReview;
   const planReview = optionalBoolean(raw.plan_review, "plan_review", file);
   if (planReview !== void 0) settings.planReview = planReview;
-  const reviewModel = optionalString(raw.review_model, "review_model", file);
+  const reviewModel = modelName(raw.review_model, "review_model", file);
   if (reviewModel !== void 0) settings.reviewModel = reviewModel;
-  const implementModel = optionalString(raw.implement_review_model, "implement_review_model", file);
+  const implementModel = modelName(raw.implement_review_model, "implement_review_model", file);
   if (implementModel !== void 0) settings.implementReviewModel = implementModel;
-  const planModel = optionalString(raw.plan_review_model, "plan_review_model", file);
+  const planModel = modelName(raw.plan_review_model, "plan_review_model", file);
   if (planModel !== void 0) settings.planReviewModel = planModel;
   return settings;
+}
+function modelName(value, key, file) {
+  const name = optionalString(value, key, file);
+  if (name !== void 0 && !/^\S(?:[^\r\n]*\S)?$/.test(name)) {
+    throw invalid(`'${key}' must be a model name on one line, without surrounding spaces`, file);
+  }
+  return name;
 }
 function unknownKeyMessage(key, file, keys) {
   let closest;
@@ -9297,9 +9303,12 @@ var GITIGNORE = ".gitignore";
 var LOCAL_IGNORE_COMMENT = "# dld-kit: one developer's DLD settings for this checkout";
 function planLocalSettingsIgnore(ctx, root) {
   const wanted = `/${LOCAL_FILE}`;
+  const git = gitAt(ctx, root);
+  let rule;
   try {
-    gitAt(ctx, root)("check-ignore", "-q", "--no-index", LOCAL_FILE);
-    return { warnings: [] };
+    rule = /:\d+:(.*)\t[^\t]*$/.exec(
+      git("check-ignore", "-v", "-n", "--no-index", LOCAL_FILE).trim()
+    )?.[1];
   } catch (error) {
     if (!(error instanceof GitCommandError) || error.status !== 1) {
       return {
@@ -9309,13 +9318,26 @@ function planLocalSettingsIgnore(ctx, root) {
       };
     }
   }
+  const warnings = [];
+  if (git("ls-files", "--", LOCAL_FILE).trim() !== "") {
+    warnings.push(
+      `${LOCAL_FILE} is committed, so everyone gets these personal settings. Run \`git rm --cached ${LOCAL_FILE}\` and commit, to keep it to your checkout.`
+    );
+  }
+  if (rule !== void 0 && rule !== "") {
+    if (rule.startsWith("!")) {
+      warnings.push(
+        `a "${rule}" rule keeps ${LOCAL_FILE} out of git's ignore list, so dld-kit does not add one. Personal settings in it will be committed.`
+      );
+    }
+    return { warnings };
+  }
   const path = join13(root, GITIGNORE);
   if (ctx.fs.lexists(path) && !ctx.fs.isRegularFile(path)) {
-    return {
-      warnings: [
-        `${GITIGNORE} is not a regular file, so dld-kit does not edit it. Add this line to it yourself: ${wanted}`
-      ]
-    };
+    warnings.push(
+      `${GITIGNORE} is not a regular file, so dld-kit does not edit it. Add this line to it yourself: ${wanted}`
+    );
+    return { warnings };
   }
   const text = ctx.fs.lexists(path) ? ctx.fs.readFile(path) : "";
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
@@ -9323,7 +9345,7 @@ function planLocalSettingsIgnore(ctx, root) {
   return {
     content: `${text}${separator}${LOCAL_IGNORE_COMMENT}${eol}${wanted}${eol}`,
     creates: !ctx.fs.lexists(path),
-    warnings: []
+    warnings
   };
 }
 function applyLocalSettingsIgnore(ctx, root, plan) {
@@ -10017,10 +10039,8 @@ function ensureLocalSettingsIgnored(io, ctx, project) {
   const plan = planLocalSettingsIgnore(ctx, root);
   if (applyLocalSettingsIgnore(ctx, root, plan)) {
     const verb = plan.creates === true ? "Created" : "Updated";
-    io.stdout(
-      `${verb} ${GITIGNORE}: dld.local.yaml holds personal settings and is not committed
-`
-    );
+    io.stdout(`${verb} ${GITIGNORE}: ${LOCAL_FILE} holds personal settings and is not committed
+`);
   }
   for (const warning of plan.warnings) io.stderr(`Warning: ${warning}
 `);

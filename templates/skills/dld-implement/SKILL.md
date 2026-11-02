@@ -145,7 +145,7 @@ It prints `review: on` or `off`, `model: <name>` or `default`, and where each ca
 
 If the review is off, skip this step entirely. Otherwise, launch a subagent to review all code changes for correctness and security. Use the `Agent` tool (also called `AgentTool`) with a prompt constructed from the template below, replacing all `{{placeholders}}` with actual values.
 
-**Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so. Your final report names the model that reviewed and where the choice came from.
+**Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so. Your final report names the model that reviewed and where the choice came from: your request, `dld.local.yaml`, `dld.config.yaml` or the default.
 
 ```
 You are reviewing code changes for the {{project_name}} project before committing. The changes implement {{decision_count}} decisions ({{decision_range}}) covering:
@@ -236,6 +236,8 @@ If the command can't find the base branch, tell the user and continue. Its messa
 > Code changes:
 > - `src/billing/vat.ts` — modified `calculateVAT` (annotated with `@decision(DL-NNN)`)
 > - `src/billing/vat.test.ts` — added tests
+>
+> Code review: <reviewed by MODEL (from SOURCE: the request, dld.local.yaml, dld.config.yaml or default), inline, or "not reviewed">
 >
 > Next steps:
 > - `/dld-decide` — record another decision

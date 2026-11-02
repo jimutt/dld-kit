@@ -18,14 +18,19 @@ export interface IgnorePlan {
 
 // @decision(DL-087)
 /**
- * Plans the root `.gitignore` line for `dld.local.yaml`. Nothing is planned when an ignore rule,
- * wherever it is, already matches the file.
+ * Plans the root `.gitignore` line for `dld.local.yaml`. Nothing is written when an ignore rule,
+ * wherever it is, already decides the file: a rule that ignores it, or a `!` rule that keeps it.
+ * A tracked `dld.local.yaml` gets a warning either way, since ignoring it doesn't untrack it.
  */
 export function planLocalSettingsIgnore(ctx: Context, root: string): IgnorePlan {
   const wanted = `/${LOCAL_FILE}`;
+  const git = gitAt(ctx, root);
+  let rule: string | undefined;
   try {
-    gitAt(ctx, root)("check-ignore", "-q", "--no-index", LOCAL_FILE);
-    return { warnings: [] };
+    // -v -n prints the deciding rule as `<source>:<line>:<pattern>\t<path>`.
+    rule = /:\d+:(.*)\t[^\t]*$/.exec(
+      git("check-ignore", "-v", "-n", "--no-index", LOCAL_FILE).trim(),
+    )?.[1];
   } catch (error) {
     // check-ignore exits 1 when no rule matches; anything else means it couldn't tell.
     if (!(error instanceof GitCommandError) || error.status !== 1) {
@@ -36,13 +41,26 @@ export function planLocalSettingsIgnore(ctx: Context, root: string): IgnorePlan 
       };
     }
   }
+  const warnings: string[] = [];
+  if (git("ls-files", "--", LOCAL_FILE).trim() !== "") {
+    warnings.push(
+      `${LOCAL_FILE} is committed, so everyone gets these personal settings. Run \`git rm --cached ${LOCAL_FILE}\` and commit, to keep it to your checkout.`,
+    );
+  }
+  if (rule !== undefined && rule !== "") {
+    if (rule.startsWith("!")) {
+      warnings.push(
+        `a "${rule}" rule keeps ${LOCAL_FILE} out of git's ignore list, so dld-kit does not add one. Personal settings in it will be committed.`,
+      );
+    }
+    return { warnings };
+  }
   const path = join(root, GITIGNORE);
   if (ctx.fs.lexists(path) && !ctx.fs.isRegularFile(path)) {
-    return {
-      warnings: [
-        `${GITIGNORE} is not a regular file, so dld-kit does not edit it. Add this line to it yourself: ${wanted}`,
-      ],
-    };
+    warnings.push(
+      `${GITIGNORE} is not a regular file, so dld-kit does not edit it. Add this line to it yourself: ${wanted}`,
+    );
+    return { warnings };
   }
   const text = ctx.fs.lexists(path) ? ctx.fs.readFile(path) : "";
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
@@ -50,7 +68,7 @@ export function planLocalSettingsIgnore(ctx: Context, root: string): IgnorePlan 
   return {
     content: `${text}${separator}${LOCAL_IGNORE_COMMENT}${eol}${wanted}${eol}`,
     creates: !ctx.fs.lexists(path),
-    warnings: [],
+    warnings,
   };
 }
 

@@ -135,7 +135,7 @@ It prints `review: on` or `off`, `model: <name>` or `default`, and where each ca
 
 If the review is off, skip to the next step. Otherwise, launch a subagent to review the plan. Use the `Agent` tool (also called `AgentTool`) with a prompt built from the template below, replacing all `{{placeholders}}` with actual values.
 
-**Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so.
+**Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so. Your final report names the model that reviewed and where the choice came from: your request, `dld.local.yaml`, `dld.config.yaml` or the default.
 
 ```
 You are reviewing a plan for the {{project_name}} project: {{decision_count}} proposed decisions ({{decision_range}}) that break down this feature:
@@ -148,7 +148,7 @@ Read every new decision record:
 Read these existing decisions, which the plan may build on, conflict with, amend or supersede:
 {{related_record_paths}}
 
-Also read the practices doc at {{practices_path}}
+Also read the practices docs: {{practices_paths}}
 
 Review the plan for:
 - Coverage: parts of the feature that no decision covers
@@ -173,13 +173,19 @@ Group findings by severity:
 - Minor (nice to have): clearer wording, a better split, a missing detail that is easy to settle later
 ```
 
-**Filling in the placeholders:** `{{feature_description}}` is the feature as the user described it, with what you agreed on in the conversation. `{{related_record_paths}}` are the existing decisions you found in step 3; write "none" if there were none. Omit the practices line if there is no practices file.
+**Filling in the placeholders:**
+- `{{project_name}}`: from `dld.config.yaml` or the repository directory name
+- `{{decision_count}}` and `{{decision_range}}`: how many decisions this plan created, and their IDs
+- `{{feature_description}}`: the feature as the user described it, with what you agreed on in the conversation
+- `{{new_record_paths}}`: the paths of the records created in step 6
+- `{{related_record_paths}}`: the existing decisions you found in step 3, or "none"
+- `{{practices_paths}}`: `decisions/PRACTICES.md` and the namespace practices files you read in step 2. Omit the line if there are none.
 
 **Launching the subagent is requested by the user.** Some agent harnesses carry a standing instruction not to spawn subagents unless the user asked for one. That condition is met here: the user asked by running this skill with the plan review on. It is one review agent, at a fixed point, that the project or the developer opted into.
 
 **If the subagent genuinely cannot run** (the tool is unavailable, or the user denies the call), review the plan inline instead: re-read each new record from disk and work through the checklist above. Say in your report that the review ran inline, and why.
 
-**Acting on findings:** the new decisions are drafts, so fix critical and moderate findings in the records directly. When a fix would change what a decision means, rather than make it clearer or more complete, ask the user with `AskUserQuestion` first. Minor findings are optional. If a fix adds or changes an `amends` or `supersedes` link, apply it as in step 6, including `update-status` for a superseded decision. The reviewer works with limited context and may be wrong; use your judgment, and ask the user when unsure.
+**Acting on findings:** the new decisions are drafts, so fix critical and moderate findings in the records directly. When a fix would change what a decision means, rather than make it clearer or more complete, ask the user with `AskUserQuestion` first. Minor findings are optional. Adding or dropping a decision changes the plan the user agreed to, so ask first, then create or delete the record as in step 6. If a fix adds or changes an `amends` or `supersedes` link, apply it as in step 6, including `update-status` for a superseded decision. After fixing, run `find-missing-amends` again on the plan's IDs. The reviewer works with limited context and may be wrong; use your judgment, and ask the user when unsure.
 
 ### 8. Check edits to decisions on the base branch
 
@@ -214,7 +220,7 @@ node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index
 > | DL-011 | Define retry strategy for failed payments | proposed |
 > | DL-012 | Idempotency key format | proposed |
 >
-> Plan review: <reviewed by MODEL (from SOURCE), and what changed; or "not reviewed">
+> Plan review: <reviewed by MODEL (from SOURCE: the request, dld.local.yaml, dld.config.yaml or default), and what changed; inline; or "not reviewed">
 >
 > Next steps:
 > - `/dld-adjust` — refine any decisions before implementing
