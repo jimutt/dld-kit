@@ -1,6 +1,6 @@
 # System Overview
 
-> Auto-generated narrative synthesis from 81 active decisions and 0 proposed decisions. Last updated 2026-11-02.
+> Auto-generated narrative synthesis from 88 active decisions and 0 proposed decisions. Last updated 2026-11-02.
 > This document is derived from individual decision records — do not edit manually.
 > Use `/dld-snapshot` to regenerate.
 
@@ -26,11 +26,11 @@ graph TD
 
 ## Toolchain and Build
 
-Everything shipped runs on Node 20 or newer, compiled to ESM; Bun is only a development tool for tests and scripts, and a Node-only typecheck pass over `src/` rejects Bun APIs in shipped code (DL-001). `tsc` checks types while esbuild produces a single bundle, `dld.mjs`, which is both the npm `bin` target and the file copied into the skills, so there is only one build artifact (DL-003). Biome handles linting and formatting (DL-006).
+Everything shipped runs on Node 22 or newer, compiled to ESM; Bun is only a development tool for tests and scripts, and a Node-only typecheck pass over `src/` rejects Bun APIs in shipped code (DL-001). The floor follows Node's LTS schedule: every line in active or maintenance LTS is supported, and a minor release may drop one once it reaches end-of-life (DL-086). `tsc` checks types while esbuild produces a single bundle, `dld.mjs`, which is both the npm `bin` target and the file copied into the skills, so there is only one build artifact (DL-003). Biome handles linting and formatting (DL-006).
 
 The package is the unscoped npm package `dld-kit` with one command, `dld`, and an explicit `files` allowlist (DL-002). It also ships the skill and rule templates so that the CLI can render skills at install time (DL-042).
 
-Testing has two layers: colocated `bun test` unit tests over library functions with injected dependencies, and CLI integration tests that run the built bundle under Node (DL-004). The bash scripts and their bats suite served as the oracle during the port and were removed after a coverage audit (DL-037). CI runs typecheck, lint, every test layer on Node 20 and 22 and a pack dry-run (DL-005), reports unit coverage on each PR with a 90% per-file floor (DL-020), and pins GitHub Actions by commit SHA at their Node 24 majors (DL-059).
+Testing has two layers: colocated `bun test` unit tests over library functions with injected dependencies, and CLI integration tests that run the built bundle under Node (DL-004). The bash scripts and their bats suite served as the oracle during the port and were removed after a coverage audit (DL-037). CI runs typecheck, lint, every test layer, the CLI tests on Node 22, 24 and 26, and a pack dry-run (DL-005, DL-086), reports unit coverage on each PR with a 90% per-file floor (DL-020), and pins GitHub Actions by commit SHA at their Node 24 majors (DL-059).
 
 ## CLI and Core Library
 
@@ -46,7 +46,7 @@ All annotation checks share one scanner. It walks git's file list (tracked and u
 
 ## Audit and Snapshot
 
-The audit and snapshot commands keep the output formats of the scripts they replaced, with deterministic ordering (DL-024, DL-025). `find-missing-amends` lists IDs mentioned in a record's body but not declared, filtered to records changed since the last audit (DL-024). Run state lives in `.dld-state.yaml`, read with the failsafe YAML schema so short commit hashes keep their leading zeros, and updated one top-level section at a time (DL-021).
+The audit and snapshot commands keep the output formats of the scripts they replaced, with deterministic ordering (DL-024, DL-025). `find-missing-amends` lists IDs a record's body mentions but does not declare, for records changed since the last audit (DL-024), tiered by how strongly the text ties them: `explicit` when a sentence says it amends or supersedes the ID, which an audit reports as an issue, `cue` for a change word near the ID in the Decision or Consequences section, which is advisory, and plain mentions only on request (DL-082). The same check runs when a decision is written: `create-decision` warns when the body states a relationship its flags leave out, and `/dld-decide` and `/dld-plan` check new records before they are committed (DL-083). Run state lives in `.dld-state.yaml`, read with the failsafe YAML schema so short commit hashes keep their leading zeros, and updated one top-level section at a time (DL-021).
 
 `/dld-snapshot` projects the log into `OVERVIEW.md` and any custom artifacts a project defines in `snapshot_artifacts`. A per-decision `SNAPSHOT.md` is no longer generated: it repeated the records in shortened form without applying amendments, and agents skipped it, so an existing one is offered for deletion unless a custom artifact claims the name (DL-084). Accepted decisions describe the current system, and proposed decisions are kept apart as planned direction (DL-070). `detect-snapshot-changes` compares the log with the recorded state to choose a full or incremental update. Proposed records count towards `decisions_included`, so a new plan is always picked up, and an upgrade marker lets the first run after an upgrade add proposed records an older snapshot left out (DL-025, DL-070).
 
@@ -78,15 +78,17 @@ Two skill behaviours guard against acting on the wrong decision. `/dld-lookup` l
 
 ## Project Setup and the Always-On Rule
 
-`dld init` sets up DLD in a project without an agent session: config, directories, index, skills and the always-on rule. It refuses to run twice, and `dld update` refreshes everything afterwards (DL-040). Harnesses are targeted by name (`claude`, `antigravity`, `codex`, `cursor`, `opencode`, `pi`), detected from markers in the project and confirmed interactively, or given with `--agent` (DL-041). The CLI renders the skills from its bundled templates and copies itself into `dld-common`, so installed skills match the CLI that installed them (DL-042). `update` owns dld-kit's `dld-*` directories: it overwrites and prunes them, and refuses to downgrade skills a newer version installed (DL-043). It counts a directory as dld-kit's only by a shipped skill name, or by a stamp whose generated notice names that same directory, so a user's own `dld-*` skill and an edited `.claude/CLAUDE.md` are left in place with a warning, and every removed file is named (DL-072). `init` and `update` also add the union-merge line for `INDEX.md` to `.gitattributes` (DL-075). It coexists with `npx skills` and `gh skill` installs, refusing symlinked copies it cannot safely own, and CI checks both installers (DL-051).
+`dld init` sets up DLD in a project without an agent session: config, directories, index, skills and the always-on rule. It refuses to run twice, and `dld update` refreshes everything afterwards (DL-040). Harnesses are targeted by name (`claude`, `antigravity`, `codex`, `cursor`, `opencode`, `pi`), detected from markers in the project and confirmed interactively, or given with `--agent` (DL-041). The CLI renders the skills from its bundled templates and copies itself into `dld-common`, so installed skills match the CLI that installed them (DL-042). `update` owns dld-kit's `dld-*` directories: it overwrites and prunes them, and refuses to downgrade skills a newer version installed (DL-043). It counts a directory as dld-kit's only by a shipped skill name, or by a stamp whose generated notice names that same directory, so a user's own `dld-*` skill and an edited `.claude/CLAUDE.md` are left in place with a warning, and every removed file is named (DL-072). `init` and `update` also add the union-merge line for `INDEX.md` to `.gitattributes` (DL-075), and make git ignore `dld.local.yaml` (DL-087). It coexists with `npx skills` and `gh skill` installs, refusing symlinked copies it cannot safely own, and CI checks both installers (DL-051).
 
 The always-on rule has one source, `templates/rules/dld-workflow.md`, rendered with the project's `annotation_prefix` (DL-074). It is delivered through files dld-kit owns where a harness supports them (`.claude/rules/`, `.agents/rules/`), and otherwise through a marked block in AGENTS.md or CLAUDE.md, so that each harness loads it exactly once (DL-045). Which instruction files each harness reads, and where a new block goes, follows the harnesses' documented behaviour: Cursor reads both files, OpenCode only AGENTS.md, and a new block goes where every target harness can see it (DL-054, DL-061). Claude Code gets an AGENTS.md block through a dld-kit `.claude/CLAUDE.md` import (DL-055). The dld-init skill installs the rule through the CLI, and this repository uses the same channel (DL-047).
+
+Reviews are configurable per team and per developer. `/dld-implement` reviews its changes in a subagent unless `implement_review` is off, and `/dld-plan` reviews the decisions it wrote when `plan_review` is on (DL-089). `review_model`, with `implement_review_model` and `plan_review_model` per step, names the model the reviewer runs on, passed to the agent as written; a harness that can't choose a subagent's model reviews on its default and says so (DL-088). Personal overrides live in `dld.local.yaml`, a gitignored file next to the config that accepts only these review settings: the user's request for a run wins, then `dld.local.yaml`, then `dld.config.yaml`, then the defaults, and `dld review-settings` resolves them for the skills (DL-087, DL-088).
 
 ## Distribution and Releases
 
 Users install dld-kit through several channels. The npm package provides `dld init`. The portable `skills/` directory serves `npx skills`, `gh skill`, and Codex and Copilot CLI through an Agent Plugins manifest and their own marketplace files; Pi installs it as a package (DL-050). A Claude Code plugin is generated into `claude-plugin/` with a marketplace in the same repository (DL-048). The plugin's SessionStart hook prints the rule through `dld session-context`, unless the project already loads it, and it stays silent on failure (DL-049).
 
-`package.json` holds the only version (DL-052). Releases go through Changesets: every pull request adds a changeset, which CI enforces, and pending changesets on `main` open a "Version Packages" pull request that bumps the version and regenerates every stamp and manifest. Merging it publishes: a read-only job checks and packs the release, a job in the `npm` environment publishes that tarball through trusted publishing without running project code, and a third creates the tag and the GitHub release from the changelog (DL-081). 1.0 is going out as release candidates from `main`, in Changesets pre mode, and 1.0.0 is released only once they run clean (DL-058). Each candidate is the default install, npm `latest` and the latest GitHub release, without manual steps (DL-062, DL-081). Pre-1.0 installs migrate with `dld update` (DL-057). The README is a short entry point organised around the install channels, with reference material under `docs/` (DL-053, DL-063).
+`package.json` holds the only version (DL-052). Releases go through Changesets: every pull request adds a changeset, which CI enforces, and pending changesets on `main` open a "Version Packages" pull request that bumps the version and regenerates every stamp and manifest. Merging it publishes: a read-only job checks and packs the release, a job in the `npm` environment publishes that tarball through trusted publishing without running project code, and a third creates the tag and the GitHub release from the changelog (DL-081). From 1.0.0, semver covers what projects build on, not only the setup and CI commands: the record format, annotations, the config schema, the installed layout, skill names, install channels and Node support, while skill wording, the rule text and the commands the skills run stay internal; frontmatter fields dld-kit doesn't know are kept, and the `x-` prefix is reserved for projects' own fields and keys (DL-085). 1.0 is going out as release candidates from `main`, in Changesets pre mode, and 1.0.0 is released only once they run clean (DL-058). Each candidate is the default install, npm `latest` and the latest GitHub release, without manual steps (DL-062, DL-081). Pre-1.0 installs migrate with `dld update` (DL-057). The README is a short entry point organised around the install channels, with reference material under `docs/` (DL-053, DL-063).
 
 ## Decision Relationships
 
@@ -109,6 +111,11 @@ graph LR
     DL070["DL-070"] -.->|"amends"| DL025["DL-025"]
     DL084["DL-084"] -.->|"amends"| DL025
     DL084 -.->|"amends"| DL070
+    DL082["DL-082"] -.->|"amends"| DL024["DL-024"]
+    DL085["DL-085"] -.->|"amends"| DL056
+    DL086["DL-086"] -.->|"amends"| DL001["DL-001"]
+    DL086 -.->|"amends"| DL005
+    DL087["DL-087"] -.->|"amends"| DL085
     DL070 -.->|"amends"| DL021["DL-021"]
     DL065["DL-065"] -.->|"amends"| DL026["DL-026"]
     DL065 -.->|"amends"| DL027["DL-027"]
@@ -156,7 +163,7 @@ The densest cluster is rule delivery: DL-045's channels were refined four times 
 
 ## Key Technical Choices
 
-- Node 20+ for everything shipped; Bun for development only (DL-001)
+- Node 22+ for everything shipped, following Node's LTS schedule; Bun for development only (DL-001, DL-086)
 - One esbuild bundle, `dld.mjs`, serves as both the npm binary and the CLI inside every skill set (DL-003, DL-035)
 - Library and CLI split, with filesystem, git and clock injected through `Context` (DL-007, DL-008)
 - Skills are generated from templates through per-harness adapters, committed, and drift-checked (DL-031, DL-032, DL-033)
@@ -165,5 +172,6 @@ The densest cluster is rule delivery: DL-045's channels were refined four times 
 - The always-on rule reaches each harness exactly once, through owned files or a managed block (DL-045)
 - Decision prose locks on the base branch; frontmatter stays editable (DL-066)
 - `package.json` is the only version source; releases go through a Changesets Version Packages pull request and npm trusted publishing (DL-052, DL-081)
-- Only the setup and CI commands are under semver; the commands the skills run are internal (DL-056, DL-073)
+- Semver covers formats, names, the installed layout and the setup and CI commands; skill wording and the commands the skills run are internal (DL-056, DL-073, DL-085)
+- Team settings live in the committed `dld.config.yaml`; a developer's review settings in a gitignored `dld.local.yaml` (DL-087)
 - Decision IDs are `DL-` plus at least three digits, compared by number, unique across namespaces (DL-078, DL-080)
