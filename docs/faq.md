@@ -10,7 +10,7 @@ A decision record is close to an ADR, and the format follows ADR conventions. DL
 
 No. If a spec tool such as Spec Kit, OpenSpec or Kiro works for your team, switching isn't necessarily worth it. The differences that matter:
 
-- **The spec is generated.** A spec tool keeps a spec that has to be updated as the code changes. DLD records each decision once and generates the overview from the decisions, so there's no spec to keep in sync by hand.
+- **The current picture is generated.** Most spec tools write a spec for each feature or change (Spec Kit and Kiro work this way), and it usually stays as it was when the work shipped: it says what was planned then, not what the code does now. Tools that keep a living spec depend on someone updating it: OpenSpec merges each change into its main specs when the change is archived, and Spec Kit and Kiro can update a spec when asked. DLD records each decision once and generates the overview from the decisions in effect, so nothing has to be brought up to date by hand.
 - **The history stays.** Changing course is a new decision that supersedes or amends the old one, so the record of why the code looks the way it does is never rewritten.
 - **The code points to its reasoning.** An `@decision` annotation sits on the code it explains, so an agent about to change that code is sent to the decision, instead of having to work out which part of a spec applies.
 
