@@ -15,7 +15,7 @@ IDs are globally sequential across the entire project, even when namespaces are 
 An ID is `DL-` followed by a decimal number, zero-padded to three digits. Numbers above 999 use as many digits as they need: `DL-001`, `DL-042`, `DL-999`, `DL-1000`.
 
 - This canonical spelling is the ID's identity everywhere: file names, frontmatter, annotations and references. `DL-5` and `DL-005` are not the same ID, so tools that create IDs (`create-decision`, the reindex renames) reject anything but the canonical form.
-- IDs are ordered by number, not as text. `INDEX.md`, the snapshot and the reindex plan list `DL-999` before `DL-1000`; file browsers that sort by name may not.
+- IDs are ordered by number, not as text. `INDEX.md`, `collect-active-decisions` and the reindex plan list `DL-999` before `DL-1000`; file browsers that sort by name may not.
 - The next ID is one more than the highest existing number.
 
 ### Directory Layout
@@ -27,7 +27,6 @@ Determined by project configuration (see `dld.config.yaml`).
 decisions/
   INDEX.md
   OVERVIEW.md
-  SNAPSHOT.md
   PRACTICES.md
   .dld-state.yaml
   records/
@@ -41,7 +40,6 @@ decisions/
 decisions/
   INDEX.md
   OVERVIEW.md
-  SNAPSHOT.md
   PRACTICES.md
   .dld-state.yaml
   records/

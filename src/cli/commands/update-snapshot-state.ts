@@ -10,7 +10,7 @@ export const updateSnapshotStateCommand: Command = {
   usage: `Usage: dld update-snapshot-state [artifact ...]
 
 Record the snapshot time, HEAD commit and highest accepted decision, with timestamps for
-SNAPSHOT.md, OVERVIEW.md and any custom artifacts named.
+OVERVIEW.md and any custom artifacts named.
 `,
   run(args, io, ctx) {
     const { positionals } = parseCommandArgs({

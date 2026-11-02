@@ -20,7 +20,8 @@ import {
 } from "./state.ts";
 
 export const DECISION_BOUNDARY = "===DLD_DECISION_BOUNDARY===";
-export const BUILT_IN_ARTIFACTS = ["SNAPSHOT.md", "OVERVIEW.md"] as const;
+// @decision(DL-084)
+export const BUILT_IN_ARTIFACTS = ["OVERVIEW.md"] as const;
 
 interface RecordFile {
   path: string;
@@ -68,7 +69,7 @@ export type SnapshotChanges =
       commitRange: string;
     };
 
-// @decision(DL-025) @decision(DL-070)
+// @decision(DL-025) @decision(DL-070) @decision(DL-084)
 /** What changed since the last snapshot, as detect-snapshot-changes.sh reported it. */
 export function detectSnapshotChanges(ctx: Context, project: Project): SnapshotChanges {
   const { paths } = project;
@@ -127,7 +128,7 @@ export function formatSnapshotChanges(changes: SnapshotChanges): string {
   ].join("\n");
 }
 
-// @decision(DL-025) @decision(DL-021) @decision(DL-070)
+// @decision(DL-025) @decision(DL-021) @decision(DL-070) @decision(DL-084)
 /** Records the snapshot run, the highest accepted or proposed ID and artifact timestamps. */
 export function updateSnapshotState(
   ctx: Context,

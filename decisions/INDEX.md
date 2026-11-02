@@ -6,6 +6,7 @@
 | DL-085 | State dld-kit's 1.0 public contract: formats, names and distribution, not only the setup commands | accepted | release, contract |
 | DL-083 | Check new decisions for unstated relationships when they are created | accepted | missing-amends, authoring |
 | DL-082 | Tier find-missing-amends candidates and report only explicit and change-cue ones by default | accepted | missing-amends, audit |
+| DL-084 | Make OVERVIEW.md the only built-in snapshot document and stop generating SNAPSHOT.md | accepted | snapshot |
 | DL-081 | Release through Changesets: a Version Packages pull request, then the verify, publish and release jobs | accepted | release, ci, github-actions |
 | DL-080 | Decision IDs are unique across namespaces, and create-decision accepts only configured namespaces | accepted | v1-hardening, records, namespaces |
 | DL-079 | Warn about unknown keys in dld.config.yaml | accepted | v1-hardening, config |
