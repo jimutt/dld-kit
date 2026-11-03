@@ -39,21 +39,13 @@ Releases go through [Changesets](https://github.com/changesets/changesets) (DL-0
 
 If a run fails, fix the cause and rerun it from the Actions tab, or start the workflow by hand on `main` (`workflow_dispatch`).
 
-### Release candidates
+### Prereleases
 
-Until 1.0.0 the repository is in Changesets pre mode with the tag `rc` (`.changeset/pre.json`), so versions continue `1.0.0-rc.6`, `1.0.0-rc.7`, and so on (DL-058). Each candidate is the default install (DL-062): the workflow publishes it to npm `latest` and makes its GitHub release the latest release. There are no manual steps.
+A release whose version has a prerelease part (`1.1.0-rc.0`) is published to npm `next` and marked as a prerelease on GitHub; every other release goes to npm `latest` and becomes the latest GitHub release. To publish prereleases, enter Changesets pre mode with `npx changeset pre enter rc` in a pull request, and leave it with `npx changeset pre exit` in the pull request before the release. When leaving, check `.changeset/pre/`: Changesets puts the changesets in it in the release's changelog too, so delete them if a hand-written summary replaces them.
+
+1.0 went out this way: `1.0.0-rc.1` to `1.0.0-rc.6`, each the default install on npm `latest` (DL-058, DL-062), then 1.0.0.
 
 The Claude Code, Codex and Copilot CLI marketplaces and `npx skills` read `main`, so they serve a version as soon as its Version Packages pull request is merged.
-
-### Releasing 1.0.0
-
-When the candidates are clean, in one pull request:
-
-1. Run `npx changeset pre exit`, so the next version is `1.0.0`.
-2. Remove the README's release-candidate note.
-3. Mark `docs/plan/v1.md` as done.
-
-Merge it, then merge the Version Packages pull request it produces. After 1.0.0, prereleases (if any) go to npm `next` as GitHub prereleases, and releases to `latest`.
 
 ## Settings the workflow needs
 
