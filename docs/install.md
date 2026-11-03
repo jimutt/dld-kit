@@ -40,6 +40,33 @@ Commit the files. Teammates then need nothing installed.
 
 To upgrade, run `npx dld-kit@latest update`. It rewrites the `dld-*` skills and the rule for the agents already installed, and never touches decision records or `dld.config.yaml`. Add `--agent <name>` to install for another agent. It names every file it removes, and leaves alone anything that is not dld-kit's: a `dld-*` skill of your own (one that is not a dld-kit skill name and has no dld-kit version stamp), and a `.claude/CLAUDE.md` you have added to.
 
+### Keeping the bundled CLI out of git
+
+Each agent's `dld-common/scripts/dld.mjs` is the CLI the skills run: one generated file of about 430 KB, which every update rewrites. To keep it out of your reviews, do one of these:
+
+- **Commit it, but hide its diff.** Add this line to `.gitattributes`:
+
+  ```
+  **/dld-common/scripts/dld.mjs linguist-generated=true -diff
+  ```
+
+  GitHub then collapses the file in pull requests, and `git diff` only says that it changed. Teammates still need nothing installed.
+
+- **Don't commit it.** Add `**/dld-common/scripts/dld.mjs` to `.gitignore` and commit the rest as usual. Every checkout then has to restore the file before the skills work, and so does any CI job that runs them, such as a scheduled `/dld-audit-auto`. Run `update` with the version the skills were installed with (the `dld-kit-version` in any of their `SKILL.md` files), for example `npx dld-kit@1.0.0 update`. It writes the missing file and leaves the rest as it is. Without it, the skills stop and ask you to reinstall them.
+
+  In a JavaScript project, `npm install` can do this for you. Add dld-kit as an exact dev dependency, and run `dld update` from the `prepare` script, which `npm install` and `npm ci` run:
+
+  ```json
+  {
+    "devDependencies": { "dld-kit": "1.0.0" },
+    "scripts": { "prepare": "dld update" }
+  }
+  ```
+
+  To upgrade, change the version, run `npm install`, and commit the updated skills.
+
+If you'd rather not have the skills in the repository at all, use the Claude Code plugin, the Codex or Copilot CLI plugin, or the Pi package, below.
+
 ## Claude Code plugin
 
 In Claude Code:
