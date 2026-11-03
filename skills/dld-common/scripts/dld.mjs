@@ -7372,7 +7372,7 @@ import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 // package.json
-var version = "1.0.0-rc.6";
+var version = "1.0.0";
 
 // src/core/errors.ts
 var EXIT_ERROR = 1;
