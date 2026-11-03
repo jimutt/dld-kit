@@ -7,5 +7,6 @@ Before 1.0, the skills were copied by hand or installed with Tessl, each skill c
 - **Skills copied into `.claude/skills/` or `.agents/skills/`:** in the project, run `npx dld-kit@latest update --agent <names>` (e.g. `--agent claude,codex`). It rewrites the `dld-*` skills, deletes their old `scripts/*.sh`, and installs the always-on rule. Commit the result.
 - **Skills copied anywhere else** (e.g. `.cursor/skills/`, `.codex/skills/`): delete those `dld-*` directories, then run the same `update`.
 - **Tessl installs:** remove the `dld-kit/dld` tile with Tessl, and delete any DLD rule text Tessl added. Then run `update`. The Tessl tile gets no new versions.
+- **`SNAPSHOT.md` is no longer generated.** `/dld-snapshot` writes `OVERVIEW.md` and the documents in `snapshot_artifacts`, and offers to delete an old `SNAPSHOT.md`. To keep a file by that name, add a `snapshot_artifacts` entry titled `SNAPSHOT.md` with your own prompt.
 - **The old `CLAUDE.md` section:** once the rule is installed, delete the `## DLD (Decision-Linked Development)` section yourself. Until then Claude Code and Cursor read the rule twice. `update` warns while the section is there, and never edits it.
 - **To use the plugin or `npx skills` instead:** delete the copied `dld-*` directories and the old `CLAUDE.md` section first, then install through that channel.

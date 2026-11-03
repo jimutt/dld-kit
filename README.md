@@ -10,7 +10,7 @@ Code is full of choices that look odd without their reason: a retry tuned to one
 </picture>
 
 > [!NOTE]
-> **1.0 is in release candidates (`1.0.0-rc.N`).** The install steps below get the latest candidate, which replaces the 0.x skills and scripts. Commands, file formats and skills may still change before 1.0.0. Coming from 0.x? See [Upgrading from 0.x](#upgrading-from-0x). The last 0.x release is [v0.9.0](https://github.com/jimutt/dld-kit/releases/tag/v0.9.0).
+> **Coming from 0.x?** 1.0 replaces the 0.x skills and scripts: see [Upgrading from 0.x](#upgrading-from-0x). The last 0.x release is [v0.9.0](https://github.com/jimutt/dld-kit/releases/tag/v0.9.0).
 
 DLD Kit is a set of [Agent Skills](https://agentskills.io) for Claude Code, Codex, Cursor, OpenCode, Pi, Antigravity and Copilot CLI, plus a small CLI that installs them.
 
