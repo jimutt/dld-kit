@@ -22,7 +22,7 @@ dld-kit calls no models itself. Each skill is an ordinary session in your agent,
 
 ### What does it add to my repository?
 
-`dld.config.yaml`, a `decisions/` folder, the skills for each agent you chose, the always-on rule (a file, or a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` markers in `AGENTS.md` or `CLAUDE.md`), and one line each in `.gitattributes` and `.gitignore`. [Install details](install.md#npx-dld-kit-init) lists every path. Commit all of it, including `decisions/.dld-state.yaml` once a skill writes it: it records where `/dld-audit` and `/dld-snapshot` last ran, so the next run only looks at what changed. The one file you don't commit is `dld.local.yaml`, your personal review settings.
+`dld.config.yaml`, a `decisions/` folder, the skills for each agent you chose, the always-on rule (a file, or a block between `<!-- dld-kit:start -->` and `<!-- dld-kit:end -->` markers in `AGENTS.md` or `CLAUDE.md`), and one line each in `.gitattributes` and `.gitignore`. [Install details](install.md#npx-dld-kit-init) lists every path. Commit all of it, including `decisions/.dld-state.yaml` once a skill writes it: it records where `/dld-audit` and `/dld-snapshot` last ran, so the next run only looks at what changed. The one file you don't commit is `dld.local.yaml`, your personal review settings. If you'd rather not commit the bundled CLI either, see [keeping the bundled CLI out of git](install.md#keeping-the-bundled-cli-out-of-git).
 
 ### What runs on my machine?
 
