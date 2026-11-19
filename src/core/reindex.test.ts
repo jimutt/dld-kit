@@ -6,15 +6,9 @@ import {
   recordText,
   type TempProject,
 } from "../test-helpers.ts";
+import { compareIds } from "./ids.ts";
 import { loadProject } from "./project.ts";
-import {
-  compareIds,
-  findCollisions,
-  formatRename,
-  listTakenIds,
-  planRenames,
-  resolveBase,
-} from "./reindex.ts";
+import { findCollisions, formatRename, listTakenIds, planRenames, resolveBase } from "./reindex.ts";
 
 let project: TempProject | undefined;
 afterEach(() => {

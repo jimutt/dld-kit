@@ -5,7 +5,7 @@ import {
   formatTimestamp,
   listRecordFiles,
   parseRecord,
-  recordNumber,
+  recordId,
   renderNewRecord,
   setId,
   setStatus,
@@ -255,9 +255,10 @@ describe("record files", () => {
     expect(findRecordFile(ctx, "/r", "DL-003")).toBeUndefined();
   });
 
-  test("reads the number from a record path", () => {
-    expect(recordNumber("/r/DL-010.md")).toBe(10);
-    expect(() => recordNumber("/r/notes.md")).toThrow("not a decision record file");
+  test("reads the ID from a record path", () => {
+    expect(recordId("/r/DL-010.md")).toBe("DL-010");
+    expect(recordId("/r/ns/DL-T1k3m9z2p7xq4.md")).toBe("DL-T1k3m9z2p7xq4");
+    expect(() => recordId("/r/notes.md")).toThrow("not a decision record file");
   });
 });
 

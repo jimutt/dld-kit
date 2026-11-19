@@ -3,7 +3,7 @@ import { version } from "../../../package.json";
 import { CONFIG_FILE } from "../../core/config.ts";
 import { DldError } from "../../core/errors.ts";
 import { indexPath, renderIndex, writeIndex } from "../../core/index-file.ts";
-import { createConfig, createDirectories } from "../../core/init.ts";
+import { createConfig, createDirectories, parseIdFormat } from "../../core/init.ts";
 import { findProjectRoot, loadProject } from "../../core/project.ts";
 import { detectHarnesses, targetsFor } from "../../generate/harnesses.ts";
 import { applyInstall, packageSource, planInstall } from "../../generate/install.ts";
@@ -22,7 +22,8 @@ import {
 export const initCommand: Command = {
   name: "init",
   summary: "Set up DLD, its skills and the always-on rule in this repository",
-  usage: `Usage: dld init [--namespaces <a,b,...>] [--agent <names>] [--yes] [--force]
+  usage: `Usage: dld init [--namespaces <a,b,...>] [--id-format <form>] [--agent <names>] [--yes]
+                [--force]
 
 Create dld.config.yaml, the decisions directory and INDEX.md, then install the DLD skills and
 the always-on rule for the agents used in this project.
@@ -32,6 +33,8 @@ you to confirm the selection unless --yes is given.
 
 Options:
   --namespaces <a,b>  Organise decisions by these namespaces (default: one flat log)
+  --id-format <form>  sequential (DL-001, the default) or timestamp (DL-T1k3m9z2p7xq4, which
+                      does not clash between branches)
   --agent <names>     Agents to install for, besides the detected ones
   --yes               Do not ask; use the detected agents and --agent
   --force             Replace DLD skills installed by a newer dld-kit
@@ -43,6 +46,7 @@ ${AGENT_HELP}
       args: [...args],
       options: {
         namespaces: { type: "string" },
+        "id-format": { type: "string" },
         agent: { type: "string", multiple: true },
         yes: { type: "boolean" },
         force: { type: "boolean" },
@@ -56,6 +60,9 @@ ${AGENT_HELP}
     if (values.namespaces !== undefined && namespaces.length === 0) {
       throw new UsageError("--namespaces needs at least one namespace");
     }
+    // @decision(DL-100)
+    const idFormat =
+      values["id-format"] === undefined ? undefined : parseIdFormat(values["id-format"]);
     const root = findProjectRoot(ctx);
     if (ctx.fs.lexists(join(root, CONFIG_FILE))) {
       throw new DldError(
@@ -79,8 +86,8 @@ ${AGENT_HELP}
       harnesses,
     });
 
-    createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
-    const project = loadProject(ctx);
+    createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces, idFormat);
+    const project = loadProject(ctx, { anyVersion: true });
     createDirectories(ctx, project);
     writeIndex(ctx, project.paths, renderIndex([], project.config.mode));
     const report = applyInstall(ctx, root, plan);

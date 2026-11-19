@@ -5,13 +5,11 @@ import type { Context } from "./context.ts";
 import { DldError, EXIT_USAGE } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
 import { decisionsPathspec, gitAt, nulSeparated } from "./git.ts";
+import { idMatcher } from "./ids.ts";
 import type { Project, ProjectPaths } from "./project.ts";
 import { parseRecord, setId } from "./records.ts";
 import { mergeBase, type Rename, verifyBase } from "./reindex.ts";
 import { parseRenamePlan, renameProblem } from "./rename-plan.ts";
-
-/** `DL-NNN` not followed by another digit, so DL-100 does not match inside DL-1000. */
-const idPattern = (id: string, flags = "") => new RegExp(`${id}(?![0-9])`, flags);
 
 /**
  * Files changed since `commit` (the merge-base), committed or not (new paths of renames),
@@ -74,7 +72,7 @@ export function renameDecision(
   const scannable = new Set(listScannableFiles(ctx, scanOptionsFor(project)));
 
   gitAt(ctx, paths.root)("mv", "--", path, newPath);
-  const substitute = (text: string) => text.replace(idPattern(oldId, "g"), newId);
+  const substitute = (text: string) => text.replace(idMatcher(oldId, "g"), newId);
   rewriteFile(ctx, newFull, (text) => substitute(setId(text, oldId, newId)));
 
   const decisions = `${decisionsPathspec(paths)}/`;
@@ -128,7 +126,7 @@ export function findStaleMentions(
   });
   const found: StaleMention[] = [];
   for (const { oldId, newId } of renames) {
-    const pattern = idPattern(oldId);
+    const pattern = idMatcher(oldId);
     for (const { file, lines } of files) {
       lines.forEach((text, index) => {
         if (pattern.test(text)) found.push({ file, line: index + 1, oldId, newId, text });

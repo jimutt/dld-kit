@@ -2,14 +2,10 @@ import { basename, join, relative } from "node:path";
 import { parseDocument } from "yaml";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
+import { compareIds, identityKey, recordFileId, reservedFileId } from "./ids.ts";
 
 export const STATUSES = ["proposed", "accepted", "deprecated", "superseded"] as const;
 export type Status = (typeof STATUSES)[number];
-
-export const RECORD_FILE = /^DL-(\d+)\.md$/;
-export const DECISION_ID = /^DL-\d+$/;
-/** Every decision ID mentioned in a text. */
-export const DECISION_MENTION = /DL-\d+/g;
 
 export interface Reference {
   path: string;
@@ -32,26 +28,43 @@ export function isStatus(value: string): value is Status {
   return STATUSES.some((status) => status === value);
 }
 
-/** Paths of every `DL-NNN.md` file under `recordsDir`, at any depth, in a stable order. */
-export function listRecordFiles(ctx: Context, recordsDir: string): string[] {
+/** Paths of the files under `dir`, at any depth, whose name `wanted` accepts, in a stable order. */
+function walkFiles(ctx: Context, dir: string, wanted: (name: string) => boolean): string[] {
   const found: string[] = [];
-  const walk = (dir: string) => {
-    const entries = ctx.fs.readDir(dir).sort((a, b) => (a.name < b.name ? -1 : 1));
+  const walk = (current: string) => {
+    const entries = ctx.fs.readDir(current).sort((a, b) => (a.name < b.name ? -1 : 1));
     for (const entry of entries) {
-      const path = join(dir, entry.name);
+      const path = join(current, entry.name);
       if (entry.isDirectory) walk(path);
-      else if (entry.isFile && RECORD_FILE.test(entry.name)) found.push(path);
+      else if (entry.isFile && wanted(entry.name)) found.push(path);
     }
   };
-  if (ctx.fs.isDirectory(recordsDir)) walk(recordsDir);
+  if (ctx.fs.isDirectory(dir)) walk(dir);
   return found;
 }
 
-/** The numeric part of a record file name, e.g. 8 for `.../DL-008.md`. */
-export function recordNumber(path: string): number {
-  const digits = RECORD_FILE.exec(basename(path))?.[1];
-  if (digits === undefined) throw new Error(`not a decision record file: ${path}`);
-  return Number.parseInt(digits, 10);
+// @decision(DL-099)
+/** Paths of every record file (`<id>.md`) under `recordsDir`, at any depth, in a stable order. */
+export function listRecordFiles(ctx: Context, recordsDir: string): string[] {
+  return walkFiles(ctx, recordsDir, (name) => recordFileId(name) !== undefined);
+}
+
+// @decision(DL-099)
+/** Paths of files under `recordsDir` with a reserved `<id>--<text>.md` name, in a stable order. */
+export function reservedRecordFiles(ctx: Context, recordsDir: string): string[] {
+  return walkFiles(ctx, recordsDir, (name) => reservedFileId(name) !== undefined);
+}
+
+/** The ID a record file is named after, e.g. `DL-008` for `.../DL-008.md`. */
+export function recordId(path: string): string {
+  const id = recordFileId(basename(path));
+  if (id === undefined) throw new Error(`not a decision record file: ${path}`);
+  return id;
+}
+
+/** Orders record file paths by their IDs. */
+export function compareRecordFiles(a: string, b: string): number {
+  return compareIds(recordId(a), recordId(b));
 }
 
 // @decision(DL-080)
@@ -73,18 +86,20 @@ export function findRecordFile(
   return matches[0];
 }
 
-// @decision(DL-080)
-/** Record files that share a decision number with another, grouped by number, ascending. */
+// @decision(DL-080) @decision(DL-096)
+/** Record files that are the same decision as another, grouped by decision, in ID order. */
 export function duplicateRecordFiles(ctx: Context, recordsDir: string): string[][] {
-  const byNumber = new Map<number, string[]>();
+  const groups = new Map<string, { id: string; paths: string[] }>();
   for (const path of listRecordFiles(ctx, recordsDir)) {
-    const number = recordNumber(path);
-    byNumber.set(number, [...(byNumber.get(number) ?? []), path]);
+    const id = recordId(path);
+    const group = groups.get(identityKey(id));
+    if (group === undefined) groups.set(identityKey(id), { id, paths: [path] });
+    else group.paths.push(path);
   }
-  return [...byNumber.entries()]
-    .filter(([, paths]) => paths.length > 1)
-    .sort(([a], [b]) => a - b)
-    .map(([, paths]) => paths);
+  return [...groups.values()]
+    .filter(({ paths }) => paths.length > 1)
+    .sort((a, b) => compareIds(a.id, b.id))
+    .map(({ paths }) => paths);
 }
 
 interface FrontmatterBlock {

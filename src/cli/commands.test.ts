@@ -12,7 +12,7 @@ import {
 import { basename, join } from "node:path";
 import { version } from "../../package.json";
 import type { Context } from "../core/context.ts";
-import { GitCommandError } from "../core/errors.ts";
+import { EXIT_ERROR, GitCommandError } from "../core/errors.ts";
 import {
   branchedProject,
   captureIo,
@@ -37,6 +37,21 @@ function dld(p: TempProject, ...argv: string[]) {
 }
 
 describe("create-config", () => {
+  // @decision(DL-100)
+  test("--id-format names the form of new IDs", () => {
+    project = tempProject(null);
+    expect(dld(project, "create-config", "--id-format", "timestamp", "flat").code).toBe(EXIT_OK);
+    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toContain(
+      "id_format: timestamp\n",
+    );
+    expect(dld(project, "create-directories").code).toBe(EXIT_OK);
+    project.cleanup();
+    project = tempProject(null);
+    expect(dld(project, "create-config", "--id-format", "x", "flat").err).toContain(
+      "ID format must be one of",
+    );
+  });
+
   test("creates a namespaced config and reports the path", () => {
     project = tempProject(null);
     const result = dld(project, "create-config", "namespaced", "billing", "auth");
@@ -125,9 +140,52 @@ describe("create-decision", () => {
     ]) {
       const result = dld(project, "create-decision", ...args);
       expect(result).toMatchObject({ code: EXIT_USAGE, out: "" });
-      expect(result.err).toStartWith("dld create-decision: --id and --title are required.\n");
+      expect(result.err).toMatch(
+        /^dld create-decision: (exactly one of --id and --auto-id|--title) is required\.\n/,
+      );
     }
     expect(existsSync(join(project.root, "decisions/records"))).toBe(false);
+  });
+
+  // @decision(DL-095)
+  test("--auto-id takes the next ID in the project's id_format, and excludes --id", () => {
+    project = tempProject(`${FLAT_CONFIG}id_format: timestamp\n`, {
+      randomBytes: (count) => new Uint8Array(count),
+    });
+    const first = dld(project, "create-decision", "--auto-id", "--title", "One");
+    const second = dld(project, "create-decision", "--auto-id", "--title", "Two");
+    expect(first.out).toMatch(/decisions\/records\/DL-T[0-9a-z]{7}00000\.md\n$/);
+    expect(second.out).toMatch(/decisions\/records\/DL-T[0-9a-z]{7}00000\.md\n$/);
+    expect(first.out < second.out).toBe(true);
+    expect(dld(project, "next-id").out).toMatch(/^DL-T[0-9a-z]{7}00000\n$/);
+    expect(dld(project, "create-decision", "--id", "DL-004", "--title", "Three").code).toBe(
+      EXIT_OK,
+    );
+    const both = dld(project, "create-decision", "--id", "DL-005", "--auto-id", "--title", "T");
+    expect(both).toMatchObject({ code: EXIT_USAGE, out: "" });
+    expect(both.err).toStartWith("dld create-decision: exactly one of --id and --auto-id");
+  });
+
+  // @decision(DL-095)
+  test("an ID far ahead of the clock is warned about in a timestamp project only", () => {
+    const ahead = "DL-Tzzzzzzz00000";
+    const warning = `Warning: ${ahead} is dated more than 60 seconds ahead of the clock; it is ignored when ordering new IDs\n`;
+    project = tempProject(`${FLAT_CONFIG}id_format: timestamp\n`);
+    project.write(`decisions/records/${ahead}.md`, recordText(ahead));
+    expect(dld(project, "next-id").err).toBe(warning);
+    const bad = dld(project, "create-decision", "--auto-id", "--title", "T", "--namespace", "x");
+    expect(bad).toMatchObject({ code: EXIT_USAGE, out: "" });
+    expect(bad.err).not.toContain("ahead of the clock");
+    project.write("dld.config.yaml", FLAT_CONFIG);
+    expect(dld(project, "next-id")).toEqual({ code: EXIT_OK, out: "DL-001\n", err: "" });
+  });
+
+  test("--auto-id is sequential by default", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-004.md", recordText("DL-004"));
+    expect(dld(project, "create-decision", "--auto-id", "--title", "T").out).toEndWith(
+      "decisions/records/DL-005.md\n",
+    );
   });
 });
 
@@ -189,6 +247,29 @@ describe("regenerate-index", () => {
         "Warning: DL-001 is in more than one file: decisions/records/auth/DL-001.md, decisions/records/billing/DL-001.md\n" +
         "Warning: DL-002 / DL-02 is in more than one file: decisions/records/DL-002.md, decisions/records/DL-02.md\n",
     });
+  });
+
+  // @decision(DL-099)
+  test("warns about reserved file names and leaves them out", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/DL-002--retry-policy.md", recordText("DL-002"));
+    expect(dld(project, "regenerate-index")).toEqual({
+      code: EXIT_OK,
+      out: "INDEX.md regenerated.\n",
+      err: "Warning: decisions/records/DL-002--retry-policy.md: '<id>--<text>.md' is a reserved file name and is not read as a decision record\n",
+    });
+    expect(readFileSync(join(project.root, "decisions/INDEX.md"), "utf8")).not.toContain("DL-002");
+  });
+
+  // @decision(DL-095)
+  test("warns about a timestamp ID dated far ahead of the clock", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-Tzzzzzzz00000.md", recordText("DL-Tzzzzzzz00000"));
+    project.write("decisions/records/DL-T000000000000.md", recordText("DL-T000000000000"));
+    expect(dld(project, "regenerate-index").err).toBe(
+      "Warning: DL-Tzzzzzzz00000 is dated more than 60 seconds ahead of the clock; it is ignored when ordering new IDs\n",
+    );
   });
 
   test("fails when the records directory is missing", () => {
@@ -337,6 +418,48 @@ describe("audit commands", () => {
   });
 });
 
+// @decision(DL-098)
+describe("min_dld_version", () => {
+  test("project commands stop before doing anything; commands without a project config run", () => {
+    project = tempProject(`${FLAT_CONFIG}min_dld_version: 999.0.0\n`);
+    project.write("decisions/records/DL-001.md", recordText("DL-001"));
+    for (const argv of [
+      ["next-id"],
+      ["regenerate-index"],
+      ["update-status", "DL-001", "proposed"],
+      ["create-decision", "--auto-id", "--title", "T"],
+      ["detect-snapshot-changes"],
+      ["update-snapshot-state"],
+    ]) {
+      const result = dld(project, ...argv);
+      expect(result).toMatchObject({ code: EXIT_ERROR, out: "" });
+      expect(result.err).toContain("this project needs dld 999.0.0 or newer; this is dld ");
+    }
+    expect(existsSync(join(project.root, "decisions/INDEX.md"))).toBe(false);
+    expect(readFileSync(join(project.root, "decisions/records/DL-001.md"), "utf8")).toBe(
+      recordText("DL-001"),
+    );
+    expect(dld(project, "--version").code).toBe(EXIT_OK);
+    expect(dld(project, "next-id", "--help")).toMatchObject({ code: EXIT_OK, err: "" });
+    expect(dld(project, "resolve-base").err).not.toContain("this project needs");
+  });
+
+  test("the commands that install and update dld-kit are not stopped", async () => {
+    project = tempProject(`${FLAT_CONFIG}min_dld_version: 999.0.0\n`);
+    project.write("CLAUDE.md", "# Project\n");
+    const cli = fakePackage(project);
+    const results = [
+      await dldInstall(project, cli, "update", "--agent", "claude"),
+      await dldInstall(project, undefined, "install-rule", "--agent", "claude"),
+      dld(project, "session-context", "--agent", "claude"),
+    ];
+    for (const result of results) {
+      expect(result.err).not.toContain("this project needs");
+      expect(result.code).toBe(EXIT_OK);
+    }
+  });
+});
+
 describe("snapshot commands", () => {
   test("collect, detect and update work together", () => {
     project = tempProject();
@@ -349,6 +472,8 @@ describe("snapshot commands", () => {
     expect(dld(project, "detect-snapshot-changes").out).toBe("mode: full\n");
 
     project.write("decisions/OVERVIEW.md");
+    project.git("add", "-A");
+    project.git("commit", "--quiet", "-m", "records");
     const head = project.git("rev-parse", "--short", "HEAD").trim();
     expect(dld(project, "update-snapshot-state", "ONBOARDING.md").out).toBe(
       `Snapshot state updated: 2026-01-15T10:00:00Z at ${head} (through DL-002)\n`,
@@ -498,6 +623,23 @@ describe("init", () => {
       "Created .gitignore: dld.local.yaml holds personal settings and is not committed\n",
     );
     expect(read(".gitignore")).toContain("/dld.local.yaml\n");
+  });
+
+  // @decision(DL-100)
+  test("--id-format timestamp writes the form and the minimum version", async () => {
+    project = tempProject(null);
+    project.write("CLAUDE.md", "# Project\n");
+    const cli = fakePackage(project);
+    const bad = await dldInstall(project, cli, "init", "--id-format", "ulid");
+    expect(bad.err).toContain("ID format must be one of sequential, timestamp, got 'ulid'.");
+    expect(existsSync(join(project.root, "dld.config.yaml"))).toBe(false);
+    const result = await dldInstall(project, cli, "init", "--id-format", "timestamp");
+    expect(result).toMatchObject({ code: EXIT_OK, err: "" });
+    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toStartWith(
+      "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: timestamp\n",
+    );
+    // Whatever version this build has, it can work on the project it set up.
+    expect(dld(project, "next-id")).toMatchObject({ code: EXIT_OK, err: "" });
   });
 
   test("namespaced, for AGENTS.md readers named with --agent", async () => {

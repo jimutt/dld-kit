@@ -127,7 +127,7 @@ For each approved decision:
 1. Read the relevant code to understand what it does and infer the rationale
 2. Write the decision record with Context, Decision, and Rationale sections. The **Context** should describe the problem the code solves. The **Decision** should describe what the code does. The **Rationale** should be your best inference of *why* — acknowledge when you're inferring rather than stating known facts (e.g., "likely chosen because..." or "this approach avoids...").
 3. Include a Consequences section only when trade-offs are apparent from the code
-4. Assign sequential IDs using `next-id`
+4. Take each ID from `next-id`, just before creating that record. It prints a number such as `DL-004` or a timestamp ID such as `DL-T1k3m9z2p7xq4`, depending on the project's `id_format`; never work out the next ID yourself
 5. Create each record using `create-decision`
 
 ```bash
@@ -155,7 +155,7 @@ Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly
 
 ## Step 6: Add annotations and references
 
-For each decision, add `@decision(DL-NNN)` annotations to the relevant code. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. Write one ID per annotation, exactly as `<prefix>(DL-NNN)` with no spaces; several annotations can share a comment:
+For each decision, add `@decision(DL-NNN)` annotations to the relevant code. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. Write one ID per annotation, exactly as `<prefix>(DL-NNN)` with no spaces, using the ID exactly as `next-id` printed it; several annotations can share a comment:
 
 - **Broad mode:** Annotate at the file/module level — typically at the top of the file or on the main export/class.
 - **Detailed mode:** Annotate at the function/method/class level where the decision is embodied.

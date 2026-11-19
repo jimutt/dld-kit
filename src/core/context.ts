@@ -60,6 +60,9 @@ export interface Context {
   /** All of standard input as UTF-8. Call only when a command was asked to read it. */
   readStdin(): string;
   now(): Date;
+  // @decision(DL-095)
+  /** `count` cryptographically random bytes. */
+  randomBytes(count: number): Uint8Array;
   // @decision(DL-079)
   /** Reports a problem that does not stop the command, such as an unknown config key. */
   warn(message: string): void;

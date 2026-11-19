@@ -17,6 +17,12 @@ decisions_dir: decisions
 # - namespaced: decisions organized in subdirectories per component/domain
 mode: flat
 
+# The form of new decision IDs
+# - sequential (default): DL-001, DL-002, ...
+# - timestamp: DL-T1k3m9z2p7xq4, which does not clash between branches
+# See "ID Assignment" below
+id_format: sequential
+
 # Namespaces (only used when mode is "namespaced")
 # Each namespace maps to a subdirectory under decisions_dir/records/
 namespaces:
@@ -59,6 +65,10 @@ decision_edits: block
 # Default: the upstream when it tracks another branch, else origin/HEAD,
 # else origin/main, main, origin/master or master. See "Base branch" below.
 base_branch: main
+
+# The oldest dld-kit that may work on this project (optional)
+# An older dld stops with a message instead of running. See "Minimum version" below.
+min_dld_version: 1.1.0
 
 # Custom snapshot artifacts (optional)
 # Additional documents generated alongside OVERVIEW.md
@@ -178,6 +188,16 @@ Reindex (`/dld-reindex`) and the decision-edit checks compare the current branch
 
 Only a ref that exists is used. When none does, the commands fail and say what they tried; `list-proposed` instead lists every proposed decision as `unknown`, with a warning. Set `base_branch` when the branch decisions merge into is not the remote's default, for example a long-lived `develop` branch.
 
+### Minimum version
+
+Every collaborator's skills carry their own copy of the `dld` CLI, so a team runs several versions at once. `min_dld_version` states the oldest one that may work on the project, as a plain `<major>.<minor>.<patch>`. A `dld` older than that stops before reading or writing anything:
+
+```
+Error: this project needs dld 1.1.0 or newer; this is dld 1.0.0. Update dld-kit (npx dld-kit@latest update, or your plugin manager) and try again.
+```
+
+Set it when the project starts using something older versions do not understand, such as `id_format: timestamp`. The commands that install or update dld-kit (`init`, `update`, `install-rule`, `create-config`) are not stopped, and neither are `resolve-base`, the session hook's `session-context`, `--version` and `--help`. Versions before 1.1 do not know the key: they warn about it as an unknown key and carry on, so for those the only protection is upgrading first.
+
 ### Unknown keys
 
 Keys that are not part of this schema are ignored, with a warning on stderr from every `dld` command that reads the config, for example `Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?`. Unknown keys stay warnings, never errors, throughout 1.x. Keys starting with `x-` never warn: dld-kit will never use that prefix, so it is yours for project settings, for example `x-team: {owner: platform}`.
@@ -212,7 +232,17 @@ snapshot_artifacts:
 
 ### ID Assignment
 
-The next available ID is derived by scanning existing decision files rather than tracked in config. This avoids merge conflicts when multiple people create decisions concurrently. The framework scans all `DL-NNN.md` filenames in the `records/` subdirectory (including namespace subdirectories), finds the highest existing ID, and increments by one.
+IDs are derived from the existing decision files, never tracked in config. `id_format` selects the form of new IDs. It does not touch existing records, and both forms are always valid, so a project can switch at any time; its log then holds both. See the decision record format for the two forms and their order, and [ID formats](../id-formats.md) for choosing and switching.
+
+**`sequential`** (the default): the next ID is one more than the highest sequential number among the record files in `records/`, including namespace subdirectories. IDs are short and easy to say, but two branches that each add a decision from the same base pick the same number. `/dld-reindex` repairs that.
+
+**`timestamp`**: the next ID is `DL-T`, the current time in seconds and 25 random bits, in base32. Two branches practically never pick the same ID, so there is nothing to coordinate or repair. The IDs are long and opaque.
+
+- When several IDs are created within one second, each gets the time of the newest local timestamp ID plus one second, so they keep their order. The time in an ID is never more than 60 seconds ahead of the clock.
+- A timestamp ID in the log dated more than 60 seconds ahead of the clock (created on a machine with a wrong clock) is ignored when creating IDs, and the commands warn about it.
+- `/dld-reindex` renames colliding IDs to new IDs in the form the branch's config asks for. A branch opened before a switch gets timestamp IDs once it has the config change, and sequential ones until then; both are valid.
+
+Every collaborator's dld-kit must be recent enough to read timestamp IDs before a project switches: a 1.0 `dld` does not see timestamp records at all. Set `min_dld_version: 1.1.0` together with `id_format: timestamp`. No dld that knows the key is older than that, so it does not stop anyone today; it records what the project needs, and raising it later stops every dld from 1.1 on that is too old.
 
 ## The `/dld-init` Skill
 
@@ -220,11 +250,12 @@ The `/dld-init` skill bootstraps DLD in a repository:
 
 1. Asks whether the project is flat or namespaced
 2. If namespaced, asks for the initial namespace list
-3. Creates `dld.config.yaml` at the repo root
-4. Creates the `decisions/` directory with a `records/` subdirectory (and namespace subdirectories under `records/` if applicable)
-5. Installs the always-on rule (the instruction for the AI agent to look up `@decision` references before modifying annotated code) with `dld install-rule`, into the file the agent's harness loads
+3. Asks which form of decision ID to use, sequential by default
+4. Creates `dld.config.yaml` at the repo root
+5. Creates the `decisions/` directory with a `records/` subdirectory (and namespace subdirectories under `records/` if applicable)
+6. Installs the always-on rule (the instruction for the AI agent to look up `@decision` references before modifying annotated code) with `dld install-rule`, into the file the agent's harness loads
 
-From a terminal, `npx dld-kit init` does the same without an agent session and also installs the skills; `dld update` refreshes them after an upgrade.
+From a terminal, `npx dld-kit init` does the same without an agent session and also installs the skills. It asks only about agents; `--namespaces` and `--id-format` choose the rest. `dld update` refreshes the skills after an upgrade.
 
 ## Decision Log Index
 

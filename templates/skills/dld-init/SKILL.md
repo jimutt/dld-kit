@@ -23,7 +23,7 @@ This skill uses: `create-config`, `create-directories`, `create-empty-index`, `i
 - This must be a git repository
 - `dld.config.yaml` must NOT already exist at the repo root (if it does, tell the user DLD is already initialized and suggest the dld-status skill instead)
 
-Users who install dld-kit from npm can run `npx dld-kit init` in a terminal instead: it does steps 2–4 and 6 non-interactively and also installs the skills. This skill covers projects whose skills were installed another way.
+Users who install dld-kit from npm can run `npx dld-kit init` in a terminal instead: it does steps 2–4 and 6 non-interactively (with `--id-format timestamp` for timestamp IDs) and also installs the skills. This skill covers projects whose skills were installed another way.
 
 ## Steps
 
@@ -38,12 +38,19 @@ Ask the user:
 
 If namespaced, ask for the initial namespace list. Suggest they can add more later.
 
+Also ask which form of decision ID the project uses:
+
+- **Sequential** (the default): `DL-001`, `DL-002`, ... Short and easy to say. Two branches that each add a decision can pick the same ID; `/dld-reindex` then renames one of them. Right for one person or a small team.
+- **Timestamp**: `DL-T1k3m9z2p7xq4`. Long and opaque, but IDs created on separate branches do not clash, so nothing needs renaming. Right when several people or agents record decisions at the same time. Every collaborator needs dld-kit 1.1 or newer.
+
 ### 2. Create `dld.config.yaml`
 
 Run `create-config`:
 ```bash
-{{dld}} create-config <mode> [namespace1 namespace2 ...]
+{{dld}} create-config [--id-format timestamp] <mode> [namespace1 namespace2 ...]
 ```
+
+Pass `--id-format timestamp` only when the user chose timestamp IDs. It writes `id_format: timestamp` and `min_dld_version: 1.1.0`, the oldest dld-kit that reads timestamp IDs. Tell the user that every collaborator must be on dld-kit 1.1 or newer before they pull this: dld-kit 1.0 does not know the key, does not see timestamp records, and only prints a warning. Leave the flag out for sequential IDs.
 
 Example flat:
 ```bash

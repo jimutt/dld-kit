@@ -1,5 +1,6 @@
 // @decision(DL-008) @decision(DL-007)
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -134,6 +135,7 @@ export function createNodeContext(
     env,
     readStdin: () => fsCall("read", "standard input", () => readFileSync(0, "utf8")),
     now: () => new Date(),
+    randomBytes: (count) => randomBytes(count),
     // @decision(DL-079)
     warn: (message) => {
       process.stderr.write(`Warning: ${message}\n`);

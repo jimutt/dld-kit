@@ -2,14 +2,15 @@ import { join, relative } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, EXIT_USAGE } from "./errors.ts";
 import { createFileExclusive, writeFileAtomic } from "./files.ts";
-import { canonicalSpelling, isCanonicalId } from "./ids.ts";
+import { canonicalSpelling, identityKey, isCanonicalId } from "./ids.ts";
 import { statedRelations } from "./mentions.ts";
+import { nextId } from "./new-ids.ts";
 import type { Project } from "./project.ts";
 import {
   findRecordFile,
   formatTimestamp,
   listRecordFiles,
-  recordNumber,
+  recordId,
   renderNewRecord,
   type Status,
   setStatus,
@@ -26,7 +27,8 @@ export function updateStatus(ctx: Context, project: Project, id: string, status:
 }
 
 export interface CreateDecisionInput {
-  id: string;
+  /** The record's ID; without one, the next ID in the project's configured form. */
+  id?: string;
   title: string;
   namespace?: string;
   tags: string;
@@ -36,32 +38,34 @@ export interface CreateDecisionInput {
 }
 
 // @decision(DL-014) @decision(DL-015) @decision(DL-016) @decision(DL-078) @decision(DL-080)
+// @decision(DL-092) @decision(DL-095) @decision(DL-096)
 /** Writes a new proposed record and returns its path. */
-export function createDecision(ctx: Context, project: Project, input: CreateDecisionInput): string {
-  if (!isCanonicalId(input.id)) {
-    const canonical = canonicalSpelling(input.id);
+export function createDecision(ctx: Context, project: Project, given: CreateDecisionInput): string {
+  if (given.id !== undefined && !isCanonicalId(given.id)) {
+    const canonical = canonicalSpelling(given.id);
     throw new DldError(
       canonical === undefined
-        ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`
-        : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
+        ? `invalid decision ID '${given.id}'; expected DL-<digits>, e.g. DL-001, or a timestamp ID.`
+        : `decision ID '${given.id}' is not canonical; use ${canonical}.`,
       EXIT_USAGE,
     );
   }
-  const number = Number.parseInt(input.id.slice(3), 10);
   const { config } = project;
-  if (input.namespace !== undefined) {
+  if (given.namespace !== undefined) {
     if (config.mode !== "namespaced") {
       throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE);
     }
-    if (!config.namespaces.includes(input.namespace)) {
+    if (!config.namespaces.includes(given.namespace)) {
       throw new DldError(
-        `unknown namespace '${input.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
+        `unknown namespace '${given.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
         EXIT_USAGE,
       );
     }
   }
+  const input = { ...given, id: given.id ?? nextId(ctx, project) };
+  const identity = identityKey(input.id);
   const existing = listRecordFiles(ctx, project.paths.recordsDir).find(
-    (path) => recordNumber(path) === number,
+    (path) => identityKey(recordId(path)) === identity,
   );
   if (existing !== undefined) {
     throw new DldError(
@@ -91,7 +95,10 @@ export function createDecision(ctx: Context, project: Project, input: CreateDeci
 
 // @decision(DL-083)
 /** Warns about each relationship the body states that neither --amends nor --supersedes lists. */
-function warnUnstatedRelations(ctx: Context, input: CreateDecisionInput): void {
+function warnUnstatedRelations(
+  ctx: Context,
+  input: Pick<CreateDecisionInput, "amends" | "supersedes" | "body"> & { id: string },
+): void {
   const declared = new Set(
     `${input.amends},${input.supersedes}`.split(/[\s,]+/).filter((id) => id !== ""),
   );

@@ -2,10 +2,10 @@ import { basename } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
 import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
-import { formatId } from "./ids.ts";
+import { compareIds, findIds, recordFileId } from "./ids.ts";
+import { mintIds } from "./new-ids.ts";
 import { openPrIds, type PrClaim } from "./open-prs.ts";
 import type { Project, ProjectPaths } from "./project.ts";
-import { DECISION_MENTION, RECORD_FILE } from "./records.ts";
 
 export const DEFAULT_BASE = "origin/main";
 
@@ -25,13 +25,6 @@ export interface Rename {
 
 /** A result, plus the reason the open-PR scan was skipped, if it was. */
 export type WithScan<T> = T & { skipped?: string };
-
-const idNumber = (id: string) => Number.parseInt(id.slice(3), 10);
-
-/** Orders IDs by number; IDs with the same number (DL-01, DL-001) by text. */
-export function compareIds(a: string, b: string): number {
-  return idNumber(a) - idNumber(b) || (a < b ? -1 : a > b ? 1 : 0);
-}
 
 // @decision(DL-027) @decision(DL-071)
 /**
@@ -123,7 +116,7 @@ function localAdditions(git: Git, paths: ProjectPaths, base: string): string[] {
 }
 
 interface Taken {
-  /** Every taken ID, unique and sorted by number. */
+  /** Every taken ID, unique and in ID order. */
   ids: string[];
   onBase: Set<string>;
   claims: PrClaim[];
@@ -133,7 +126,9 @@ function takenIds(ctx: Context, paths: ProjectPaths, base: string): WithScan<Tak
   const git = gitAt(ctx, paths.root);
   const onBase = nulSeparated(
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths)),
-  ).flatMap((path) => path.match(DECISION_MENTION) ?? []);
+  )
+    // Every ID in a path counts, so a reserved or oddly named file still claims its ID.
+    .flatMap(findIds);
   const scan = openPrIds(ctx, paths, base);
   const ids = [...new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
   const taken = { ids, onBase: new Set(onBase), claims: scan.claims };
@@ -180,7 +175,7 @@ function collides(git: Git, base: string, { path, id }: Collision, taken: Taken)
 }
 
 // @decision(DL-027) @decision(DL-065)
-/** IDs taken on the base branch and in open PRs, sorted by number. */
+/** IDs taken on the base branch and in open PRs, in ID order. */
 export function listTakenIds(
   ctx: Context,
   { paths }: Project,
@@ -199,8 +194,8 @@ function collisionsOf(
   const git = gitAt(ctx, paths.root);
   const added = localAdditions(git, paths, base);
   const local = added.flatMap((path) => {
-    const id = basename(path, ".md");
-    return RECORD_FILE.test(basename(path)) ? [{ path, id }] : [];
+    const id = recordFileId(basename(path));
+    return id === undefined ? [] : [{ path, id }];
   });
   if (local.length === 0) return { collisions: [], localIds: [], taken: [] };
   const taken = takenIds(ctx, paths, base);
@@ -224,22 +219,27 @@ export function findCollisions(
   return skipped === undefined ? { collisions } : { collisions, skipped };
 }
 
-// @decision(DL-027)
+// @decision(DL-027) @decision(DL-096)
 /**
- * A rename for each collision, in ID order, to consecutive IDs above every ID taken or added
- * locally.
+ * A rename for each collision, in ID order, to new IDs in the project's configured form:
+ * consecutive numbers above every sequential ID taken or added locally, or timestamp IDs.
  */
 export function planRenames(
   ctx: Context,
-  { paths }: Project,
+  { paths, config }: Project,
   base: string,
 ): WithScan<{ renames: Rename[] }> {
   verifyBase(ctx, paths, base);
   const { collisions, localIds, taken, skipped } = collisionsOf(ctx, paths, base);
-  const highest = [...taken, ...localIds].reduce((max, id) => Math.max(max, idNumber(id)), 0);
-  const renames = [...collisions]
-    .sort((a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-    .map(({ path, id }, index) => ({ path, oldId: id, newId: formatId(highest + 1 + index) }));
+  const ordered = [...collisions].sort(
+    (a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
+  );
+  const newIds = mintIds(ctx, config.idFormat, [...taken, ...localIds], ordered.length);
+  const renames = ordered.map(({ path, id }, index) => {
+    const newId = newIds[index];
+    if (newId === undefined) throw new Error("mintIds returned too few IDs");
+    return { path, oldId: id, newId };
+  });
   return skipped === undefined ? { renames } : { renames, skipped };
 }
 

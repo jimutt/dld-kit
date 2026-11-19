@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { parseDocument } from "yaml";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
+import { parseVersion } from "./version.ts";
 
 export const CONFIG_FILE = "dld.config.yaml";
 /** One developer's settings for a checkout, never committed (DL-087). */
@@ -37,8 +38,15 @@ export const PERSONAL_KEYS = [
   "plan_review_model",
 ] as const;
 
+// @decision(DL-095)
+/** The form of the IDs a project creates. */
+export const ID_FORMATS = ["sequential", "timestamp"] as const;
+export type IdFormat = (typeof ID_FORMATS)[number];
+
 export interface Config {
   decisionsDir: string;
+  /** The form of new decision IDs (DL-095). */
+  idFormat: IdFormat;
   mode: Mode;
   namespaces: string[];
   annotationPrefix: string;
@@ -48,6 +56,8 @@ export interface Config {
   snapshotArtifacts: SnapshotArtifact[];
   /** The branch decisions are checked against, when set (DL-071). */
   baseBranch?: string;
+  /** The oldest dld that may work on the project, `<major>.<minor>.<patch>` (DL-098). */
+  minDldVersion?: string;
   /** The review settings as `dld.config.yaml` sets them, before `dld.local.yaml`. */
   personal: PersonalSettings;
 }
@@ -57,6 +67,7 @@ export interface Config {
 export const CONFIG_KEYS = [
   "decisions_dir",
   "mode",
+  "id_format",
   "namespaces",
   "annotation_prefix",
   "annotation_exclude",
@@ -68,6 +79,7 @@ export const CONFIG_KEYS = [
   "decision_edits",
   "snapshot_artifacts",
   "base_branch",
+  "min_dld_version",
 ] as const;
 
 export function loadConfig(ctx: Context, root: string): Config {
@@ -118,8 +130,10 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
     personal: personalSettings(raw, CONFIG_FILE),
     decisionEdits: decisionEdits(raw.decision_edits),
+    idFormat: idFormat(raw.id_format),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
     ...optionalBaseBranch(raw.base_branch),
+    ...optionalMinVersion(raw.min_dld_version),
   };
 }
 
@@ -201,6 +215,31 @@ function editDistance(a: string, b: string): number {
   return previous[b.length] ?? 0;
 }
 
+// @decision(DL-098)
+function optionalMinVersion(value: unknown): { minDldVersion?: string } {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "string" || parseVersion(value) === undefined) {
+    throw invalid(
+      `'min_dld_version' must have three parts, <major>.<minor>.<patch>, such as 1.1.0; got '${String(value)}'`,
+    );
+  }
+  return { minDldVersion: value };
+}
+
+// @decision(DL-098)
+/**
+ * The config's `min_dld_version` when it is a valid version, read without validating anything
+ * else, so a dld too old to understand the rest of the config can still say so.
+ */
+export function peekMinVersion(ctx: Context, root: string): string | undefined {
+  const path = join(root, CONFIG_FILE);
+  if (!ctx.fs.exists(path)) return undefined;
+  const raw: unknown = parseDocument(ctx.fs.readFile(path), { logLevel: "silent" }).toJS();
+  if (!isRecord(raw)) return undefined;
+  const value = raw.min_dld_version;
+  return typeof value === "string" && parseVersion(value) !== undefined ? value : undefined;
+}
+
 // @decision(DL-071)
 function optionalBaseBranch(value: unknown): { baseBranch?: string } {
   const branch = optionalString(value, "base_branch");
@@ -265,6 +304,14 @@ function repoRelativePatterns(value: unknown, key: string): string[] {
     throw invalid(`'${key}' patterns must be relative to the repository root, got '${outside}'`);
   }
   return patterns;
+}
+
+// @decision(DL-095)
+function idFormat(value: unknown): IdFormat {
+  if (value === undefined || value === null) return "sequential";
+  const found = ID_FORMATS.find((format) => format === value);
+  if (found === undefined) throw invalid(`'id_format' must be one of ${ID_FORMATS.join(", ")}`);
+  return found;
 }
 
 // @decision(DL-067)

@@ -9,8 +9,8 @@ export const planRenamesCommand: Command = {
   internal: true,
   usage: `Usage: dld plan-renames [--base <ref>]
 
-Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning the next free
-IDs. Prints nothing when there are no collisions.
+Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning new IDs
+in the project's id_format. Prints nothing when there are no collisions.
 
 Options:
   --base <ref>  Base ref (${DEFAULT_BASE_HELP})

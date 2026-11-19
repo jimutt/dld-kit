@@ -116,7 +116,7 @@ DLD_BODY
 
 Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` in it need no escaping. Don't indent the body, and put the closing `DLD_BODY` alone on its own line, unindented; no line of the body may be exactly `DLD_BODY`. The other arguments are ordinary shell strings: put the title and tags in single quotes, and write an apostrophe in them as `'\''`.
 
-Pass `--namespace` only in a namespaced project, with one of the configured namespaces; leave it out in a flat project. Repeat for each decision, incrementing the ID each time. Run `next-id` before each creation to ensure correct sequencing.
+Pass `--namespace` only in a namespaced project, with one of the configured namespaces; leave it out in a flat project. Repeat for each decision. Run `next-id` before each creation and use the ID it prints, a number such as `DL-004` or a timestamp ID such as `DL-T1k3m9z2p7xq4`, depending on the project's `id_format`. Never work out the next ID yourself. The IDs come out in the order the decisions are created, so create them in the order of the breakdown.
 
 If any decision supersedes an existing one, also update the old decision's status:
 ```bash

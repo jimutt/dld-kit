@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 const row = (id: string, extra = "") => ({
-  number: Number.parseInt(id.slice(3), 10),
+  fileId: id,
   record: parseRecord(recordText(id, "accepted", extra), id),
 });
 

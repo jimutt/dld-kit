@@ -51,10 +51,10 @@ Otherwise, run:
 ```
 
 This outputs:
-- `mode: full` — no prior snapshot state exists, or OVERVIEW.md is missing. Proceed with full generation.
+- `mode: full` — no prior snapshot state exists, OVERVIEW.md is missing, or the commit of the last snapshot cannot be found in this repository (a rebased or shallow history). Proceed with full generation.
 - `mode: incremental` — prior state exists. The output also includes:
   - `new_decisions:` — comma-separated list of accepted and proposed decision IDs not yet in the snapshot (e.g., `DL-072, DL-073`)
-  - `modified_decisions:` — comma-separated list of existing decisions changed since last snapshot (status changes, content edits, deleted records)
+  - `modified_decisions:` — comma-separated list of existing decisions changed since last snapshot (status changes, content edits, deleted or renamed records), including changes that are not committed yet
   - `commit_range:` — the git range since last snapshot (e.g., `abc1234..HEAD`)
 
 If mode is `incremental` but both `new_decisions` and `modified_decisions` are empty, tell the user nothing has changed since the last snapshot and stop.

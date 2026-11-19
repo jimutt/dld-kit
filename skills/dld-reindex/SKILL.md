@@ -9,7 +9,9 @@ metadata:
 
 # /dld-reindex — Resolve Decision ID Collisions
 
-You are helping the developer untangle decision ID collisions. Two or more developers can draft `DL-NNN` decisions in parallel; once one of them lands on the base branch (or appears in an open PR), the others must rename their local copies to the next free ID. This skill does that mechanically.
+You are helping the developer untangle decision ID collisions. Two or more developers can draft `DL-NNN` decisions in parallel; once one of them lands on the base branch (or appears in an open PR), the others must rename their local copies to a free ID. This skill does that mechanically.
+
+Collisions come from sequential IDs. A project with `id_format: timestamp` in `dld.config.yaml` creates IDs that practically never clash, so there this skill normally finds nothing; it still matters for branches opened before the project switched. New IDs take the form that `dld.config.yaml` on this branch asks for. With `id_format: timestamp` a colliding `DL-NNN` is renamed to a timestamp ID such as `DL-T1k3m9z2p7xq4`; a branch that does not have the project's switch yet gets a sequential ID, which is fine.
 
 **By default the skill adds a commit and does not rewrite history.** The renames go into one new commit on top of the branch (or a few, for a large reindex). A merge only compares end states, so once the branch tip has the record at its new path, `git merge <base>` and merging the PR on GitHub (merge commit or squash merge) don't conflict on the records. A normal push is enough.
 
@@ -54,6 +56,8 @@ The user may pass an explicit base when invoking the skill (e.g. `/dld-reindex o
 PLAN=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" plan-renames --base "$BASE")
 echo "$PLAN"
 ```
+
+Run `plan-renames` once and reuse this output for every later step. In a project with `id_format: timestamp` each run prints different new IDs, so a second run would not match what was shown or already applied.
 
 Output is tab-separated, one rename per line:
 

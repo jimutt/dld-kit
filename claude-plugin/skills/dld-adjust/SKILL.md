@@ -39,7 +39,7 @@ The user may specify decision IDs explicitly (e.g., `/dld-adjust DL-005`), but o
 - **Explicit IDs provided** — use those directly.
 - **No IDs provided** — infer which decision(s) the user is referring to from the conversation context. If decisions were recently created or discussed in this session, assume those are the target. If it's still ambiguous, ask using `AskUserQuestion`.
 
-Find and read each decision file. If a decision ID is not found, report the error and continue with any remaining valid IDs. Run `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" related-decisions DL-NNN` for each, so you know which decisions it amends or supersedes and which later decisions already amend or supersede it.
+Find and read each decision file (`<id>.md` in the records directory). A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`). Copy IDs from command output or from the records; never retype one from memory. If a decision ID is not found, report the error and continue with any remaining valid IDs. Run `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" related-decisions DL-NNN` for each, so you know which decisions it amends or supersedes and which later decisions already amend or supersede it.
 
 ## Step 2: Determine if confirmation is needed
 

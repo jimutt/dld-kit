@@ -14,7 +14,7 @@ You are generating a quick overview of the decision log state for the developer.
 ## Files read
 
 This skill runs no commands. It reads decision files and state files directly:
-- `dld.config.yaml` — project configuration (decisions directory, mode)
+- `dld.config.yaml` — project configuration (decisions directory, mode, `id_format`)
 - `decisions/records/DL-*.md` — all decision records (scan YAML frontmatter for status, tags, timestamp, namespace)
 - `decisions/.dld-state.yaml` — run tracking state for audit and snapshot (may not exist)
 
@@ -50,9 +50,11 @@ Present as:
 | **Total** | **18** |
 ```
 
+Under the table, say which form new IDs take: `id_format` from `dld.config.yaml`, `sequential` (e.g. `DL-019`) when the key is absent, or `timestamp` (e.g. `DL-T1k3m9z2p7xq4`). A record file is named exactly `<id>.md`; ignore files named `<id>--<text>.md`, which are not records.
+
 ### 2. Recent decisions
 
-Show the 5 most recent decisions (by timestamp), with ID, title, status:
+Show the 5 most recent decisions (by the `timestamp` field, not by ID), with ID, title, status:
 
 ```
 ## Recent Decisions

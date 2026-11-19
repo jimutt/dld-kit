@@ -42,7 +42,9 @@ node "<skill-dir>/../dld-common/scripts/dld.mjs" find-annotations
 
 Its stderr also lists `Warning: <file>:<line>: not an annotation: <text>` for malformed annotations; keep those for check (7). Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default).
 
-Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references.
+Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references. A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`); `id_format` in `dld.config.yaml` says which form the project creates, and a log can hold both. `DL-NNN` here stands for either. Copy IDs from command output or from the records. Never retype one from memory or make one up.
+
+Then run `node "<skill-dir>/../dld-common/scripts/dld.mjs" regenerate-index` and keep its `Warning:` lines on stderr for check (8). The command also rewrites `INDEX.md`; if that changes the file, the index was out of date, which counts as a fix to list in the PR.
 
 ### b) Detect issues
 
@@ -55,6 +57,7 @@ Check for all drift categories:
 5. **Decisions without annotations** — accepted decisions with code references but no corresponding annotations in code
 6. **Missing amendment relationships** — decisions whose body says they amend or supersede another decision that their frontmatter doesn't list
 7. **Malformed annotations** — the `not an annotation` warnings from `find-annotations`
+8. **Problems with the log** — the warnings from `regenerate-index` (an ID in more than one file, a reserved `<id>--<text>.md` file name, a timestamp ID dated ahead of the clock), and a `dld.config.yaml` with `id_format: timestamp` but no `min_dld_version`
 
 For check (4), if `decisions/.dld-state.yaml` exists with an `audit.commit_hash`, first verify reachability:
 ```bash
@@ -76,7 +79,7 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 
 ### Auto-fixable (apply these directly):
 
-**Orphaned annotations** — If the annotation has an obvious typo (e.g., `DL-01` where `DL-001` exists), fix it. If the referenced ID is completely unknown, remove the annotation and note the removal in the commit message.
+**Orphaned annotations** — If the annotation has an obvious typo (e.g., `DL-01` where `DL-001` exists), fix it. For a timestamp ID, fix it only when exactly one existing ID differs from it by a single character; otherwise treat it as unknown. If the referenced ID is completely unknown, remove the annotation and note the removal in the commit message.
 
 **Stale references in decisions** — Remove file paths from the decision's `references` field that no longer exist. If the file was renamed/moved (detectable via `git log --follow --diff-filter=R`), update the path instead of removing. Keep any frontmatter fields you don't recognise.
 
@@ -92,6 +95,16 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 **Malformed annotations** — In code comments, rewrite each into valid annotations: one ID per annotation, exactly `<prefix>(DL-NNN)`, in canonical ID form (two IDs in one pair of parentheses become two annotations). If an ID does not exist, treat it as an orphaned annotation. In prose or example files (documentation, skill files, fixtures), where the wrong syntax may be deliberate, do not rewrite: list them in the PR description and suggest adding the paths to `annotation_exclude`.
 
 **Decisions without annotations** — If an accepted decision has code references but no annotations, and the referenced files exist, add the missing `@decision(DL-NNN)` annotations to the referenced code locations.
+
+### Report only (change nothing):
+
+**Problems with the log** — Do not rename or move records, and do not edit `dld.config.yaml`. List each one under **Problems with the Log** in the PR, with what a person should do:
+
+- An ID in more than one file: one of the records has to be renamed.
+- A reserved `<id>--<text>.md` file name: the file is not read as a decision record; if it is one, it has to be renamed to `<id>.md`.
+- A timestamp ID dated ahead of the clock: created with a wrong clock; nothing to do unless the team wants it renamed.
+- `id_format: timestamp` without `min_dld_version`: suggest adding `min_dld_version: 1.1.0`, and note that dld-kit 1.0 ignores the key, so collaborators on 1.0 must upgrade either way.
+- Any other warning `regenerate-index` printed, as printed.
 
 ### Best-effort fixes (apply, but flag prominently for review):
 
@@ -180,6 +193,10 @@ These decisions were created or updated based on code changes made outside the D
 
 - **DL-NNN** → DL-XXX — "[the sentence]"
 
+### Problems with the Log
+
+- [Each problem, with what a person should do]
+
 ### Audit Summary
 
 | Check | Result |
@@ -190,6 +207,7 @@ These decisions were created or updated based on code changes made outside the D
 | Missing annotations | N found, M added |
 | Missing relationships | N found, M added, K possible |
 | Modified annotated files | N flagged for review |
+| Problems with the log | N found, reported only |
 ```
 
 If no issues were found (only audit state updated), still commit and push the state update but **do not open a PR**. Instead, exit with a message:

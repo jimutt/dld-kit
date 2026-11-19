@@ -29,7 +29,10 @@ describe("parseRenamePlan", () => {
   test.each([
     ["decisions/records/DL-002.md\tDL-002", "line 1: expected <path>\\t<DL-OLD>\\t<DL-NEW>."],
     ["decisions/records/DL-002.md\tDL-002\tDL-7\tx", "line 1: expected"],
-    ["decisions/records/DL-002.md\tDL-002\tnope", "line 1: IDs must match DL-[0-9]+."],
+    [
+      "decisions/records/DL-002.md\tDL-002\tnope",
+      "line 1: IDs must be decision IDs: DL-<digits> or a timestamp ID.",
+    ],
     ["decisions/records/DL-002.md\tDL-002\tDL-002", "old and new IDs are the same."],
     ["/etc/DL-002.md\tDL-002\tDL-007", "must be relative to the project root"],
     ["decisions/records/../../x/DL-002.md\tDL-002\tDL-007", "without '.' or '..'"],
