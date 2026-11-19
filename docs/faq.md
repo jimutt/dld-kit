@@ -42,7 +42,7 @@ Only for the agent skills. `dld check-decision-edits` is a plain command that fa
 
 ### What happens when two branches add decisions at the same time?
 
-Both pick the next free ID, so they can collide. When the other branch merges first, run `/dld-reindex` on yours: it renames your drafts to free IDs and updates every annotation and reference to them. `INDEX.md` merges with git's union driver, so adding decisions on two branches doesn't conflict there.
+With the default sequential IDs both pick the next free number, so they can collide. When the other branch merges first, run `/dld-reindex` on yours: it renames your drafts to free IDs and updates every annotation and reference to them. A project where this happens often can switch to [timestamp IDs](id-formats.md), which don't collide. `INDEX.md` merges with git's union driver, so adding decisions on two branches doesn't conflict there.
 
 ### What if we stop using it?
 

@@ -71,7 +71,7 @@ Run `next-id`:
 {{dld}} next-id
 ```
 
-This outputs the next available ID (e.g., `DL-004`).
+This outputs the next available ID in the project's `id_format`: a number such as `DL-004`, or a timestamp ID such as `DL-T1k3m9z2p7xq4`. Use it exactly as printed, here and in everything that refers to the decision later.
 
 ### 6. Create the decision record
 

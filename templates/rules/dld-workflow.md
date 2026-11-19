@@ -1,6 +1,6 @@
 # DLD (Decision-Linked Development)
 
-This project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md) live in the decisions directory.
+This project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md) live in the decisions directory. A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`); `DL-XXX` below stands for either, and the record for an ID is the file `<id>.md`.
 
 ## Rules
 

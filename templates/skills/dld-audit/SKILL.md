@@ -27,7 +27,7 @@ Run `find-annotations`:
 {{dld}} find-annotations
 ```
 
-This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation occurrence. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. On stderr it also prints `Warning: <file>:<line>: not an annotation: <text>` for text that looks like an annotation and names a decision but does not match the syntax, such as `` `@decision` ``( DL-002 ) with spaces, a lower-case `dl-003`, or two IDs in one pair of parentheses. Keep those lines for check (a2).
+This outputs lines in the format `<file>:<line>:<DL-NNN>`, one per annotation occurrence. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. On stderr it also prints `Warning: <file>:<line>: not an annotation: <text>` for text that looks like an annotation and names a decision but does not match the syntax, such as `` `@decision` ``( DL-002 ) with spaces, a lower-case `dl-003`, a timestamp ID in upper case or cut short, or two IDs in one pair of parentheses. Keep those lines for check (a2).
 
 ### 2. Collect all decision records
 
@@ -35,6 +35,15 @@ Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). For
 - The ID
 - The status
 - The code references listed in the frontmatter
+
+A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`); `id_format` in `dld.config.yaml` says which form the project creates, and a log can hold both. `DL-NNN` here stands for either. Copy IDs from command output or from the records. Never retype one from memory or make one up. A record file is named exactly `<id>.md`.
+
+Then run:
+```bash
+{{dld}} regenerate-index
+```
+
+Keep its `Warning:` lines on stderr for check (h). They report problems with the log itself.
 
 ### 3. Check for issues
 
@@ -101,6 +110,16 @@ Plain mentions are not listed by default: most are citations. When the user asks
 #### f) Decisions without annotations
 
 `accepted` decisions that have code references in their frontmatter but no corresponding `@decision` annotations found in the code. The references claim code is linked, but the annotations are missing.
+
+#### h) Problems with the log
+
+Every `Warning:` line `regenerate-index` printed in step 2:
+
+- **An ID in more than one file.** Two records are the same decision. One of them has to be renamed (`/dld-reindex`, or by hand for records already on the base branch).
+- **A reserved file name** (`<id>--<text>.md`). The file is not read as a decision record. If it is one, rename it to `<id>.md`.
+- **A timestamp ID dated ahead of the clock.** It was created on a machine with a wrong clock. It is ignored when new IDs are ordered; nothing needs fixing unless the user wants the record renamed.
+
+Also read `dld.config.yaml`: if it has `id_format: timestamp` but no `min_dld_version`, report that a collaborator on an older dld-kit would not see the timestamp records, and suggest adding `min_dld_version: 1.1.0`.
 
 ### 4. Report findings
 

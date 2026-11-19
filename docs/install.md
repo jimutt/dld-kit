@@ -34,6 +34,7 @@ This writes:
 
 - `--agent claude,codex`: add agents to the detected ones
 - `--namespaces billing,auth`: one decision directory per namespace (for monorepos)
+- `--id-format timestamp`: decision IDs that don't clash between branches, instead of `DL-001`, `DL-002` ([ID formats](id-formats.md))
 - `--yes`: skip the question and use the detected agents plus `--agent`
 
 Commit the files. Teammates then need nothing installed.

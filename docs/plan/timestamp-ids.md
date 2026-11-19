@@ -1,6 +1,6 @@
 # Low-conflict decision IDs — Review and Plan (1.1)
 
-**Status:** planned. The choices are recorded as DL-092 to DL-100 (tag `timestamp-ids`) in dld-kit's own decision log; where a decision and this document disagree, the decision wins.
+**Status:** implemented in the 1.1 pull requests. This document is kept as the plan it was. The choices are recorded as DL-092 to DL-100 (tag `timestamp-ids`) in dld-kit's own decision log; where a decision and this document disagree, the decision wins.
 
 ## Problem
 

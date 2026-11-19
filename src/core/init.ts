@@ -1,9 +1,10 @@
 import { join } from "node:path";
-import { CONFIG_FILE, type Mode } from "./config.ts";
+import { CONFIG_FILE, ID_FORMATS, type IdFormat, type Mode } from "./config.ts";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { createFileExclusive } from "./files.ts";
 import type { Project } from "./project.ts";
+import { TIMESTAMP_IDS_SINCE } from "./version.ts";
 
 export function parseMode(value: string): Mode {
   if (value !== "flat" && value !== "namespaced") {
@@ -12,11 +13,30 @@ export function parseMode(value: string): Mode {
   return value;
 }
 
-/** dld.config.yaml as create-config.sh writes it. */
-export function renderConfig(mode: Mode, namespaces: readonly string[]): string {
+// @decision(DL-100)
+export function parseIdFormat(value: string): IdFormat {
+  const found = ID_FORMATS.find((format) => format === value);
+  if (found === undefined) {
+    throw new DldError(`ID format must be one of ${ID_FORMATS.join(", ")}, got '${value}'.`);
+  }
+  return found;
+}
+
+// @decision(DL-100)
+/**
+ * dld.config.yaml as create-config.sh writes it. With `idFormat` it also names the form; for
+ * timestamp IDs it adds the oldest dld that reads them, so an older one refuses the project.
+ */
+export function renderConfig(
+  mode: Mode,
+  namespaces: readonly string[],
+  idFormat?: IdFormat,
+): string {
   const lines = ["decisions_dir: decisions", `mode: ${mode}`];
   if (mode === "namespaced") lines.push("namespaces:", ...namespaces.map((ns) => `  - ${ns}`));
   lines.push("annotation_prefix: '@decision'");
+  if (idFormat !== undefined) lines.push(`id_format: ${idFormat}`);
+  if (idFormat === "timestamp") lines.push(`min_dld_version: ${TIMESTAMP_IDS_SINCE}`);
   return `${lines.join("\n")}\n`;
 }
 
@@ -26,12 +46,18 @@ export function createConfig(
   root: string,
   mode: Mode,
   namespaces: readonly string[],
+  idFormat?: IdFormat,
 ): string {
   if (mode === "namespaced" && namespaces.length === 0) {
     throw new DldError("namespaced mode requires at least one namespace.");
   }
   const path = join(root, CONFIG_FILE);
-  createFileExclusive(ctx, path, renderConfig(mode, namespaces), `${CONFIG_FILE} already exists.`);
+  createFileExclusive(
+    ctx,
+    path,
+    renderConfig(mode, namespaces, idFormat),
+    `${CONFIG_FILE} already exists.`,
+  );
   return path;
 }
 

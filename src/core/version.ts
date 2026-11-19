@@ -1,3 +1,7 @@
+// @decision(DL-100)
+/** The first dld-kit release that reads and creates timestamp IDs. */
+export const TIMESTAMP_IDS_SINCE = "1.1.0";
+
 // @decision(DL-098)
 /** The numbers of a plain `<major>.<minor>.<patch>` version, or undefined for anything else. */
 export function parseVersion(text: string): [number, number, number] | undefined {

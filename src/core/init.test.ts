@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { NAMESPACED_CONFIG, type TempProject, tempProject } from "../test-helpers.ts";
 import { parseConfig } from "./config.ts";
-import { createConfig, createDirectories, parseMode, renderConfig } from "./init.ts";
+import { createConfig, createDirectories, parseIdFormat, parseMode, renderConfig } from "./init.ts";
 import { loadProject } from "./project.ts";
 
 let project: TempProject | undefined;
@@ -22,6 +22,28 @@ describe("renderConfig", () => {
       "decisions_dir: decisions\nmode: namespaced\nnamespaces:\n  - billing\n  - auth\nannotation_prefix: '@decision'\n",
     );
     expect(parseConfig(namespaced).namespaces).toEqual(["billing", "auth"]);
+  });
+});
+
+// @decision(DL-100)
+describe("ID format", () => {
+  test("a named form is written, and timestamp brings the minimum version with it", () => {
+    expect(renderConfig("flat", [], "sequential")).toBe(
+      "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: sequential\n",
+    );
+    const timestamp = renderConfig("flat", [], "timestamp");
+    expect(timestamp).toBe(
+      "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: timestamp\nmin_dld_version: 1.1.0\n",
+    );
+    expect(parseConfig(timestamp)).toMatchObject({ idFormat: "timestamp", minDldVersion: "1.1.0" });
+  });
+
+  test("parseIdFormat accepts the two forms only", () => {
+    expect(parseIdFormat("timestamp")).toBe("timestamp");
+    expect(parseIdFormat("sequential")).toBe("sequential");
+    expect(() => parseIdFormat("ulid")).toThrow(
+      "ID format must be one of sequential, timestamp, got 'ulid'.",
+    );
   });
 });
 

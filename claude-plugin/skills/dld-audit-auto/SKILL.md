@@ -42,7 +42,9 @@ node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" find-annotations
 
 Its stderr also lists `Warning: <file>:<line>: not an annotation: <text>` for malformed annotations; keep those for check (7). Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default).
 
-Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references.
+Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references. A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`); `id_format` in `dld.config.yaml` says which form the project creates, and a log can hold both. `DL-NNN` here stands for either. Copy IDs from command output or from the records. Never retype one from memory or make one up.
+
+Then run `node "${CLAUDE_SKILL_DIR}/../dld-common/scripts/dld.mjs" regenerate-index` and keep its `Warning:` lines on stderr for check (8).
 
 ### b) Detect issues
 
@@ -55,6 +57,7 @@ Check for all drift categories:
 5. **Decisions without annotations** — accepted decisions with code references but no corresponding annotations in code
 6. **Missing amendment relationships** — decisions whose body says they amend or supersede another decision that their frontmatter doesn't list
 7. **Malformed annotations** — the `not an annotation` warnings from `find-annotations`
+8. **Problems with the log** — the warnings from `regenerate-index` (an ID in more than one file, a reserved `<id>--<text>.md` file name, a timestamp ID dated ahead of the clock), and a `dld.config.yaml` with `id_format: timestamp` but no `min_dld_version`
 
 For check (4), if `decisions/.dld-state.yaml` exists with an `audit.commit_hash`, first verify reachability:
 ```bash
@@ -76,7 +79,7 @@ If drift suggests the substance of an accepted decision is no longer accurate, o
 
 ### Auto-fixable (apply these directly):
 
-**Orphaned annotations** — If the annotation has an obvious typo (e.g., `DL-01` where `DL-001` exists), fix it. If the referenced ID is completely unknown, remove the annotation and note the removal in the commit message.
+**Orphaned annotations** — If the annotation has an obvious typo (e.g., `DL-01` where `DL-001` exists), fix it. For a timestamp ID, fix it only when exactly one existing ID differs from it by a single character; otherwise treat it as unknown. If the referenced ID is completely unknown, remove the annotation and note the removal in the commit message.
 
 **Stale references in decisions** — Remove file paths from the decision's `references` field that no longer exist. If the file was renamed/moved (detectable via `git log --follow --diff-filter=R`), update the path instead of removing. Keep any frontmatter fields you don't recognise.
 

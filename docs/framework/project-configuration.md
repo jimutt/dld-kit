@@ -232,7 +232,7 @@ snapshot_artifacts:
 
 ### ID Assignment
 
-IDs are derived from the existing decision files, never tracked in config. `id_format` selects the form of new IDs. It does not touch existing records, and both forms are always valid, so a project can switch at any time; its log then holds both. See the decision record format for the two forms and their order.
+IDs are derived from the existing decision files, never tracked in config. `id_format` selects the form of new IDs. It does not touch existing records, and both forms are always valid, so a project can switch at any time; its log then holds both. See the decision record format for the two forms and their order, and [ID formats](../id-formats.md) for choosing and switching.
 
 **`sequential`** (the default): the next ID is one more than the highest sequential number among the record files in `records/`, including namespace subdirectories. IDs are short and easy to say, but two branches that each add a decision from the same base pick the same number. `/dld-reindex` repairs that.
 

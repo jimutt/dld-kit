@@ -40,6 +40,8 @@ When multiple developers draft decisions in parallel, two of them can end up pic
                        # that rebases cleanly (needs a force-push)
 ```
 
+With `id_format: timestamp` this rarely comes up: timestamp IDs don't clash, and the skill gives the renamed records timestamp IDs too. See [ID formats](id-formats.md).
+
 The skill checks IDs against the base branch and, when `gh` is installed and authenticated, against open PRs, so the new IDs don't collide with someone else's work in progress. Decisions your branch got from a PR it's stacked on (an implementation branch cut from a decisions PR) are not collisions.
 
 By default the renames are a new commit, and history is left alone. Merging works: `git merge <base>`, or merging the PR with a merge commit or a squash merge. Rebasing doesn't, because the branch's earlier commits still add the old file names. If you rebase, or your repo uses "Rebase and merge", ask for a squash.

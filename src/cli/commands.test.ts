@@ -37,6 +37,20 @@ function dld(p: TempProject, ...argv: string[]) {
 }
 
 describe("create-config", () => {
+  // @decision(DL-100)
+  test("--id-format names the form of new IDs", () => {
+    project = tempProject(null);
+    expect(dld(project, "create-config", "--id-format", "timestamp", "flat").code).toBe(EXIT_OK);
+    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toEndWith(
+      "id_format: timestamp\nmin_dld_version: 1.1.0\n",
+    );
+    project.cleanup();
+    project = tempProject(null);
+    expect(dld(project, "create-config", "--id-format", "x", "flat").err).toContain(
+      "ID format must be one of",
+    );
+  });
+
   test("creates a namespaced config and reports the path", () => {
     project = tempProject(null);
     const result = dld(project, "create-config", "namespaced", "billing", "auth");
@@ -608,6 +622,21 @@ describe("init", () => {
       "Created .gitignore: dld.local.yaml holds personal settings and is not committed\n",
     );
     expect(read(".gitignore")).toContain("/dld.local.yaml\n");
+  });
+
+  // @decision(DL-100)
+  test("--id-format timestamp writes the form and the minimum version", async () => {
+    project = tempProject(null);
+    project.write("CLAUDE.md", "# Project\n");
+    const cli = fakePackage(project);
+    const bad = await dldInstall(project, cli, "init", "--id-format", "ulid");
+    expect(bad.err).toContain("ID format must be one of sequential, timestamp, got 'ulid'.");
+    expect(existsSync(join(project.root, "dld.config.yaml"))).toBe(false);
+    const result = await dldInstall(project, cli, "init", "--id-format", "timestamp");
+    expect(result).toMatchObject({ code: EXIT_OK, err: "" });
+    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toBe(
+      "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: timestamp\nmin_dld_version: 1.1.0\n",
+    );
   });
 
   test("namespaced, for AGENTS.md readers named with --agent", async () => {

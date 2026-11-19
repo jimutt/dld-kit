@@ -8304,6 +8304,7 @@ var import_yaml2 = __toESM(require_dist(), 1);
 import { join as join4 } from "node:path";
 
 // src/core/version.ts
+var TIMESTAMP_IDS_SINCE = "1.1.0";
 function parseVersion(text) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(text);
   if (match === null) return void 0;
@@ -9086,19 +9087,33 @@ function parseMode(value) {
   }
   return value;
 }
-function renderConfig(mode, namespaces) {
+function parseIdFormat(value) {
+  const found = ID_FORMATS.find((format) => format === value);
+  if (found === void 0) {
+    throw new DldError(`ID format must be one of ${ID_FORMATS.join(", ")}, got '${value}'.`);
+  }
+  return found;
+}
+function renderConfig(mode, namespaces, idFormat2) {
   const lines = ["decisions_dir: decisions", `mode: ${mode}`];
   if (mode === "namespaced") lines.push("namespaces:", ...namespaces.map((ns) => `  - ${ns}`));
   lines.push("annotation_prefix: '@decision'");
+  if (idFormat2 !== void 0) lines.push(`id_format: ${idFormat2}`);
+  if (idFormat2 === "timestamp") lines.push(`min_dld_version: ${TIMESTAMP_IDS_SINCE}`);
   return `${lines.join("\n")}
 `;
 }
-function createConfig(ctx, root, mode, namespaces) {
+function createConfig(ctx, root, mode, namespaces, idFormat2) {
   if (mode === "namespaced" && namespaces.length === 0) {
     throw new DldError("namespaced mode requires at least one namespace.");
   }
   const path = join9(root, CONFIG_FILE);
-  createFileExclusive(ctx, path, renderConfig(mode, namespaces), `${CONFIG_FILE} already exists.`);
+  createFileExclusive(
+    ctx,
+    path,
+    renderConfig(mode, namespaces, idFormat2),
+    `${CONFIG_FILE} already exists.`
+  );
   return path;
 }
 function createDirectories(ctx, { config, paths }) {
@@ -9118,16 +9133,24 @@ var createConfigCommand = {
   name: "create-config",
   summary: "Create dld.config.yaml at the project root",
   internal: true,
-  usage: "Usage: dld create-config <flat|namespaced> [namespace ...]\n\nCreate dld.config.yaml. Namespaced mode needs at least one namespace.\n",
+  usage: `Usage: dld create-config [--id-format <form>] <flat|namespaced> [namespace ...]
+
+Create dld.config.yaml. Namespaced mode needs at least one namespace.
+
+Options:
+  --id-format <form>  sequential (DL-001, the default when left out) or timestamp
+                      (DL-T1k3m9z2p7xq4, which does not clash between branches)
+`,
   run(args, io, ctx) {
-    const { positionals } = parseCommandArgs({
+    const { positionals, values } = parseCommandArgs({
       args: [...args],
-      options: {},
+      options: { "id-format": { type: "string" } },
       allowPositionals: true
     });
     const [mode, ...namespaces] = positionals;
     if (mode === void 0) throw new UsageError("missing <flat|namespaced>");
-    const path = createConfig(ctx, findProjectRoot(ctx), parseMode(mode), namespaces);
+    const idFormat2 = values["id-format"] === void 0 ? void 0 : parseIdFormat(values["id-format"]);
+    const path = createConfig(ctx, findProjectRoot(ctx), parseMode(mode), namespaces, idFormat2);
     io.stdout(`Created ${path}
 `);
     return EXIT_OK;
@@ -9846,7 +9869,7 @@ function targetsFor(harnesses) {
 import { dirname as dirname2, join as join15, posix as posix3 } from "node:path";
 
 // templates/rules/dld-workflow.md
-var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md) live in the decisions directory.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated (except `id` and `timestamp`), but change the prose below it only through the dld-adjust skill, which follows `decision_edits` in `dld.config.yaml`: `block` (the default) never edits it and records an amendment or superseding decision instead, `ask` edits after the user confirms, `allow` edits.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate OVERVIEW.md, and any custom artifacts, from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
+var dld_workflow_default = "# DLD (Decision-Linked Development)\n\nThis project uses Decision-Linked Development. Decision records (DL-*.md) live in the `records/` subdirectory of the decisions directory set in `dld.config.yaml` (`decisions/` by default). High-level docs (INDEX.md, OVERVIEW.md) live in the decisions directory. A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`); `DL-XXX` below stands for either, and the record for an ID is the file `<id>.md`.\n\n## Rules\n\n- When you encounter `@decision(DL-XXX)` annotations in code, read the referenced decision with the dld-lookup skill BEFORE modifying the annotated code.\n- ALWAYS look up and verify related decisions before modifying annotated code. Do not skip this step.\n- NEVER modify code in a way that contradicts an existing decision without first confirming with the user. If the change requires breaking a previous decision, a new decision must be recorded (with the dld-decide skill) that explicitly supersedes the old one. If it only partially modifies a previous decision, record it as an amendment instead.\n- Decision records that are not on the base branch yet (e.g. `main`), or still `proposed` there, are drafts: edit them freely, whatever their status. On records already on the base branch, the frontmatter can always be updated (except `id` and `timestamp`), but change the prose below it only through the dld-adjust skill, which follows `decision_edits` in `dld.config.yaml`: `block` (the default) never edits it and records an amendment or superseding decision instead, `ask` edits after the user confirms, `allow` edits.\n\n## Skills\n\n- dld-decide: record a new decision\n- dld-plan: break down a feature into multiple grouped decisions\n- dld-implement: implement proposed decisions\n- dld-lookup: query decisions by ID, tag, or code path\n- dld-adjust: adjust or update existing decisions\n- dld-audit: scan for drift between decisions and code\n- dld-snapshot: regenerate OVERVIEW.md, and any custom artifacts, from the decision log\n- dld-status: a quick overview of the decision log state\n- dld-retrofit: generate decisions from an existing codebase\n- dld-reindex: resolve decision-ID collisions with the base branch and open PRs\n";
 
 // src/generate/rule.ts
 var RULE_TEXT = dld_workflow_default;
@@ -11051,7 +11074,8 @@ function applyInstall(ctx, root, plan) {
 var initCommand = {
   name: "init",
   summary: "Set up DLD, its skills and the always-on rule in this repository",
-  usage: `Usage: dld init [--namespaces <a,b,...>] [--agent <names>] [--yes] [--force]
+  usage: `Usage: dld init [--namespaces <a,b,...>] [--id-format <form>] [--agent <names>] [--yes]
+                [--force]
 
 Create dld.config.yaml, the decisions directory and INDEX.md, then install the DLD skills and
 the always-on rule for the agents used in this project.
@@ -11061,6 +11085,8 @@ you to confirm the selection unless --yes is given.
 
 Options:
   --namespaces <a,b>  Organise decisions by these namespaces (default: one flat log)
+  --id-format <form>  sequential (DL-001, the default) or timestamp (DL-T1k3m9z2p7xq4, which
+                      does not clash between branches)
   --agent <names>     Agents to install for, besides the detected ones
   --yes               Do not ask; use the detected agents and --agent
   --force             Replace DLD skills installed by a newer dld-kit
@@ -11072,6 +11098,7 @@ ${AGENT_HELP}
       args: [...args],
       options: {
         namespaces: { type: "string" },
+        "id-format": { type: "string" },
         agent: { type: "string", multiple: true },
         yes: { type: "boolean" },
         force: { type: "boolean" }
@@ -11082,6 +11109,7 @@ ${AGENT_HELP}
     if (values.namespaces !== void 0 && namespaces.length === 0) {
       throw new UsageError("--namespaces needs at least one namespace");
     }
+    const idFormat2 = values["id-format"] === void 0 ? void 0 : parseIdFormat(values["id-format"]);
     const root = findProjectRoot(ctx);
     if (ctx.fs.lexists(join20(root, CONFIG_FILE))) {
       throw new DldError(
@@ -11104,7 +11132,7 @@ ${AGENT_HELP}
       force: values.force === true,
       harnesses
     });
-    createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
+    createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces, idFormat2);
     const project = loadProject(ctx, { anyVersion: true });
     createDirectories(ctx, project);
     writeIndex(ctx, project.paths, renderIndex([], project.config.mode));
