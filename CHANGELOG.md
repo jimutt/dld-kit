@@ -1,5 +1,17 @@
 # dld-kit
 
+## 1.1.0
+
+### Minor Changes
+
+- 92bba6d: Create timestamp decision IDs. Set `id_format: timestamp` in `dld.config.yaml` and `dld next-id` gives IDs such as `DL-T1k3m9z2p7xq4`, which do not clash between branches; `sequential` stays the default. `/dld-reindex` renames colliding IDs to new IDs in the configured form.
+- d7b690b: Errors for a mistyped decision ID name both ID forms and, when the ID is spelled another way (`DL-5`, an upper-case timestamp ID), the canonical spelling to use. The skills no longer describe a set of new decisions as an ID range, skip reserved `<id>--<text>.md` files when reading records, and explain that a snapshot's `modified_decisions` can list a timestamp-ID record it does not cover yet.
+- 525fce5: Read a second decision ID form, the timestamp ID (`DL-T` plus 12 lower-case Crockford base32 characters, e.g. `DL-T1k3m9z2p7xq4`), everywhere a decision ID is accepted: record files, annotations, mentions, `amends` and `supersedes`, reindex renames and command arguments. Logs can mix both forms; sequential IDs sort first. File names of the form `<id>--<text>.md` are now reserved and reported by `regenerate-index`.
+- eb27154: Timestamp decision IDs are now offered when a project is set up: `npx dld-kit init --id-format timestamp`, or the question `/dld-init` asks. Both write `id_format: timestamp` and `min_dld_version`. The skills and the always-on rule describe both ID forms, `/dld-audit` reports problems with the log itself (an ID in more than one file, reserved file names, a timestamp ID dated ahead of the clock, a timestamp project without `min_dld_version`), and `docs/id-formats.md` explains how to choose and how to switch an existing project. Upgrade every collaborator's dld-kit before switching: 1.0 does not see timestamp records.
+- 5fc03fb: `/dld-snapshot` change detection works with timestamp IDs: `.dld-state.yaml` stores the highest decision as an ID (a number written by 1.0 is still read), records changed but not yet committed count as modified, and a state file whose commit cannot be found now gives a full regeneration instead of an incremental one.
+  
+  New `min_dld_version` key in `dld.config.yaml`: an older `dld` stops with a message telling the user to update, instead of working on a project it does not fully understand.
+
 ## 1.0.0
 
 ### Major Changes
