@@ -7592,6 +7592,31 @@ function recordFileId(name) {
 function reservedFileId(name) {
   return RESERVED_NAME.exec(name)?.[1];
 }
+function encodeBase32(value, width) {
+  let rest = value;
+  let out = "";
+  for (let i = 0; i < width; i++) {
+    out = BASE32_ALPHABET.charAt(rest % 32) + out;
+    rest = Math.floor(rest / 32);
+  }
+  return out;
+}
+function timestampId(seconds, random) {
+  const fits = (value, chars) => Number.isInteger(value) && value >= 0 && value < 32 ** chars;
+  if (!fits(seconds, TIME_CHARS) || !fits(random, RANDOM_CHARS)) {
+    throw new RangeError(`cannot make a timestamp ID from ${seconds} and ${random}`);
+  }
+  return `DL-T${encodeBase32(seconds, TIME_CHARS)}${encodeBase32(random, RANDOM_CHARS)}`;
+}
+function timestampSeconds(id) {
+  const parsed = parseId(id);
+  if (parsed?.form !== "timestamp") return void 0;
+  let seconds = 0;
+  for (const char of parsed.key.slice(0, TIME_CHARS)) {
+    seconds = seconds * 32 + BASE32_ALPHABET.indexOf(char);
+  }
+  return seconds;
+}
 
 // src/core/records.ts
 var import_yaml = __toESM(require_dist(), 1);
@@ -7803,6 +7828,62 @@ function formatTimestamp(date) {
 
 // src/core/reindex.ts
 import { basename as basename3 } from "node:path";
+
+// src/core/new-ids.ts
+var BURST_WINDOW_SECONDS = 60;
+var RANDOM_VALUES = 32 ** RANDOM_CHARS;
+var MINT_ATTEMPTS = 16;
+var clockSeconds = (ctx) => Math.floor(ctx.now().getTime() / 1e3);
+function idsAheadOfClock(ctx, ids2) {
+  const limit = clockSeconds(ctx) + BURST_WINDOW_SECONDS;
+  return [...ids2].filter((id) => (timestampSeconds(id) ?? 0) > limit);
+}
+function mintTimestampId(ctx, existing) {
+  const now = clockSeconds(ctx);
+  let newest;
+  for (const id of existing) {
+    const seconds2 = timestampSeconds(id);
+    if (seconds2 === void 0 || seconds2 > now + BURST_WINDOW_SECONDS) continue;
+    if (newest === void 0 || seconds2 > newest) newest = seconds2;
+  }
+  const seconds = newest !== void 0 && newest >= now ? Math.min(newest + 1, now + BURST_WINDOW_SECONDS) : now;
+  for (let attempt = 0; attempt < MINT_ATTEMPTS; attempt++) {
+    const [a = 0, b = 0, c = 0, d = 0] = ctx.randomBytes(4);
+    const id = timestampId(seconds, (a * 2 ** 24 + b * 2 ** 16 + c * 2 ** 8 + d) % RANDOM_VALUES);
+    if (!existing.has(id)) return id;
+  }
+  throw new DldError("could not generate a decision ID that is not taken; try again.");
+}
+function nextSequentialId(ids2) {
+  let highest = 0;
+  for (const id of ids2) {
+    const parsed = parseId(id);
+    if (parsed?.form === "sequential") highest = Math.max(highest, parsed.number);
+  }
+  return formatId(highest + 1);
+}
+function mintIds(ctx, format, existing, count) {
+  const known = new Set(existing);
+  if (format === "timestamp") {
+    for (const id of idsAheadOfClock(ctx, known)) ctx.warn(aheadOfClockMessage(id));
+  }
+  const minted = [];
+  for (let i = 0; i < count; i++) {
+    const id = format === "timestamp" ? mintTimestampId(ctx, known) : nextSequentialId(known);
+    known.add(id);
+    minted.push(id);
+  }
+  return minted;
+}
+function aheadOfClockMessage(id) {
+  return `${id} is dated more than ${BURST_WINDOW_SECONDS} seconds ahead of the clock; it is ignored when ordering new IDs`;
+}
+function nextId(ctx, { config, paths }) {
+  const ids2 = listRecordFiles(ctx, paths.recordsDir).map(recordId);
+  const [id] = mintIds(ctx, config.idFormat, ids2, 1);
+  if (id === void 0) throw new Error("mintIds returned nothing");
+  return id;
+}
 
 // src/core/open-prs.ts
 var GITHUB_REMOTE = /github\.com[:/]/;
@@ -8025,14 +8106,18 @@ function findCollisions(ctx, { paths }, base) {
   const { collisions, skipped } = collisionsOf(ctx, paths, base);
   return skipped === void 0 ? { collisions } : { collisions, skipped };
 }
-function planRenames(ctx, { paths }, base) {
+function planRenames(ctx, { paths, config }, base) {
   verifyBase(ctx, paths, base);
   const { collisions, localIds, taken, skipped } = collisionsOf(ctx, paths, base);
-  const highest = [...taken, ...localIds].reduce((max, id) => {
-    const parsed = parseId(id);
-    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
-  }, 0);
-  const renames = [...collisions].sort((a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)).map(({ path, id }, index) => ({ path, oldId: id, newId: formatId(highest + 1 + index) }));
+  const ordered = [...collisions].sort(
+    (a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+  );
+  const newIds = mintIds(ctx, config.idFormat, [...taken, ...localIds], ordered.length);
+  const renames = ordered.map(({ path, id }, index) => ({
+    path,
+    oldId: id,
+    newId: newIds[index] ?? ""
+  }));
   return skipped === void 0 ? { renames } : { renames, skipped };
 }
 function formatRename({ path, oldId, newId }) {
@@ -8225,9 +8310,11 @@ var PERSONAL_KEYS = [
   "implement_review_model",
   "plan_review_model"
 ];
+var ID_FORMATS = ["sequential", "timestamp"];
 var CONFIG_KEYS = [
   "decisions_dir",
   "mode",
+  "id_format",
   "namespaces",
   "annotation_prefix",
   "annotation_exclude",
@@ -8279,6 +8366,7 @@ function parseConfig(text, warn = () => {
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
     personal: personalSettings(raw, CONFIG_FILE),
     decisionEdits: decisionEdits(raw.decision_edits),
+    idFormat: idFormat(raw.id_format),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
     ...optionalBaseBranch(raw.base_branch)
   };
@@ -8395,6 +8483,12 @@ function repoRelativePatterns(value, key) {
     throw invalid(`'${key}' patterns must be relative to the repository root, got '${outside}'`);
   }
   return patterns;
+}
+function idFormat(value) {
+  if (value === void 0 || value === null) return "sequential";
+  const found = ID_FORMATS.find((format) => format === value);
+  if (found === void 0) throw invalid(`'id_format' must be one of ${ID_FORMATS.join(", ")}`);
+  return found;
 }
 function decisionEdits(value) {
   if (value === void 0 || value === null) return "block";
@@ -9124,13 +9218,6 @@ function mentionTiers(body) {
 }
 
 // src/core/decisions.ts
-function nextId(ctx, recordsDir) {
-  const highest = listRecordFiles(ctx, recordsDir).reduce((max, path) => {
-    const parsed = parseId(recordId(path));
-    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
-  }, 0);
-  return formatId(highest + 1);
-}
 function updateStatus(ctx, project, id, status) {
   const path = findRecordFile(ctx, project.paths.recordsDir, id, project.paths.root);
   if (path === void 0) throw new DldError(`decision ${id} not found.`);
@@ -9138,7 +9225,8 @@ function updateStatus(ctx, project, id, status) {
   writeFileAtomic(ctx, path, setStatus(text, status, relative6(project.paths.root, path)));
   return path;
 }
-function createDecision(ctx, project, input) {
+function createDecision(ctx, project, { id = nextId(ctx, project), ...rest }) {
+  const input = { ...rest, id };
   if (!isCanonicalId(input.id)) {
     const canonical = canonicalSpelling(input.id);
     throw new DldError(
@@ -9200,12 +9288,13 @@ var createDecisionCommand = {
   name: "create-decision",
   summary: "Create a proposed decision record",
   internal: true,
-  usage: `Usage: dld create-decision --id <DL-NNN> --title <title> [options]
+  usage: `Usage: dld create-decision (--id <DL-NNN> | --auto-id) --title <title> [options]
 
 Create a decision record with status proposed and print its path.
 
 Options:
-  --id <DL-NNN>            Decision ID (required)
+  --id <DL-NNN>            Decision ID, in either form
+  --auto-id                Use the next ID in the project's id_format instead of --id
   --title <title>          Title (required)
   --namespace <name>       Namespace directory (namespaced projects only)
   --tags <a,b>             Comma-separated tags
@@ -9218,6 +9307,7 @@ Options:
       args: [...args],
       options: {
         id: { type: "string" },
+        "auto-id": { type: "boolean" },
         title: { type: "string" },
         namespace: { type: "string" },
         tags: { type: "string" },
@@ -9228,12 +9318,14 @@ Options:
     });
     const body = values["body-stdin"] === true ? ctx.readStdin() : "";
     const { id, title } = values;
-    if (id === void 0 || id === "" || title === void 0 || title === "") {
-      throw new UsageError("--id and --title are required.");
+    const autoId = values["auto-id"] === true;
+    if (autoId ? id !== void 0 : id === void 0 || id === "") {
+      throw new UsageError("exactly one of --id and --auto-id is required.");
     }
+    if (title === void 0 || title === "") throw new UsageError("--title is required.");
     const namespace = values.namespace === "" ? void 0 : values.namespace;
     const path = createDecision(ctx, loadProject(ctx), {
-      id,
+      ...id === void 0 ? {} : { id },
       title,
       ...namespace === void 0 ? {} : { namespace },
       tags: values.tags ?? "",
@@ -11112,13 +11204,12 @@ Options:
 // src/cli/commands/next-id.ts
 var nextIdCommand = {
   name: "next-id",
-  summary: "Print the next sequential decision ID",
+  summary: "Print the next decision ID",
   internal: true,
-  usage: "Usage: dld next-id\n\nPrint the next decision ID, e.g. DL-004.\n",
+  usage: "Usage: dld next-id\n\nPrint the next decision ID in the project's id_format: DL-004, or a timestamp ID such as\nDL-T1k3m9z2p7xq4.\n",
   run(args, io, ctx) {
     parseCommandArgs({ args: [...args], options: {} });
-    const { paths } = loadProject(ctx);
-    io.stdout(`${nextId(ctx, paths.recordsDir)}
+    io.stdout(`${nextId(ctx, loadProject(ctx))}
 `);
     return EXIT_OK;
   }
@@ -11131,8 +11222,8 @@ var planRenamesCommand = {
   internal: true,
   usage: `Usage: dld plan-renames [--base <ref>]
 
-Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning the next free
-IDs. Prints nothing when there are no collisions.
+Print <path>\\t<DL-OLD>\\t<DL-NEW> for each colliding local decision, assigning new IDs
+in the project's id_format. Prints nothing when there are no collisions.
 
 Options:
   --base <ref>  Base ref (${DEFAULT_BASE_HELP})
@@ -11172,10 +11263,12 @@ Options:
       throw new DldError(`records directory not found at ${paths.recordsDir}`);
     }
     for (const files of duplicateRecordFiles(ctx, paths.recordsDir)) {
-      const ids2 = [...new Set(files.map(recordId))].join(" / ");
+      const ids3 = [...new Set(files.map(recordId))].join(" / ");
       const shown = files.map((path) => relative13(paths.root, path)).join(", ");
-      ctx.warn(`${ids2} is in more than one file: ${shown}`);
+      ctx.warn(`${ids3} is in more than one file: ${shown}`);
     }
+    const ids2 = listRecordFiles(ctx, paths.recordsDir).map(recordId);
+    for (const id of idsAheadOfClock(ctx, ids2)) ctx.warn(aheadOfClockMessage(id));
     for (const path of reservedRecordFiles(ctx, paths.recordsDir)) {
       ctx.warn(
         `${relative13(paths.root, path)}: '<id>--<text>.md' is a reserved file name and is not read as a decision record`
@@ -11767,6 +11860,7 @@ function describe2(error) {
 
 // src/node-context.ts
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -11873,6 +11967,7 @@ function createNodeContext(cwd, env) {
     env,
     readStdin: () => fsCall("read", "standard input", () => readFileSync(0, "utf8")),
     now: () => /* @__PURE__ */ new Date(),
+    randomBytes: (count) => randomBytes(count),
     // @decision(DL-079)
     warn: (message) => {
       process.stderr.write(`Warning: ${message}

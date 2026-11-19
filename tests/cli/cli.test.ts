@@ -411,3 +411,46 @@ describe("output to a closed pipe", () => {
     expect(code).toBe(0);
   });
 });
+
+// @decision(DL-095)
+describe("timestamp IDs (built, under node)", () => {
+  test("two branches create decisions without a collision", () => {
+    const root = realpathSync(mkdtempSync(join(WORKDIR, "timestamp-")));
+    const git = (...args: string[]) =>
+      execFileSync("git", args, { cwd: root, env: ENV, encoding: "utf8" });
+    git("init", "--quiet", "-b", "main");
+    git("config", "user.email", "test@test.com");
+    git("config", "user.name", "Test");
+    writeFileSync(
+      join(root, "dld.config.yaml"),
+      "decisions_dir: decisions\nmode: flat\nid_format: timestamp\n",
+    );
+    git("add", "-A");
+    git("commit", "--quiet", "-m", "init");
+
+    const create = (title: string) => {
+      const result = dldIn(root, "create-decision", "--auto-id", "--title", title);
+      expect(result.stderr).toBe("");
+      return result.stdout.trim().replace(/^.*\/(DL-T[^/]+)\.md$/, "$1");
+    };
+    const ids: string[] = [];
+    for (const branch of ["one", "two"]) {
+      git("checkout", "--quiet", "-b", branch, "main");
+      ids.push(create(`${branch} A`), create(`${branch} B`));
+      git("add", "-A");
+      git("commit", "--quiet", "-m", branch);
+    }
+    expect(new Set(ids).size).toBe(4);
+    for (const id of ids) expect(id).toMatch(/^DL-T[0-9a-hjkmnp-tv-z]{12}$/);
+    expect(ids[0] !== undefined && ids[1] !== undefined && ids[0] < ids[1]).toBe(true);
+
+    git("checkout", "--quiet", "main");
+    git("merge", "--quiet", "--no-edit", "one", "two");
+    expect(dldIn(root, "find-collisions", "--base", "main").stdout).toBe("");
+    const index = dldIn(root, "regenerate-index");
+    expect(index.stderr).toBe("");
+    const listed = readFileSync(join(root, "decisions/INDEX.md"), "utf8");
+    for (const id of ids) expect(listed).toContain(`| ${id} |`);
+    expect(dldIn(root, "next-id").stdout).toMatch(/^DL-T[0-9a-hjkmnp-tv-z]{12}\n$/);
+  });
+});

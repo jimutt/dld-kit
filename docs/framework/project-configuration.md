@@ -17,6 +17,12 @@ decisions_dir: decisions
 # - namespaced: decisions organized in subdirectories per component/domain
 mode: flat
 
+# The form of new decision IDs
+# - sequential (default): DL-001, DL-002, ...
+# - timestamp: DL-T1k3m9z2p7xq4, which does not clash between branches
+# See "ID Assignment" below
+id_format: sequential
+
 # Namespaces (only used when mode is "namespaced")
 # Each namespace maps to a subdirectory under decisions_dir/records/
 namespaces:
@@ -212,7 +218,17 @@ snapshot_artifacts:
 
 ### ID Assignment
 
-The next available ID is derived by scanning existing decision files rather than tracked in config. This avoids merge conflicts when multiple people create decisions concurrently. The framework scans all `DL-NNN.md` filenames in the `records/` subdirectory (including namespace subdirectories), finds the highest existing ID, and increments by one.
+IDs are derived from the existing decision files, never tracked in config. `id_format` selects the form of new IDs. It does not touch existing records, and both forms are always valid, so a project can switch at any time; its log then holds both. See the decision record format for the two forms and their order.
+
+**`sequential`** (the default): the next ID is one more than the highest sequential number among the record files in `records/`, including namespace subdirectories. IDs are short and easy to say, but two branches that each add a decision from the same base pick the same number. `/dld-reindex` repairs that.
+
+**`timestamp`**: the next ID is `DL-T`, the current time in seconds and 25 random bits, in base32. Two branches practically never pick the same ID, so there is nothing to coordinate or repair. The IDs are long and opaque.
+
+- When several IDs are created within one second, each gets the time of the newest local timestamp ID plus one second, so they keep their order. The time in an ID is never more than 60 seconds ahead of the clock.
+- A timestamp ID in the log dated more than 60 seconds ahead of the clock (created on a machine with a wrong clock) is ignored when creating IDs, and the commands warn about it.
+- `/dld-reindex` renames colliding IDs to new IDs in the configured form, so a project that has switched moves the sequential IDs of branches opened before the switch onto timestamp IDs.
+
+Every collaborator's dld-kit must be recent enough to read timestamp IDs before a project switches: a 1.0 `dld` does not see timestamp records at all.
 
 ## The `/dld-init` Skill
 

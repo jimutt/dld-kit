@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   type BranchedProject,
   branchedProject,
+  FIXED_NOW,
   FLAT_CONFIG,
   NAMESPACED_CONFIG,
   recordText,
@@ -14,6 +15,7 @@ import { formatNearMiss, type NearMiss, scanAnnotations } from "./annotations.ts
 import { findMissingAmends } from "./audit.ts";
 import { integratedRecords } from "./decision-edits.ts";
 import { createDecision } from "./decisions.ts";
+import { timestampId } from "./ids.ts";
 import { collectIndexRows, renderIndex } from "./index-file.ts";
 import { mentionTiers, statedRelations } from "./mentions.ts";
 import { loadProject } from "./project.ts";
@@ -239,6 +241,26 @@ describe("reindex", () => {
     ]);
     expect(planRenames(p.ctx, loaded, "main").renames.map(formatRename)).toEqual([
       `${RECORDS}/${T1}.md\t${T1}\tDL-002`,
+    ]);
+  });
+
+  // @decision(DL-096)
+  test("a timestamp project renames every collision to a new timestamp ID, in ID order", () => {
+    const p = branchedProject(`${FLAT_CONFIG}id_format: timestamp\n`, {
+      randomBytes: (count) => new Uint8Array(count),
+    });
+    project = p;
+    p.onMain("land", () => {
+      p.write(`${RECORDS}/DL-002.md`, recordText("DL-002"));
+      p.write(`${RECORDS}/${T1}.md`, recordText(T1));
+    });
+    p.write(`${RECORDS}/${T1}.md`, recordText(T1, "proposed"));
+    p.write(`${RECORDS}/DL-002.md`, recordText("DL-002", "proposed"));
+    p.commitAll("local");
+    const now = Math.floor(FIXED_NOW.getTime() / 1000);
+    expect(planRenames(p.ctx, loadProject(p.ctx), "main").renames.map(formatRename)).toEqual([
+      `${RECORDS}/DL-002.md\tDL-002\t${timestampId(now, 0)}`,
+      `${RECORDS}/${T1}.md\t${T1}\t${timestampId(now + 1, 0)}`,
     ]);
   });
 

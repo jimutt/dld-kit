@@ -125,9 +125,38 @@ describe("create-decision", () => {
     ]) {
       const result = dld(project, "create-decision", ...args);
       expect(result).toMatchObject({ code: EXIT_USAGE, out: "" });
-      expect(result.err).toStartWith("dld create-decision: --id and --title are required.\n");
+      expect(result.err).toMatch(
+        /^dld create-decision: (exactly one of --id and --auto-id|--title) is required\.\n/,
+      );
     }
     expect(existsSync(join(project.root, "decisions/records"))).toBe(false);
+  });
+
+  // @decision(DL-095)
+  test("--auto-id takes the next ID in the project's id_format, and excludes --id", () => {
+    project = tempProject(`${FLAT_CONFIG}id_format: timestamp\n`, {
+      randomBytes: (count) => new Uint8Array(count),
+    });
+    const first = dld(project, "create-decision", "--auto-id", "--title", "One");
+    const second = dld(project, "create-decision", "--auto-id", "--title", "Two");
+    expect(first.out).toMatch(/decisions\/records\/DL-T[0-9a-z]{7}00000\.md\n$/);
+    expect(second.out).toMatch(/decisions\/records\/DL-T[0-9a-z]{7}00000\.md\n$/);
+    expect(first.out < second.out).toBe(true);
+    expect(dld(project, "next-id").out).toMatch(/^DL-T[0-9a-z]{7}00000\n$/);
+    expect(dld(project, "create-decision", "--id", "DL-004", "--title", "Three").code).toBe(
+      EXIT_OK,
+    );
+    const both = dld(project, "create-decision", "--id", "DL-005", "--auto-id", "--title", "T");
+    expect(both).toMatchObject({ code: EXIT_USAGE, out: "" });
+    expect(both.err).toStartWith("dld create-decision: exactly one of --id and --auto-id");
+  });
+
+  test("--auto-id is sequential by default", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-004.md", recordText("DL-004"));
+    expect(dld(project, "create-decision", "--auto-id", "--title", "T").out).toEndWith(
+      "decisions/records/DL-005.md\n",
+    );
   });
 });
 
@@ -202,6 +231,16 @@ describe("regenerate-index", () => {
       err: "Warning: decisions/records/DL-002--retry-policy.md: '<id>--<text>.md' is a reserved file name and is not read as a decision record\n",
     });
     expect(readFileSync(join(project.root, "decisions/INDEX.md"), "utf8")).not.toContain("DL-002");
+  });
+
+  // @decision(DL-095)
+  test("warns about a timestamp ID dated far ahead of the clock", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-Tzzzzzzz00000.md", recordText("DL-Tzzzzzzz00000"));
+    project.write("decisions/records/DL-T000000000000.md", recordText("DL-T000000000000"));
+    expect(dld(project, "regenerate-index").err).toBe(
+      "Warning: DL-Tzzzzzzz00000 is dated more than 60 seconds ahead of the clock; it is ignored when ordering new IDs\n",
+    );
   });
 
   test("fails when the records directory is missing", () => {

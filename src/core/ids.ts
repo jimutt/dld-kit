@@ -131,3 +131,41 @@ export function recordFileId(name: string): string | undefined {
 export function reservedFileId(name: string): string | undefined {
   return RESERVED_NAME.exec(name)?.[1];
 }
+
+// @decision(DL-092)
+/** `value` in base32, most significant character first, padded to `width` characters. */
+function encodeBase32(value: number, width: number): string {
+  let rest = value;
+  let out = "";
+  for (let i = 0; i < width; i++) {
+    out = BASE32_ALPHABET.charAt(rest % 32) + out;
+    rest = Math.floor(rest / 32);
+  }
+  return out;
+}
+
+// @decision(DL-092)
+/**
+ * The timestamp ID for a time in whole Unix seconds and a random number below 32^5. Both must
+ * be non-negative integers that fit their part of the ID.
+ */
+export function timestampId(seconds: number, random: number): string {
+  const fits = (value: number, chars: number) =>
+    Number.isInteger(value) && value >= 0 && value < 32 ** chars;
+  if (!fits(seconds, TIME_CHARS) || !fits(random, RANDOM_CHARS)) {
+    throw new RangeError(`cannot make a timestamp ID from ${seconds} and ${random}`);
+  }
+  return `DL-T${encodeBase32(seconds, TIME_CHARS)}${encodeBase32(random, RANDOM_CHARS)}`;
+}
+
+// @decision(DL-092)
+/** The time part of a timestamp ID in Unix seconds, or undefined for any other value. */
+export function timestampSeconds(id: string): number | undefined {
+  const parsed = parseId(id);
+  if (parsed?.form !== "timestamp") return undefined;
+  let seconds = 0;
+  for (const char of parsed.key.slice(0, TIME_CHARS)) {
+    seconds = seconds * 32 + BASE32_ALPHABET.indexOf(char);
+  }
+  return seconds;
+}

@@ -2,7 +2,8 @@ import { basename } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
 import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
-import { compareIds, findIds, formatId, parseId, recordFileId } from "./ids.ts";
+import { compareIds, findIds, recordFileId } from "./ids.ts";
+import { mintIds } from "./new-ids.ts";
 import { openPrIds, type PrClaim } from "./open-prs.ts";
 import type { Project, ProjectPaths } from "./project.ts";
 
@@ -218,25 +219,27 @@ export function findCollisions(
   return skipped === undefined ? { collisions } : { collisions, skipped };
 }
 
-// @decision(DL-027)
+// @decision(DL-027) @decision(DL-096)
 /**
- * A rename for each collision, in ID order, to consecutive IDs above every ID taken or added
- * locally.
+ * A rename for each collision, in ID order, to new IDs in the project's configured form:
+ * consecutive numbers above every sequential ID taken or added locally, or timestamp IDs.
  */
 export function planRenames(
   ctx: Context,
-  { paths }: Project,
+  { paths, config }: Project,
   base: string,
 ): WithScan<{ renames: Rename[] }> {
   verifyBase(ctx, paths, base);
   const { collisions, localIds, taken, skipped } = collisionsOf(ctx, paths, base);
-  const highest = [...taken, ...localIds].reduce((max, id) => {
-    const parsed = parseId(id);
-    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
-  }, 0);
-  const renames = [...collisions]
-    .sort((a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-    .map(({ path, id }, index) => ({ path, oldId: id, newId: formatId(highest + 1 + index) }));
+  const ordered = [...collisions].sort(
+    (a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
+  );
+  const newIds = mintIds(ctx, config.idFormat, [...taken, ...localIds], ordered.length);
+  const renames = ordered.map(({ path, id }, index) => ({
+    path,
+    oldId: id,
+    newId: newIds[index] ?? "",
+  }));
   return skipped === undefined ? { renames } : { renames, skipped };
 }
 

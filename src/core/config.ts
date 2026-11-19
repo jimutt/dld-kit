@@ -37,8 +37,15 @@ export const PERSONAL_KEYS = [
   "plan_review_model",
 ] as const;
 
+// @decision(DL-095)
+/** The form of the IDs a project creates. */
+export const ID_FORMATS = ["sequential", "timestamp"] as const;
+export type IdFormat = (typeof ID_FORMATS)[number];
+
 export interface Config {
   decisionsDir: string;
+  /** The form of new decision IDs (DL-095). */
+  idFormat: IdFormat;
   mode: Mode;
   namespaces: string[];
   annotationPrefix: string;
@@ -57,6 +64,7 @@ export interface Config {
 export const CONFIG_KEYS = [
   "decisions_dir",
   "mode",
+  "id_format",
   "namespaces",
   "annotation_prefix",
   "annotation_exclude",
@@ -118,6 +126,7 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
     annotationExclude: repoRelativePatterns(raw.annotation_exclude, "annotation_exclude"),
     personal: personalSettings(raw, CONFIG_FILE),
     decisionEdits: decisionEdits(raw.decision_edits),
+    idFormat: idFormat(raw.id_format),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
     ...optionalBaseBranch(raw.base_branch),
   };
@@ -268,6 +277,14 @@ function repoRelativePatterns(value: unknown, key: string): string[] {
 }
 
 // @decision(DL-067)
+// @decision(DL-095)
+function idFormat(value: unknown): IdFormat {
+  if (value === undefined || value === null) return "sequential";
+  const found = ID_FORMATS.find((format) => format === value);
+  if (found === undefined) throw invalid(`'id_format' must be one of ${ID_FORMATS.join(", ")}`);
+  return found;
+}
+
 function decisionEdits(value: unknown): DecisionEdits {
   if (value === undefined || value === null) return "block";
   const allowed: readonly unknown[] = DECISION_EDITS;

@@ -2,8 +2,9 @@ import { join, relative } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, EXIT_USAGE } from "./errors.ts";
 import { createFileExclusive, writeFileAtomic } from "./files.ts";
-import { canonicalSpelling, formatId, identityKey, isCanonicalId, parseId } from "./ids.ts";
+import { canonicalSpelling, identityKey, isCanonicalId } from "./ids.ts";
 import { statedRelations } from "./mentions.ts";
+import { nextId } from "./new-ids.ts";
 import type { Project } from "./project.ts";
 import {
   findRecordFile,
@@ -14,16 +15,6 @@ import {
   type Status,
   setStatus,
 } from "./records.ts";
-
-// @decision(DL-078)
-/** One more than the highest sequential number in the log. */
-export function nextId(ctx: Context, recordsDir: string): string {
-  const highest = listRecordFiles(ctx, recordsDir).reduce((max, path) => {
-    const parsed = parseId(recordId(path));
-    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
-  }, 0);
-  return formatId(highest + 1);
-}
 
 // @decision(DL-014) @decision(DL-015)
 /** Sets a decision's status. Returns the record's path. */
@@ -36,7 +27,8 @@ export function updateStatus(ctx: Context, project: Project, id: string, status:
 }
 
 export interface CreateDecisionInput {
-  id: string;
+  /** The record's ID; without one, the next ID in the project's configured form. */
+  id?: string;
   title: string;
   namespace?: string;
   tags: string;
@@ -46,9 +38,14 @@ export interface CreateDecisionInput {
 }
 
 // @decision(DL-014) @decision(DL-015) @decision(DL-016) @decision(DL-078) @decision(DL-080)
-// @decision(DL-092) @decision(DL-096)
+// @decision(DL-092) @decision(DL-095) @decision(DL-096)
 /** Writes a new proposed record and returns its path. */
-export function createDecision(ctx: Context, project: Project, input: CreateDecisionInput): string {
+export function createDecision(
+  ctx: Context,
+  project: Project,
+  { id = nextId(ctx, project), ...rest }: CreateDecisionInput,
+): string {
+  const input = { ...rest, id };
   if (!isCanonicalId(input.id)) {
     const canonical = canonicalSpelling(input.id);
     throw new DldError(
@@ -102,7 +99,10 @@ export function createDecision(ctx: Context, project: Project, input: CreateDeci
 
 // @decision(DL-083)
 /** Warns about each relationship the body states that neither --amends nor --supersedes lists. */
-function warnUnstatedRelations(ctx: Context, input: CreateDecisionInput): void {
+function warnUnstatedRelations(
+  ctx: Context,
+  input: Pick<CreateDecisionInput, "amends" | "supersedes" | "body"> & { id: string },
+): void {
   const declared = new Set(
     `${input.amends},${input.supersedes}`.split(/[\s,]+/).filter((id) => id !== ""),
   );

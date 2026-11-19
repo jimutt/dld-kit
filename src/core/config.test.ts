@@ -22,9 +22,20 @@ describe("parseConfig", () => {
       annotationPrefix: "@decision",
       annotationExclude: [],
       decisionEdits: "block",
+      idFormat: "sequential",
       snapshotArtifacts: [],
       personal: {},
     });
+  });
+
+  // @decision(DL-095)
+  test("reads id_format and rejects an unknown form", () => {
+    const config = "decisions_dir: decisions\nmode: flat\nid_format: ";
+    expect(parseConfig(`${config}timestamp\n`).idFormat).toBe("timestamp");
+    expect(parseConfig(`${config}sequential\n`).idFormat).toBe("sequential");
+    expect(() => parseConfig(`${config}ulid\n`)).toThrow(
+      "'id_format' must be one of sequential, timestamp",
+    );
   });
 
   test("reads quoted values", () => {

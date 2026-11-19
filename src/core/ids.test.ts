@@ -12,6 +12,8 @@ import {
   parseId,
   recordFileId,
   reservedFileId,
+  timestampId,
+  timestampSeconds,
 } from "./ids.ts";
 
 const T1 = "DL-T1k3m9z2p7xq4";
@@ -174,5 +176,37 @@ describe("record file names", () => {
     expect(reservedFileId("DL-008--x.md")).toBe("DL-008");
     expect(reservedFileId("DL-008.md")).toBeUndefined();
     expect(reservedFileId("DL-008-x.md")).toBeUndefined();
+  });
+});
+
+// @decision(DL-092)
+describe("timestamp ID parts", () => {
+  test("encodes seconds and a random number at fixed width, and reads the seconds back", () => {
+    expect(timestampId(0, 0)).toBe("DL-T000000000000");
+    expect(timestampId(32 ** 7 - 1, 32 ** 5 - 1)).toBe("DL-Tzzzzzzzzzzzz");
+    expect(timestampId(1_800_000_000, 33)).toBe("DL-T1nmkmg000011");
+    expect(timestampSeconds("DL-T1nmkmg000011")).toBe(1_800_000_000);
+    expect(timestampSeconds("DL-Tzzzzzzzzzzzz")).toBe(32 ** 7 - 1);
+    expect(timestampSeconds("DL-001")).toBeUndefined();
+    expect(timestampSeconds("DL-T1NMKMG000011")).toBeUndefined();
+  });
+
+  test("text order is time order", () => {
+    const seconds = [0, 31, 32, 1_799_999_999, 1_800_000_000, 2 ** 33, 32 ** 7 - 1];
+    const ids = seconds.map((value) => timestampId(value, 7));
+    expect([...ids].sort()).toEqual(ids);
+    expect([...ids].sort(compareIds)).toEqual(ids);
+  });
+
+  test("rejects values that do not fit", () => {
+    for (const [seconds, random] of [
+      [-1, 0],
+      [32 ** 7, 0],
+      [1.5, 0],
+      [0, 32 ** 5],
+      [0, -1],
+    ] as const) {
+      expect(() => timestampId(seconds, random)).toThrow("cannot make a timestamp ID");
+    }
   });
 });

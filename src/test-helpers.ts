@@ -174,6 +174,7 @@ export function fakeContext(overrides: Partial<Context> = {}): Context {
     env: {},
     readStdin: () => "",
     now: () => FIXED_NOW,
+    randomBytes: (count) => new Uint8Array(count),
     warn: () => {},
     ...overrides,
   };
