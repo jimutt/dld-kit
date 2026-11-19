@@ -1,10 +1,11 @@
 import { join } from "node:path";
+import { version } from "../../package.json";
 import { CONFIG_FILE, ID_FORMATS, type IdFormat, type Mode } from "./config.ts";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { createFileExclusive } from "./files.ts";
 import type { Project } from "./project.ts";
-import { TIMESTAMP_IDS_SINCE } from "./version.ts";
+import { satisfiesMinimum, TIMESTAMP_IDS_SINCE } from "./version.ts";
 
 export function parseMode(value: string): Mode {
   if (value !== "flat" && value !== "namespaced") {
@@ -26,17 +27,22 @@ export function parseIdFormat(value: string): IdFormat {
 /**
  * dld.config.yaml as create-config.sh writes it. With `idFormat` it also names the form; for
  * timestamp IDs it adds the oldest dld that reads them, so an older one refuses the project.
+ * That line is left out when `running`, this dld, is itself older: a build made before the
+ * release that carries the version would otherwise refuse the project it just set up.
  */
 export function renderConfig(
   mode: Mode,
   namespaces: readonly string[],
   idFormat?: IdFormat,
+  running: string = version,
 ): string {
   const lines = ["decisions_dir: decisions", `mode: ${mode}`];
   if (mode === "namespaced") lines.push("namespaces:", ...namespaces.map((ns) => `  - ${ns}`));
   lines.push("annotation_prefix: '@decision'");
   if (idFormat !== undefined) lines.push(`id_format: ${idFormat}`);
-  if (idFormat === "timestamp") lines.push(`min_dld_version: ${TIMESTAMP_IDS_SINCE}`);
+  if (idFormat === "timestamp" && satisfiesMinimum(running, TIMESTAMP_IDS_SINCE)) {
+    lines.push(`min_dld_version: ${TIMESTAMP_IDS_SINCE}`);
+  }
   return `${lines.join("\n")}\n`;
 }
 

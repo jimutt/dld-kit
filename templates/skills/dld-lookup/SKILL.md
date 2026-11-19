@@ -28,7 +28,7 @@ Parse the user's input to determine the query type:
 
 ### By ID: `/dld-lookup DL-047`
 
-Find and read the decision file `DL-047.md`. Search the records subdirectory (`decisions/records/`, including namespace subdirectories) for the file. The file is always named `<id>.md`, for a timestamp ID too: `DL-T1k3m9z2p7xq4` is in `DL-T1k3m9z2p7xq4.md`.
+Find and read the decision file `DL-047.md`. Search the records subdirectory (`decisions/records/`, including namespace subdirectories) for the file. The file is always named `<id>.md`, for a timestamp ID too: `DL-T1k3m9z2p7xq4` is in `DL-T1k3m9z2p7xq4.md`. A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`). Copy IDs from command output or from the records; never retype one from memory.
 
 Then list the decisions related to it:
 

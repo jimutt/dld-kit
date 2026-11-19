@@ -41,9 +41,10 @@ describe("create-config", () => {
   test("--id-format names the form of new IDs", () => {
     project = tempProject(null);
     expect(dld(project, "create-config", "--id-format", "timestamp", "flat").code).toBe(EXIT_OK);
-    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toEndWith(
-      "id_format: timestamp\nmin_dld_version: 1.1.0\n",
+    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toContain(
+      "id_format: timestamp\n",
     );
+    expect(dld(project, "create-directories").code).toBe(EXIT_OK);
     project.cleanup();
     project = tempProject(null);
     expect(dld(project, "create-config", "--id-format", "x", "flat").err).toContain(
@@ -634,9 +635,11 @@ describe("init", () => {
     expect(existsSync(join(project.root, "dld.config.yaml"))).toBe(false);
     const result = await dldInstall(project, cli, "init", "--id-format", "timestamp");
     expect(result).toMatchObject({ code: EXIT_OK, err: "" });
-    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toBe(
-      "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: timestamp\nmin_dld_version: 1.1.0\n",
+    expect(readFileSync(join(project.root, "dld.config.yaml"), "utf8")).toStartWith(
+      "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: timestamp\n",
     );
+    // Whatever version this build has, it can work on the project it set up.
+    expect(dld(project, "next-id")).toMatchObject({ code: EXIT_OK, err: "" });
   });
 
   test("namespaced, for AGENTS.md readers named with --agent", async () => {

@@ -31,11 +31,21 @@ describe("ID format", () => {
     expect(renderConfig("flat", [], "sequential")).toBe(
       "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: sequential\n",
     );
-    const timestamp = renderConfig("flat", [], "timestamp");
+    const timestamp = renderConfig("flat", [], "timestamp", "1.1.0");
     expect(timestamp).toBe(
       "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\nid_format: timestamp\nmin_dld_version: 1.1.0\n",
     );
     expect(parseConfig(timestamp)).toMatchObject({ idFormat: "timestamp", minDldVersion: "1.1.0" });
+  });
+
+  test("a dld older than the minimum leaves it out, so it can work on what it set up", () => {
+    const config = "decisions_dir: decisions\nmode: flat\nannotation_prefix: '@decision'\n";
+    expect(renderConfig("flat", [], "timestamp", "1.0.0")).toBe(`${config}id_format: timestamp\n`);
+    expect(renderConfig("flat", [], "timestamp", "1.1.0-rc.1")).toEndWith(
+      "min_dld_version: 1.1.0\n",
+    );
+    expect(renderConfig("flat", [], "timestamp", "2.0.0")).toEndWith("min_dld_version: 1.1.0\n");
+    expect(renderConfig("flat", [], "timestamp")).toStartWith(`${config}id_format: timestamp\n`);
   });
 
   test("parseIdFormat accepts the two forms only", () => {

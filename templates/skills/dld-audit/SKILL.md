@@ -43,7 +43,7 @@ Then run:
 {{dld}} regenerate-index
 ```
 
-Keep its `Warning:` lines on stderr for check (h). They report problems with the log itself.
+Keep its `Warning:` lines on stderr for check (g). They report problems with the log itself. The command also rewrites `INDEX.md`; if that changes the file, the index was out of date, so say so in the report.
 
 ### 3. Check for issues
 
@@ -111,15 +111,16 @@ Plain mentions are not listed by default: most are citations. When the user asks
 
 `accepted` decisions that have code references in their frontmatter but no corresponding `@decision` annotations found in the code. The references claim code is linked, but the annotations are missing.
 
-#### h) Problems with the log
+#### g) Problems with the log
 
 Every `Warning:` line `regenerate-index` printed in step 2:
 
-- **An ID in more than one file.** Two records are the same decision. One of them has to be renamed (`/dld-reindex`, or by hand for records already on the base branch).
+- **An ID in more than one file.** Two records are the same decision, and one of them has to be renamed: with `/dld-reindex` when one copy is on the base branch or in an open PR and the other was added on this branch, otherwise by hand.
 - **A reserved file name** (`<id>--<text>.md`). The file is not read as a decision record. If it is one, rename it to `<id>.md`.
 - **A timestamp ID dated ahead of the clock.** It was created on a machine with a wrong clock. It is ignored when new IDs are ordered; nothing needs fixing unless the user wants the record renamed.
+- **Any other warning**, such as an unknown key in `dld.config.yaml`: report it as printed.
 
-Also read `dld.config.yaml`: if it has `id_format: timestamp` but no `min_dld_version`, report that a collaborator on an older dld-kit would not see the timestamp records, and suggest adding `min_dld_version: 1.1.0`.
+Also read `dld.config.yaml`: if it has `id_format: timestamp` but no `min_dld_version`, report that the config does not state the oldest dld-kit the project needs, and suggest adding `min_dld_version: 1.1.0`. Say what it does and does not do: a dld-kit from 1.1 on that is too old then stops with an upgrade message, but dld-kit 1.0 ignores the key and does not see timestamp records, so collaborators on 1.0 must upgrade either way.
 
 ### 4. Report findings
 
@@ -154,11 +155,17 @@ Present findings grouped by severity:
 #### Modified Annotated Files (since last audit)
 - `src/billing/vat.ts` — modified, contains `@decision(DL-012)`. Review if decision needs updating.
 
+#### Problems with the Log
+- `DL-007` is in more than one file: `decisions/records/auth/DL-007.md`, `decisions/records/billing/DL-007.md` — rename one
+- `decisions/records/DL-012--retries.md` — reserved file name, not read as a decision record
+- `INDEX.md` was out of date and has been regenerated
+
 ### Summary
 - **X** orphaned annotations
 - **Y** stale references
 - **W** missing relationships, **V** possible ones
 - **Z** annotated files modified since last audit
+- **U** problems with the log
 
 ### Suggested Remediation
 - Fix orphaned annotation at `src/billing/vat.ts:42` — update to correct ID or remove
@@ -170,7 +177,7 @@ If no issues are found:
 ```
 ## Audit Report
 
-No drift detected. All annotations reference valid, accepted decisions. All decision references point to existing code.
+No drift detected. All annotations reference valid, accepted decisions. All decision references point to existing code. The log itself has no problems.
 ```
 
 ### 5. Apply relationship fixes

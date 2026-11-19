@@ -53,7 +53,7 @@ Run `create-config`:
 node "<skill-dir>/../dld-common/scripts/dld.mjs" create-config [--id-format timestamp] <mode> [namespace1 namespace2 ...]
 ```
 
-Pass `--id-format timestamp` only when the user chose timestamp IDs. It writes `id_format: timestamp` and `min_dld_version`, which makes an older dld-kit stop with an upgrade message instead of misreading the log. Leave the flag out for sequential IDs.
+Pass `--id-format timestamp` only when the user chose timestamp IDs. It writes `id_format: timestamp` and `min_dld_version: 1.1.0`, the oldest dld-kit that reads timestamp IDs. Tell the user that every collaborator must be on dld-kit 1.1 or newer before they pull this: dld-kit 1.0 does not know the key, does not see timestamp records, and only prints a warning. Leave the flag out for sequential IDs.
 
 Example flat:
 ```bash

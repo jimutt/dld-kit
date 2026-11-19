@@ -94,7 +94,7 @@ references:               # code areas this decision affects
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `id` | yes | Global sequential ID (`DL-NNN`) |
+| `id` | yes | Decision ID, unique across the log: sequential (`DL-012`) or timestamp (`DL-T1k3m9z2p7xq4`); see [Decision IDs](#decision-ids) |
 | `title` | yes | Short, descriptive title |
 | `timestamp` | yes | ISO 8601 timestamp of when the decision was made |
 | `status` | yes | One of: `proposed`, `accepted`, `deprecated`, `superseded` |

@@ -37,7 +37,7 @@ Only the exact spelling is the ID. `DL-T1K3M9Z2P7XQ4` in upper case is not the s
 npx dld-kit init --id-format timestamp
 ```
 
-Or choose timestamp IDs when `/dld-init` asks. Either writes:
+Or choose timestamp IDs when `/dld-init` asks (`npx dld-kit init` does not ask; the flag is how you choose there). Either writes:
 
 ```yaml
 id_format: timestamp
@@ -54,7 +54,7 @@ The log then holds both forms. Lists put sequential IDs first, by number, then t
 
 Branches opened before the switch can still collide on their sequential IDs. `/dld-reindex` resolves that as before, and gives the renamed records timestamp IDs.
 
-Switching back is the same edit in reverse. Nothing is renamed in either direction.
+To switch back, set `id_format: sequential` or remove the key, and keep `min_dld_version`: the log still holds timestamp records. Nothing is renamed in either direction.
 
 ## `min_dld_version`
 

@@ -152,7 +152,7 @@ Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly
 
 ## Step 6: Add annotations and references
 
-For each decision, add `@decision(DL-NNN)` annotations to the relevant code. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. Write one ID per annotation, exactly as `<prefix>(DL-NNN)` with no spaces; several annotations can share a comment:
+For each decision, add `@decision(DL-NNN)` annotations to the relevant code. Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default); the examples here show the default. Write one ID per annotation, exactly as `<prefix>(DL-NNN)` with no spaces, using the ID exactly as `next-id` printed it; several annotations can share a comment:
 
 - **Broad mode:** Annotate at the file/module level — typically at the top of the file or on the main export/class.
 - **Detailed mode:** Annotate at the function/method/class level where the decision is embodied.

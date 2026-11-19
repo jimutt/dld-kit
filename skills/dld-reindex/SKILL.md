@@ -57,6 +57,8 @@ PLAN=$(node "<skill-dir>/../dld-common/scripts/dld.mjs" plan-renames --base "$BA
 echo "$PLAN"
 ```
 
+Run `plan-renames` once and reuse this output for every later step. In a project with `id_format: timestamp` each run prints different new IDs, so a second run would not match what was shown or already applied.
+
 Output is tab-separated, one rename per line:
 
 ```

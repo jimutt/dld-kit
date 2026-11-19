@@ -158,7 +158,7 @@ Tessl installs and skills copied to other folders need one more step first: see 
 `dld.config.yaml` holds the settings. The ones you're most likely to change:
 
 - **`mode: namespaced`** with a `namespaces` list gives each area of a monorepo its own decision folder (`npx dld-kit init --namespaces billing,auth`). IDs stay unique across namespaces.
-- **`id_format: timestamp`** creates IDs like `DL-T1k3m9z2p7xq4` instead of `DL-001`. They are long, but branches never pick the same one. See [ID formats](docs/id-formats.md) before switching.
+- **`id_format: timestamp`** creates IDs like `DL-T1k3m9z2p7xq4` instead of `DL-001`. They are long, but branches practically never pick the same one. See [ID formats](docs/id-formats.md) before switching.
 - **`implement_review: false`** skips the review subagent in `/dld-implement`; **`plan_review: true`** adds one to `/dld-plan`. **`review_model`** picks the model the reviewers run on.
 - **`dld.local.yaml`**, which isn't committed, holds your own review settings for a checkout, over the team's.
 - **`snapshot_artifacts`** adds documents for `/dld-snapshot` to generate, each from a prompt you write.

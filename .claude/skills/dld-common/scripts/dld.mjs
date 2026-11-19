@@ -9094,12 +9094,14 @@ function parseIdFormat(value) {
   }
   return found;
 }
-function renderConfig(mode, namespaces, idFormat2) {
+function renderConfig(mode, namespaces, idFormat2, running = version) {
   const lines = ["decisions_dir: decisions", `mode: ${mode}`];
   if (mode === "namespaced") lines.push("namespaces:", ...namespaces.map((ns) => `  - ${ns}`));
   lines.push("annotation_prefix: '@decision'");
   if (idFormat2 !== void 0) lines.push(`id_format: ${idFormat2}`);
-  if (idFormat2 === "timestamp") lines.push(`min_dld_version: ${TIMESTAMP_IDS_SINCE}`);
+  if (idFormat2 === "timestamp" && satisfiesMinimum(running, TIMESTAMP_IDS_SINCE)) {
+    lines.push(`min_dld_version: ${TIMESTAMP_IDS_SINCE}`);
+  }
   return `${lines.join("\n")}
 `;
 }
