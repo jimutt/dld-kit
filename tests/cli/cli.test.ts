@@ -390,7 +390,8 @@ describe("upgrading a pre-1.0 project (built, under node)", () => {
     expect(readFileSync(join(project, "decisions/INDEX.md"), "utf8")).toBe(index);
     write("decisions/SNAPSHOT.md", "");
     write("decisions/OVERVIEW.md", "");
-    expect(run("detect-snapshot-changes").stdout).toStartWith("mode: incremental\n");
+    // The state's commit is not in this repository, so there is no baseline (DL-097).
+    expect(run("detect-snapshot-changes").stdout).toBe("mode: full\n");
     expect(readFileSync(join(project, "decisions/.dld-state.yaml"), "utf8")).toBe(state);
   });
 });

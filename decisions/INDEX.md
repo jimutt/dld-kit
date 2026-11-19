@@ -4,8 +4,8 @@
 |----|-------|--------|------|
 | DL-100 | Offer timestamp IDs in /dld-init, and describe both ID forms in the skills, rule and docs | proposed | timestamp-ids, skills, docs |
 | DL-099 | Reserve <id>--<text>.md record file names for a later slug | accepted | timestamp-ids, records |
-| DL-098 | min_dld_version makes an older dld refuse to work on a project | proposed | timestamp-ids, config, cli |
-| DL-097 | Keep the snapshot watermark as an ID, count uncommitted records, and regenerate fully without a baseline commit | proposed | timestamp-ids, snapshot |
+| DL-098 | min_dld_version makes an older dld refuse to work on a project | accepted | timestamp-ids, config, cli |
+| DL-097 | Keep the snapshot watermark as an ID, count uncommitted records, and regenerate fully without a baseline commit | accepted | timestamp-ids, snapshot |
 | DL-096 | Decide ID uniqueness by ID, and mint reindex renames in the configured form | accepted | timestamp-ids, reindex, records |
 | DL-095 | id_format selects how new decision IDs are created; timestamp IDs keep order inside a burst | accepted | timestamp-ids, config, records |
 | DL-094 | Annotation, mention and rename scans recognise both ID forms | accepted | timestamp-ids, annotations, reindex |

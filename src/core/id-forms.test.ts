@@ -322,32 +322,45 @@ test("a timestamp record on the base branch is integrated", () => {
   expect([...integratedRecords(p.ctx, paths, "main").byId.keys()]).toEqual(["DL-001", T1]);
 });
 
+// @decision(DL-097)
 describe("snapshot", () => {
+  const snapshotAt = (p: BranchedProject) => {
+    p.write("decisions/OVERVIEW.md", "x");
+    p.commitAll("snapshot");
+    return updateSnapshotState(p.ctx, loadProject(p.ctx), []).highest;
+  };
+  const detect = (p: TempProject) => detectSnapshotChanges(p.ctx, loadProject(p.ctx));
+
   test("a sequential record at the watermark in another spelling is modified, not new", () => {
     const p = branched();
-    p.write("decisions/OVERVIEW.md", "x");
     p.write(`${RECORDS}/DL-05.md`, recordText("DL-05"));
-    p.commitAll("snapshot");
-    const loaded = loadProject(p.ctx);
-    expect(updateSnapshotState(p.ctx, loaded, []).highest).toBe(5);
+    expect(snapshotAt(p)).toBe("DL-05");
     p.write(`${RECORDS}/DL-05.md`, `${recordText("DL-05")}more\n`);
-    p.commitAll("edit");
-    const changes = detectSnapshotChanges(p.ctx, loaded);
-    expect(changes).toMatchObject({ newDecisions: [], modifiedDecisions: ["DL-005"] });
+    p.write(`${RECORDS}/DL-005.md`, recordText("DL-005"));
+    expect(detect(p)).toMatchObject({ newDecisions: [], modifiedDecisions: ["DL-005", "DL-05"] });
   });
 
-  test("timestamp records are new until the watermark can hold them", () => {
+  test("the watermark is the highest ID in order, and late merges below it are modified", () => {
     const p = branched();
-    p.write("decisions/OVERVIEW.md", "x");
-    p.write(`${RECORDS}/${T1}.md`, recordText(T1));
-    p.commitAll("snapshot");
-    const loaded = loadProject(p.ctx);
-    expect(updateSnapshotState(p.ctx, loaded, []).highest).toBe(1);
-    expect(detectSnapshotChanges(p.ctx, loaded)).toEqual({
-      mode: "incremental",
-      newDecisions: [T1],
-      modifiedDecisions: [],
-      commitRange: "",
+    p.write(`${RECORDS}/DL-1000.md`, recordText("DL-1000"));
+    p.write(`${RECORDS}/${T2}.md`, recordText(T2, "proposed"));
+    expect(snapshotAt(p)).toBe(T2);
+    expect(read(p, "decisions/.dld-state.yaml")).toContain(`decisions_included: ${T2}\n`);
+    expect(detect(p)).toMatchObject({ newDecisions: [], modifiedDecisions: [] });
+
+    const later = "DL-T1k3m9z2p7xq6";
+    for (const id of ["DL-1001", T1, later]) p.write(`${RECORDS}/${id}.md`, recordText(id));
+    expect(detect(p)).toMatchObject({
+      newDecisions: [later],
+      modifiedDecisions: ["DL-1001", T1],
     });
+  });
+
+  test("a sequential watermark puts every timestamp record after it", () => {
+    const p = branched();
+    expect(snapshotAt(p)).toBe("DL-001");
+    p.write(`${RECORDS}/${T1}.md`, recordText(T1));
+    p.write(`${RECORDS}/DL-002.md`, recordText("DL-002"));
+    expect(detect(p)).toMatchObject({ newDecisions: ["DL-002", T1], modifiedDecisions: [] });
   });
 });

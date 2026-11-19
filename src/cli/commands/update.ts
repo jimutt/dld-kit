@@ -49,7 +49,7 @@ ${AGENT_HELP}
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
     // Read before anything is written, so an invalid config stops the update up front.
-    const project = loadProject(ctx);
+    const project = loadProject(ctx, { anyVersion: true });
     const installed = installedTargets(ctx, root);
     const added = targetsFor(requested);
     const layouts = new Set([...installed.layouts, ...added.layouts]);

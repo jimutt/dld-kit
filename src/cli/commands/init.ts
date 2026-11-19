@@ -80,7 +80,7 @@ ${AGENT_HELP}
     });
 
     createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
-    const project = loadProject(ctx);
+    const project = loadProject(ctx, { anyVersion: true });
     createDirectories(ctx, project);
     writeIndex(ctx, project.paths, renderIndex([], project.config.mode));
     const report = applyInstall(ctx, root, plan);

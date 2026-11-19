@@ -66,6 +66,10 @@ decision_edits: block
 # else origin/main, main, origin/master or master. See "Base branch" below.
 base_branch: main
 
+# The oldest dld-kit that may work on this project (optional)
+# An older dld stops with a message instead of running. See "Minimum version" below.
+min_dld_version: 1.1.0
+
 # Custom snapshot artifacts (optional)
 # Additional documents generated alongside OVERVIEW.md
 # by the /dld-snapshot skill. Each entry defines a filename and a prompt
@@ -184,6 +188,16 @@ Reindex (`/dld-reindex`) and the decision-edit checks compare the current branch
 
 Only a ref that exists is used. When none does, the commands fail and say what they tried; `list-proposed` instead lists every proposed decision as `unknown`, with a warning. Set `base_branch` when the branch decisions merge into is not the remote's default, for example a long-lived `develop` branch.
 
+### Minimum version
+
+Every collaborator's skills carry their own copy of the `dld` CLI, so a team runs several versions at once. `min_dld_version` states the oldest one that may work on the project, as a plain `<major>.<minor>.<patch>`. A `dld` older than that stops before reading or writing anything:
+
+```
+Error: this project needs dld 1.1.0 or newer; this is dld 1.0.0. Update dld-kit (npx dld-kit@latest update, or your plugin manager) and try again.
+```
+
+Set it when the project starts using something older versions do not understand, such as `id_format: timestamp`. The commands that install or update dld-kit (`init`, `update`, `install-rule`) are not stopped. Versions before 1.1 do not know the key: they warn about it as an unknown key and carry on, so for those the only protection is upgrading first.
+
 ### Unknown keys
 
 Keys that are not part of this schema are ignored, with a warning on stderr from every `dld` command that reads the config, for example `Warning: dld.config.yaml: unknown key 'decision_edit'; did you mean 'decision_edits'?`. Unknown keys stay warnings, never errors, throughout 1.x. Keys starting with `x-` never warn: dld-kit will never use that prefix, so it is yours for project settings, for example `x-team: {owner: platform}`.
@@ -228,7 +242,7 @@ IDs are derived from the existing decision files, never tracked in config. `id_f
 - A timestamp ID in the log dated more than 60 seconds ahead of the clock (created on a machine with a wrong clock) is ignored when creating IDs, and the commands warn about it.
 - `/dld-reindex` renames colliding IDs to new IDs in the configured form, so a project that has switched moves the sequential IDs of branches opened before the switch onto timestamp IDs.
 
-Every collaborator's dld-kit must be recent enough to read timestamp IDs before a project switches: a 1.0 `dld` does not see timestamp records at all.
+Every collaborator's dld-kit must be recent enough to read timestamp IDs before a project switches: a 1.0 `dld` does not see timestamp records at all. Set `min_dld_version: 1.1.0` together with `id_format: timestamp`, so that later versions refuse instead of misreading.
 
 ## The `/dld-init` Skill
 

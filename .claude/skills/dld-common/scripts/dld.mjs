@@ -8302,6 +8302,28 @@ import { join as join5 } from "node:path";
 // src/core/config.ts
 var import_yaml2 = __toESM(require_dist(), 1);
 import { join as join4 } from "node:path";
+
+// src/core/version.ts
+function parseVersion(text) {
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(text);
+  if (match === null) return void 0;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+function satisfiesMinimum(running, minimum) {
+  const have = parseVersion(running.replace(/[-+].*$/, ""));
+  const need = parseVersion(minimum);
+  if (have === void 0 || need === void 0) return false;
+  for (let i = 0; i < 3; i++) {
+    const difference = (have[i] ?? 0) - (need[i] ?? 0);
+    if (difference !== 0) return difference > 0;
+  }
+  return true;
+}
+function tooOldMessage(running, minimum) {
+  return `this project needs dld ${minimum} or newer; this is dld ${running}. Update dld-kit (npx dld-kit@latest update, or your plugin manager) and try again.`;
+}
+
+// src/core/config.ts
 var CONFIG_FILE = "dld.config.yaml";
 var LOCAL_FILE = "dld.local.yaml";
 var DECISION_EDITS = ["block", "ask", "allow"];
@@ -8327,7 +8349,8 @@ var CONFIG_KEYS = [
   "plan_review_model",
   "decision_edits",
   "snapshot_artifacts",
-  "base_branch"
+  "base_branch",
+  "min_dld_version"
 ];
 function loadConfig(ctx, root) {
   const path = join4(root, CONFIG_FILE);
@@ -8370,7 +8393,8 @@ function parseConfig(text, warn = () => {
     decisionEdits: decisionEdits(raw.decision_edits),
     idFormat: idFormat(raw.id_format),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
-    ...optionalBaseBranch(raw.base_branch)
+    ...optionalBaseBranch(raw.base_branch),
+    ...optionalMinVersion(raw.min_dld_version)
   };
 }
 function parseLocalSettings(text, warn = () => {
@@ -8434,6 +8458,13 @@ function editDistance(a, b) {
     previous = current;
   }
   return previous[b.length] ?? 0;
+}
+function optionalMinVersion(value) {
+  if (value === void 0 || value === null) return {};
+  if (typeof value !== "string" || parseVersion(value) === void 0) {
+    throw invalid("'min_dld_version' must be a version such as 1.1.0, in quotes if needed");
+  }
+  return { minDldVersion: value };
 }
 function optionalBaseBranch(value) {
   const branch = optionalString(value, "base_branch");
@@ -8526,9 +8557,13 @@ function resolvePaths(root, config) {
   const decisionsDir = join5(root, config.decisionsDir);
   return { root, decisionsDir, recordsDir: join5(decisionsDir, "records") };
 }
-function loadProject(ctx) {
+function loadProject(ctx, { anyVersion = false, running = version } = {}) {
   const root = findProjectRoot(ctx);
   const config = loadConfig(ctx, root);
+  const minimum = config.minDldVersion;
+  if (!anyVersion && minimum !== void 0 && !satisfiesMinimum(running, minimum)) {
+    throw new DldError(tooOldMessage(running, minimum));
+  }
   return { config, paths: resolvePaths(root, config) };
 }
 
@@ -8659,6 +8694,17 @@ function collectActiveDecisions(ctx, project, { includeProposed = false } = {}) 
   return readRecords(ctx, project).filter((record) => wanted(record.status)).map((record) => record.text).join(`${DECISION_BOUNDARY}
 `);
 }
+function watermarkId(included) {
+  if (included === void 0) return void 0;
+  if (/^\d+$/.test(included)) return formatId(Number.parseInt(included, 10));
+  return isDecisionId(included) ? included : void 0;
+}
+function isPast(id, watermark) {
+  const a = parseId(id);
+  const b = parseId(watermark);
+  if (a?.form === "sequential" && b?.form === "sequential") return a.number > b.number;
+  return compareIds(id, watermark) > 0;
+}
 function detectSnapshotChanges(ctx, project) {
   const { paths } = project;
   const state = readStateSection(ctx, paths, "snapshot");
@@ -8666,21 +8712,8 @@ function detectSnapshotChanges(ctx, project) {
   if (BUILT_IN_ARTIFACTS.some((name) => !ctx.fs.exists(join7(paths.decisionsDir, name)))) {
     return { mode: "full" };
   }
-  const included = stateString(state, "decisions_included");
-  if (included === void 0 || !/^\d+$/.test(included)) return { mode: "full" };
-  const includedNumber = Number.parseInt(included, 10);
-  const pastWatermark = (id) => {
-    const parsed = parseId(id);
-    return parsed?.form !== "sequential" || parsed.number > includedNumber;
-  };
-  const shown = (id) => {
-    const parsed = parseId(id);
-    return parsed?.form === "sequential" ? formatId(parsed.number) : id;
-  };
-  const proposedIncluded = stateString(state, "includes_proposed") === "true";
-  const newDecisions = readRecords(ctx, project).filter(
-    (record) => pastWatermark(record.id) && isSnapshotted(record.status) || !proposedIncluded && record.status === "proposed"
-  ).map((record) => shown(record.id));
+  const watermark = watermarkId(stateString(state, "decisions_included"));
+  if (watermark === void 0) return { mode: "full" };
   const git = gitAt(ctx, paths.root);
   let stored = stateString(state, "commit_hash");
   const lastRun = stateString(state, "last_run");
@@ -8688,15 +8721,20 @@ function detectSnapshotChanges(ctx, project) {
     stored = gitOrEmpty(git, "log", `--until=${lastRun}`, "--format=%h", "-1").trim() || void 0;
   }
   const commit2 = resolveStateCommit(git, stored);
-  let modifiedDecisions = [];
-  let commitRange = "";
-  if (commit2 !== void 0 && commit2 !== shortHead(ctx, paths.root)) {
-    commitRange = `${commit2}..HEAD`;
-    const ids2 = nulSeparated(
-      gitOrEmpty(git, "diff", "-z", "--name-only", commitRange, "--", recordsPathspec(paths))
-    ).flatMap((path) => recordFileId(basename5(path)) ?? []).filter((id) => !pastWatermark(id)).map(shown);
-    modifiedDecisions = [...new Set(ids2)].sort(compareIds);
-  }
+  if (commit2 === void 0) return { mode: "full" };
+  const proposedIncluded = stateString(state, "includes_proposed") === "true";
+  const newDecisions = readRecords(ctx, project).filter(
+    (record) => isPast(record.id, watermark) && isSnapshotted(record.status) || !proposedIncluded && record.status === "proposed"
+  ).map((record) => record.id);
+  const records = recordsPathspec(paths);
+  const changed = [
+    ...nulSeparated(gitOrEmpty(git, "diff", "-z", "--name-only", commit2, "--", records)),
+    ...nulSeparated(
+      gitOrEmpty(git, "ls-files", "-z", "--others", "--exclude-standard", "--", records)
+    )
+  ].flatMap((path) => recordFileId(basename5(path)) ?? []).filter((id) => !isPast(id, watermark));
+  const modifiedDecisions = [...new Set(changed)].sort(compareIds);
+  const commitRange = commit2 === shortHead(ctx, paths.root) ? "" : `${commit2}..HEAD`;
   return { mode: "incremental", newDecisions, modifiedDecisions, commitRange };
 }
 function formatSnapshotChanges(changes) {
@@ -8713,16 +8751,13 @@ function updateSnapshotState(ctx, project, customArtifacts) {
   const { paths } = project;
   const timestamp = formatTimestamp(ctx.now());
   const commit2 = shortHead(ctx, paths.root);
-  const highest = readRecords(ctx, project).filter((record) => isSnapshotted(record.status)).reduce((max, record) => {
-    const parsed = parseId(record.id);
-    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
-  }, 0);
+  const highest = readRecords(ctx, project).filter((record) => isSnapshotted(record.status)).at(-1)?.id;
   const artifacts = /* @__PURE__ */ Object.create(null);
   for (const name of [...BUILT_IN_ARTIFACTS, ...customArtifacts]) artifacts[name] = timestamp;
   writeStateSection(ctx, paths, "snapshot", {
     last_run: timestamp,
     commit_hash: commit2,
-    decisions_included: String(highest),
+    decisions_included: highest ?? "0",
     includes_proposed: "true",
     artifacts
   });
@@ -11061,7 +11096,7 @@ ${AGENT_HELP}
       harnesses
     });
     createConfig(ctx, root, namespaces.length > 0 ? "namespaced" : "flat", namespaces);
-    const project = loadProject(ctx);
+    const project = loadProject(ctx, { anyVersion: true });
     createDirectories(ctx, project);
     writeIndex(ctx, project.paths, renderIndex([], project.config.mode));
     const report2 = applyInstall(ctx, root, plan);
@@ -11605,7 +11640,7 @@ ${AGENT_HELP}
     if (!ctx.fs.lexists(join23(root, CONFIG_FILE))) {
       throw new DldError(`DLD is not set up here (${CONFIG_FILE} not found). Run dld init first.`);
     }
-    const project = loadProject(ctx);
+    const project = loadProject(ctx, { anyVersion: true });
     const installed = installedTargets(ctx, root);
     const added = targetsFor(requested);
     const layouts = /* @__PURE__ */ new Set([...installed.layouts, ...added.layouts]);
@@ -11656,7 +11691,7 @@ var updateSnapshotStateCommand = {
   internal: true,
   usage: `Usage: dld update-snapshot-state [artifact ...]
 
-Record the snapshot time, HEAD commit and highest accepted decision, with timestamps for
+Record the snapshot time, HEAD commit and highest accepted or proposed decision, with timestamps for
 OVERVIEW.md and any custom artifacts named.
 `,
   run(args, io, ctx) {
@@ -11666,8 +11701,10 @@ OVERVIEW.md and any custom artifacts named.
       allowPositionals: true
     });
     const { timestamp, commit: commit2, highest } = updateSnapshotState(ctx, loadProject(ctx), positionals);
-    io.stdout(`Snapshot state updated: ${timestamp} at ${commit2} (through ${formatId(highest)})
-`);
+    io.stdout(
+      `Snapshot state updated: ${timestamp} at ${commit2} (through ${highest ?? formatId(0)})
+`
+    );
     return EXIT_OK;
   }
 };

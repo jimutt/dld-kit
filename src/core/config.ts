@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { parseDocument } from "yaml";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
+import { parseVersion } from "./version.ts";
 
 export const CONFIG_FILE = "dld.config.yaml";
 /** One developer's settings for a checkout, never committed (DL-087). */
@@ -55,6 +56,8 @@ export interface Config {
   snapshotArtifacts: SnapshotArtifact[];
   /** The branch decisions are checked against, when set (DL-071). */
   baseBranch?: string;
+  /** The oldest dld that may work on the project, `<major>.<minor>.<patch>` (DL-098). */
+  minDldVersion?: string;
   /** The review settings as `dld.config.yaml` sets them, before `dld.local.yaml`. */
   personal: PersonalSettings;
 }
@@ -76,6 +79,7 @@ export const CONFIG_KEYS = [
   "decision_edits",
   "snapshot_artifacts",
   "base_branch",
+  "min_dld_version",
 ] as const;
 
 export function loadConfig(ctx: Context, root: string): Config {
@@ -129,6 +133,7 @@ export function parseConfig(text: string, warn: (message: string) => void = () =
     idFormat: idFormat(raw.id_format),
     snapshotArtifacts: snapshotArtifacts(raw.snapshot_artifacts),
     ...optionalBaseBranch(raw.base_branch),
+    ...optionalMinVersion(raw.min_dld_version),
   };
 }
 
@@ -211,6 +216,15 @@ function editDistance(a: string, b: string): number {
 }
 
 // @decision(DL-071)
+// @decision(DL-098)
+function optionalMinVersion(value: unknown): { minDldVersion?: string } {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "string" || parseVersion(value) === undefined) {
+    throw invalid("'min_dld_version' must be a version such as 1.1.0, in quotes if needed");
+  }
+  return { minDldVersion: value };
+}
+
 function optionalBaseBranch(value: unknown): { baseBranch?: string } {
   const branch = optionalString(value, "base_branch");
   if (branch === undefined) return {};

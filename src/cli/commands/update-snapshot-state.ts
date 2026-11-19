@@ -9,7 +9,7 @@ export const updateSnapshotStateCommand: Command = {
   internal: true,
   usage: `Usage: dld update-snapshot-state [artifact ...]
 
-Record the snapshot time, HEAD commit and highest accepted decision, with timestamps for
+Record the snapshot time, HEAD commit and highest accepted or proposed decision, with timestamps for
 OVERVIEW.md and any custom artifacts named.
 `,
   run(args, io, ctx) {
@@ -19,7 +19,9 @@ OVERVIEW.md and any custom artifacts named.
       allowPositionals: true,
     });
     const { timestamp, commit, highest } = updateSnapshotState(ctx, loadProject(ctx), positionals);
-    io.stdout(`Snapshot state updated: ${timestamp} at ${commit} (through ${formatId(highest)})\n`);
+    io.stdout(
+      `Snapshot state updated: ${timestamp} at ${commit} (through ${highest ?? formatId(0)})\n`,
+    );
     return EXIT_OK;
   },
 };

@@ -104,9 +104,10 @@ describe("detectSnapshotChanges", () => {
     snapshotted(project);
     expect(detect(project)).toMatchObject({ mode: "incremental" });
     // A state file from before DL-084 still lists SNAPSHOT.md, which no longer exists.
+    const head = project.git("rev-parse", "--short", "HEAD").trim();
     project.write(
       "decisions/.dld-state.yaml",
-      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 2\n  artifacts:\n    SNAPSHOT.md: 2026-01-15T10:00:00Z\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n",
+      `snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  commit_hash: ${head}\n  decisions_included: 2\n  artifacts:\n    SNAPSHOT.md: 2026-01-15T10:00:00Z\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n`,
     );
     expect(detect(project)).toMatchObject({ mode: "incremental" });
     project.write("decisions/SNAPSHOT.md");
@@ -125,7 +126,8 @@ describe("detectSnapshotChanges", () => {
     expect(detect(project)).toEqual({ mode: "full" });
   });
 
-  test("reports new decisions without a commit baseline", () => {
+  // @decision(DL-097)
+  test("is full without a commit baseline", () => {
     project = tempProject();
     writeRecord(project, "DL-001");
     project.write("decisions/OVERVIEW.md");
@@ -134,9 +136,51 @@ describe("detectSnapshotChanges", () => {
       "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 1\n  artifacts:\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n",
     );
     writeRecord(project, "DL-002");
+    expect(detect(project)).toEqual({ mode: "full" });
+  });
+
+  // @decision(DL-097)
+  test("reads the bare number an earlier version stored, and an ID", () => {
+    project = tempProject();
+    snapshotted(project);
+    writeRecord(project, "DL-003");
+    const state = readFileSync(join(project.root, "decisions/.dld-state.yaml"), "utf8");
+    expect(state).toContain("  decisions_included: DL-002\n");
     const changes = detect(project);
-    expect(changes).toMatchObject({ mode: "incremental", newDecisions: ["DL-002"] });
-    expect(formatSnapshotChanges(changes)).toContain("new_decisions: DL-002\n");
+    expect(changes).toMatchObject({ mode: "incremental", newDecisions: ["DL-003"] });
+    expect(formatSnapshotChanges(changes)).toContain("new_decisions: DL-003\n");
+    for (const [stored, fresh] of [
+      ["2", ["DL-003"]],
+      ["1", ["DL-002", "DL-003"]],
+      ["DL-01", ["DL-002", "DL-003"]],
+    ] as const) {
+      project.write(
+        "decisions/.dld-state.yaml",
+        state.replace("decisions_included: DL-002", `decisions_included: ${stored}`),
+      );
+      expect(detect(project)).toMatchObject({ newDecisions: fresh });
+    }
+    project.write(
+      "decisions/.dld-state.yaml",
+      state.replace("decisions_included: DL-002", "decisions_included: latest"),
+    );
+    expect(detect(project)).toEqual({ mode: "full" });
+  });
+
+  // @decision(DL-097)
+  test("counts uncommitted and untracked records at or below the watermark as modified", () => {
+    project = tempProject();
+    snapshotted(project);
+    expect(detect(project)).toMatchObject({ modifiedDecisions: [], commitRange: "" });
+    writeRecord(project, "DL-002", "superseded");
+    expect(detect(project)).toMatchObject({ modifiedDecisions: ["DL-002"], commitRange: "" });
+    project.git("rm", "-q", "--cached", "decisions/records/DL-001.md");
+    project.git("commit", "-qm", "untrack");
+    const head = project.git("rev-parse", "--short", "HEAD~1").trim();
+    expect(detect(project)).toMatchObject({
+      modifiedDecisions: ["DL-001", "DL-002"],
+      commitRange: `${head}..HEAD`,
+    });
   });
 
   test("falls back to an earlier commit at last_run and reports later changes", () => {
@@ -220,8 +264,8 @@ describe("detectSnapshotChanges", () => {
     writeRecord(project, "DL-004", "superseded");
     writeRecord(project, "DL-006", "proposed");
     project.write("decisions/OVERVIEW.md");
-    const state =
-      "snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  decisions_included: 3\n  artifacts:\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n";
+    const head = project.git("rev-parse", "--short", "HEAD").trim();
+    const state = `snapshot:\n  last_run: 2026-01-15T10:00:00Z\n  commit_hash: ${head}\n  decisions_included: 3\n  artifacts:\n    OVERVIEW.md: 2026-01-15T10:00:00Z\n`;
     project.write("decisions/.dld-state.yaml", state);
     expect(detect(project)).toMatchObject({ newDecisions: ["DL-002", "DL-006"] });
     project.write(
@@ -244,15 +288,16 @@ describe("detectSnapshotChanges", () => {
       "decisions/.dld-state.yaml",
       state
         .replace(/ {2}commit_hash: .*\n/, "")
-        .replace(/last_run: .*/, "last_run: 2999-01-01T00:00:00Z"),
+        .replace(/last_run: .*/, "last_run: 2037-01-01T00:00:00Z"),
     );
     writeRecord(project, "DL-001", "superseded");
     project.git("add", ".");
     project.git("commit", "-qm", "change");
-    // The latest commit before 2999 is HEAD itself, so nothing is reported as modified.
+    // The latest commit before 2037 is HEAD itself, so nothing is reported as modified.
     expect(detect(project)).toMatchObject({ modifiedDecisions: [], commitRange: "" });
   });
 
+  // @decision(DL-097)
   test("treats an unreachable or non-hash commit as no baseline", () => {
     project = tempProject();
     snapshotted(project);
@@ -261,7 +306,7 @@ describe("detectSnapshotChanges", () => {
         "decisions/.dld-state.yaml",
         `snapshot:\n  commit_hash: "${hash}"\n  decisions_included: 2\n`,
       );
-      expect(detect(project)).toMatchObject({ mode: "incremental", commitRange: "" });
+      expect(detect(project)).toEqual({ mode: "full" });
     }
   });
 
@@ -285,7 +330,7 @@ describe("updateSnapshotState", () => {
     writeRecord(project, "DL-001", "superseded");
     writeRecord(project, "DL-002", "deprecated");
     const result = updateSnapshotState(project.ctx, loadProject(project.ctx), []);
-    expect(result.highest).toBe(0);
+    expect(result.highest).toBeUndefined();
     expect(readFileSync(join(project.root, "decisions/.dld-state.yaml"), "utf8")).toContain(
       "  decisions_included: 0\n",
     );
@@ -302,13 +347,13 @@ describe("updateSnapshotState", () => {
       "SNAPSHOT.md",
       "__proto__",
     ]);
-    expect(result.highest).toBe(4);
+    expect(result.highest).toBe("DL-004");
     const head = project.git("rev-parse", "--short", "HEAD").trim();
     expect(readFileSync(join(project.root, "decisions/.dld-state.yaml"), "utf8")).toBe(
       `snapshot:
   last_run: 2026-01-15T10:00:00Z
   commit_hash: ${head}
-  decisions_included: 4
+  decisions_included: DL-004
   includes_proposed: true
   artifacts:
     OVERVIEW.md: 2026-01-15T10:00:00Z

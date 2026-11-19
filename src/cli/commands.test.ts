@@ -12,7 +12,7 @@ import {
 import { basename, join } from "node:path";
 import { version } from "../../package.json";
 import type { Context } from "../core/context.ts";
-import { GitCommandError } from "../core/errors.ts";
+import { EXIT_ERROR, GitCommandError } from "../core/errors.ts";
 import {
   branchedProject,
   captureIo,
@@ -403,6 +403,29 @@ describe("audit commands", () => {
   });
 });
 
+// @decision(DL-098)
+describe("min_dld_version", () => {
+  test("project commands stop before doing anything; commands without a project config run", () => {
+    project = tempProject(`${FLAT_CONFIG}min_dld_version: 999.0.0\n`);
+    project.write("decisions/records/DL-001.md", recordText("DL-001"));
+    for (const argv of [
+      ["next-id"],
+      ["regenerate-index"],
+      ["update-status", "DL-001", "proposed"],
+    ]) {
+      const result = dld(project, ...argv);
+      expect(result).toMatchObject({ code: EXIT_ERROR, out: "" });
+      expect(result.err).toContain("this project needs dld 999.0.0 or newer; this is dld ");
+    }
+    expect(existsSync(join(project.root, "decisions/INDEX.md"))).toBe(false);
+    expect(readFileSync(join(project.root, "decisions/records/DL-001.md"), "utf8")).toBe(
+      recordText("DL-001"),
+    );
+    expect(dld(project, "--version").code).toBe(EXIT_OK);
+    expect(dld(project, "resolve-base").err).not.toContain("this project needs");
+  });
+});
+
 describe("snapshot commands", () => {
   test("collect, detect and update work together", () => {
     project = tempProject();
@@ -415,6 +438,8 @@ describe("snapshot commands", () => {
     expect(dld(project, "detect-snapshot-changes").out).toBe("mode: full\n");
 
     project.write("decisions/OVERVIEW.md");
+    project.git("add", "-A");
+    project.git("commit", "--quiet", "-m", "records");
     const head = project.git("rev-parse", "--short", "HEAD").trim();
     expect(dld(project, "update-snapshot-state", "ONBOARDING.md").out).toBe(
       `Snapshot state updated: 2026-01-15T10:00:00Z at ${head} (through DL-002)\n`,
