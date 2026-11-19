@@ -18,24 +18,29 @@
 
 | Option | Example | Length (after `DL-`) | Sortable | Notes |
 |---|---|---|---|---|
-| **A. Readable time + hex** (custom) | `T20261119-142530-a3f9c1` | 23 | yes | Date visible in `ls`, PR file lists and annotations. UTC seconds + 3 random bytes. |
-| **B. Compact base32 time + random** (custom) | `0k3m9z2p7xq` | 11 | yes | Seconds since epoch, Crockford base32 (7 chars) + 20 random bits (4 chars). Short, but opaque; needs `dld` to decode. |
+| **A. Readable time + hex** (custom) | `T20261119-142530-a3f9c1` | 23 | yes | Date visible in `ls` and annotations, but verbose. The record's `timestamp` already carries the date. Rejected. |
+| **B. Compact base32 time + random** (custom, **chosen**) | `T1k3m9z2p7xq4h` | 13 | yes | `T` marker, Unix seconds in Crockford base32 (7 chars), 25 random bits (5 chars). Opaque, which is fine: the date is in the record's `timestamp`. |
 | **C. ULID** | `01KABCDEFGHJKMNPQRSTVWXYZ0` | 26 | yes | Standard, libraries exist. 48-bit ms time + 80 random bits: more precision and entropy than a decision log needs. |
 | **D. UUIDv7 / TypeID** | `0194…-…` / `01h…` | 32–36 / 26 | yes | Standard, but longest. UUID form is hostile in prose and annotations. |
 | **E. Hash of content** (git-style short hash) | `a3f9c1d` | 7+ | no | Collision-resistant but unsortable, and the ID changes if the title is edited. Rejected. |
 | **F. Sequential with per-author ranges** | `DL-A-014` | — | partly | Needs allocation state; does not remove the problem for agents. Rejected. |
 
-**Collision math (A).** Two IDs collide only if they share the same second *and* the same 24 random bits. For two concurrent IDs created within a week of each other, that is about 1/604,800 × 1/16,777,216 ≈ 10⁻¹³ per pair. Even 2 random bytes (≈ 10⁻¹⁰ per pair) would be enough; 3 bytes leaves margin. Bursts inside one process (`/dld-plan` writing several decisions in the same second) are not a probabilistic matter: `create-decision` already refuses an existing ID, and `next-id` makes IDs strictly increasing against local records (see workstream 3).
+**Collision math (B).** Two IDs collide only if they share the same second *and* the same 25 random bits. For two concurrent IDs created within a week of each other, that is about 1/604,800 × 1/33,554,432 ≈ 5×10⁻¹⁴ per pair. Even 4 random characters (20 bits, ≈ 2×10⁻¹² per pair) would be enough; 5 leaves margin. Bursts inside one process (`/dld-plan` writing several decisions in the same second) are not a probabilistic matter: `create-decision` already refuses an existing ID, and `next-id` makes IDs strictly increasing against local records (see workstream 3).
 
-**Third-party libraries are not needed.** The CLI bundles to one zero-dependency file (PRACTICES.md); A, B and C are each about 20 lines on `node:crypto`.
+**Third-party libraries are not needed.** The CLI bundles to one zero-dependency file (PRACTICES.md); B is about 20 lines on `node:crypto`.
 
-**Recommendation: A, spelled `DL-T<YYYYMMDD>-<HHMMSS>-<6 hex>`**, e.g. `DL-T20261119-142530-a3f9c1`. It is about as long as a ULID (26 characters with the prefix) but readable and sortable by eye, and it needs no decoder. If annotation length matters more than readability, B has the same properties at less than half the length. The spelling is isolated in one module (workstream 1), so choosing B later is a small change; settle it in the first decision record.
+**Decision: B, spelled `DL-T<7 base32 time><5 base32 random>`**, e.g. `DL-T1k3m9z2p7xq4h` (16 characters with the prefix).
 
-**The leading letter is deliberate.** Every `DL-\d+` match in 1.0 (annotation scan, mention scan, `RECORD_FILE`, reindex) would match the digits of `DL-20261119-…` as the number 20261119, and a 1.0 `next-id` would then mint `DL-20261120`. With a letter first, 1.0 tooling does not recognise the new IDs at all: records are invisible to it rather than misread. A letter also sorts after every digit-only legacy ID in file listings (`DL-T…` after `DL-1000`).
+- Time is Unix seconds, encoded in Crockford base32 with fixed width. 7 characters cover until the year 3059, so lexical order is chronological order.
+- Canonical spelling is lower case, alphabet `0123456789abcdefghjkmnpqrstvwxyz`. Upper case and the Crockford aliases (`I`/`L` → `1`, `O` → `0`) are not canonical, the same way `DL-5` is not canonical for `DL-005` (DL-078); tools reject them and `canonicalSpelling` suggests the fix.
+- Pattern: `T[0-9a-hjkmnp-tv-z]{12}`. The spelling lives in one module (workstream 1).
+- Reading the date back needs no tool: it is in the record's `timestamp`. A `dld` helper to decode an ID is optional, not part of the plan.
+
+**The leading letter is deliberate.** Every `DL-\d+` match in 1.0 (annotation scan, mention scan, `RECORD_FILE`, reindex) would match the leading digits of `DL-1k3m…` as a number, and a 1.0 `next-id` would then mint a nonsense sequential ID above it. The base32 time part starts with a digit for the next several decades (`1…`), so the marker is required. With the `T` first, 1.0 tooling does not recognise the new IDs at all: records are invisible to it rather than misread. The `T` also sorts after every digit-only legacy ID in file listings (`DL-T…` after `DL-1000`).
 
 ## The optional suffix
 
-Recommendation: the **ID is the key only** (frontmatter `id`, annotations, `amends`, `supersedes`, mentions). The slug lives in the **file name only**: `DL-T20261119-142530-a3f9c1--retry-policy.md`. Changing the slug is a plain `git mv` and never touches annotations; a typo or a reworded title cannot break references. The cost is that "file name == ID" no longer holds, so every lookup that does `basename(file, ".md") === id` goes through one `recordIdOf(path)` helper (workstream 2).
+Recommendation: the **ID is the key only** (frontmatter `id`, annotations, `amends`, `supersedes`, mentions). The slug lives in the **file name only**: `DL-T1k3m9z2p7xq4h--retry-policy.md`. Changing the slug is a plain `git mv` and never touches annotations; a typo or a reworded title cannot break references. The cost is that "file name == ID" no longer holds, so every lookup that does `basename(file, ".md") === id` goes through one `recordIdOf(path)` helper (workstream 2).
 
 The alternative, slug inside the ID, makes annotations self-describing but turns a rename into a cross-file rewrite and makes the programmatic key ambiguous. Not recommended.
 
@@ -44,7 +49,7 @@ The alternative, slug inside the ID, makes annotations self-describing but turns
 ```yaml
 # dld.config.yaml
 id_format: sequential   # default, unchanged behaviour
-# id_format: timestamp  # new records get DL-T<date>-<time>-<hex>
+# id_format: timestamp  # new records get DL-T<time><random>
 ```
 
 - The setting only decides how **new** IDs are minted. Both forms are always valid when read, so a repository can switch at any time and the log becomes mixed.
@@ -81,7 +86,7 @@ Counts are from `src/` and `templates/` on `main` (1.0.0).
 Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's own log stays sequential.
 
 1. `id_format` config and mixed logs; ordering rule; default stays `sequential`. Amends DL-014 and DL-078.
-2. ID spelling (option A or B), leading-letter guard, collision reasoning, suffix lives in the file name only. Amends DL-078.
+2. ID spelling (option B), the `T` marker guard, collision reasoning, suffix lives in the file name only. Amends DL-078.
 3. Monotonic generation inside a burst.
 4. Snapshot change detection from git instead of a numeric watermark. Amends DL-025, DL-070, DL-084.
 5. Reindex renames mint IDs through the configured generator. Amends DL-027, DL-029.
@@ -90,7 +95,7 @@ Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's o
 
 ### 1. ID model — `src/core/ids.ts` (M)
 
-- `parseId(id)` → `{ kind: "sequential", number } | { kind: "timestamp", key }`, `compareIds(a, b)`, `isCanonicalId`, `canonicalSpelling` (timestamp IDs are lower-case hex; reject other spellings the way DL-078 rejects `DL-5`).
+- `parseId(id)` → `{ kind: "sequential", number } | { kind: "timestamp", key }`, `compareIds(a, b)`, `isCanonicalId`, `canonicalSpelling` (timestamp IDs are lower-case Crockford base32; reject other spellings the way DL-078 rejects `DL-5`).
 - `generateId(ctx, format, existing)` for both formats. Add `randomBytes(n)` to `Context` (DL-008) so tests are deterministic; the real context uses `node:crypto`.
 - Export the patterns once (`ID_PATTERN`, `ID_SOURCE`, a `(?![\w-])`-style boundary) so no other module spells `DL-\d+`.
 
@@ -122,7 +127,7 @@ Compute new decisions from the git range (records added since `commit_hash`), ke
 
 ### 7. Tests (M, largest share)
 
-- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, slug handling, mixed-log ordering in INDEX, snapshot, audit, reindex plans.
+- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, base32 encode/decode round trip and fixed-width ordering, upper-case and alias spellings rejected, slug handling, mixed-log ordering in INDEX, snapshot, audit, reindex plans.
 - Coverage stays ≥ 90% per file (DL-020).
 - CLI integration (`tests/cli`): create a log in timestamp mode, switch an existing sequential log, two branches creating decisions concurrently and merging without a collision, snapshot after a late merge.
 - Regression guard: a fixture with timestamp records run through a pattern copy of the 1.0 regexes, asserting no match.
@@ -151,7 +156,7 @@ About 10 engineer-days with agent assistance, most of it in workstreams 2, 5 and
 
 ## Open questions
 
-1. Spelling: A (`DL-T20261119-142530-a3f9c1`) or B (`DL-0k3m9z2p7xq`)?
+1. ~~Spelling~~ settled: option B.
 2. Slug in the file name only (recommended), or part of the ID?
 3. Should `id_format: timestamp` become the default for new projects in 2.0?
 4. Should `dld` refuse to run on a log whose config names a newer feature than the CLI supports (a `min_dld_version` key)? It would close the 1.0 warn-and-continue gap for future changes, but is a separate feature.
