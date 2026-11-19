@@ -66,6 +66,19 @@ id_format: sequential   # default, unchanged behaviour
 - Total order for sorting everywhere: sequential IDs by number, then timestamp IDs by key text. This is a convention, not strict chronology: a sequential ID can be newer than a timestamp ID (a branch in flight during the switch, or a 1.0 CLI, which ignores `id_format`). Nothing programmatic may assume ID order equals creation order.
 - `/dld-init` asks which format to use; `/dld-reindex` stays for sequential mode and for branches that were in flight when the switch happened.
 
+## Minimum version guard
+
+Decided: 1.1 adds a guard, for this change and for later ones.
+
+```yaml
+min_dld_version: 1.1.0
+```
+
+- A CLI older than the stated version stops with a clear message naming both versions and how to upgrade, exit non-zero, before reading or writing anything. Checked in the one place every project command loads the config; `dld update`, the install commands, `--version` and `--help` stay usable so the user can upgrade.
+- Optional. Without the key nothing changes. The value must be a plain `major.minor.patch`; anything else is a config error.
+- Choosing `id_format: timestamp` in `dld init` / `/dld-init` writes `min_dld_version: 1.1.0` with it. `/dld-audit` notes a timestamp-mode config that lacks the key.
+- It cannot stop a 1.0 CLI, which only warns about the unknown key. From 1.1 on, a repository that adopts a later format change is protected against collaborators on an older CLI.
+
 ## What the review found
 
 Counts are from `src/` and `templates/` on `main` (1.0.0).
@@ -93,13 +106,14 @@ Counts are from `src/` and `templates/` on `main` (1.0.0).
 
 ### 0. Decisions first (dogfooding)
 
-Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's own log stays sequential.
+Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's own log stays sequential for now; whether it switches is postponed.
 
 1. `id_format` config and mixed logs; ordering rule; default stays `sequential`. Amends DL-014 and DL-078.
 2. ID spelling (option B), the `T` marker guard, collision reasoning, the reserved `--` suffix syntax. Amends DL-078.
 3. Ordering inside a burst, with the bound on clock-ahead keys.
-4. Snapshot change detection from git instead of a numeric watermark. Amends DL-025, DL-070, DL-084.
+4. Snapshot watermark holds an ID; uncommitted records are included; full mode when the stored commit does not resolve. Amends DL-025, DL-070, DL-084.
 5. Reindex renames mint IDs through the configured generator. Amends DL-027, DL-029.
+6. `min_dld_version` guard in the config. Amends DL-079.
 
 The amend targets above are a first pass. Derive the real list from the `@decision` annotations on every function the work touches; DL-018 (index order), DL-074 (annotation syntax and near-misses), DL-079 (config keys) and DL-080 (uniqueness by number) are also affected.
 
@@ -133,13 +147,13 @@ Store the watermark as an ID and compare with `compareIds`; keep reading the num
 
 ### 6. Config, init, skills, docs
 
-- `config.ts`: add `id_format` to `CONFIG_KEYS` and validation; `dld init` and `/dld-init` ask the question; `docs/framework/project-configuration.md` and `decision-record-format.md` document the rule, the reserved `--` syntax and mixed ordering.
+- `config.ts`: add `id_format` and `min_dld_version` to `CONFIG_KEYS` and validation, and the version check where project commands load the config; `dld init` and `/dld-init` ask the question; `docs/framework/project-configuration.md` and `decision-record-format.md` document the rule, the reserved `--` syntax and mixed ordering.
 - Templates: dld-decide, dld-plan, dld-retrofit (ID-generation wording and burst note), dld-reindex (when it is still needed), dld-audit, dld-audit-auto (canonical form), dld-status, rule file; README "Teams" paragraph; `docs/workflows.md`, `docs/faq.md`; a short "switching to timestamp IDs" section in `docs/upgrading-from-0x.md` or a new `docs/id-formats.md`.
 - `npm run generate`, then `npm run check:generated`.
 
 ### 7. Tests
 
-- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, base32 encode/decode round trip and fixed-width ordering, upper-case and alias spellings rejected, a reserved-form file name is ignored as a record and reported, a far-future key in the log, mixed-log ordering in INDEX, snapshot, audit, reindex plans.
+- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, base32 encode/decode round trip and fixed-width ordering, upper-case and alias spellings rejected, a reserved-form file name is ignored as a record and reported, a far-future key in the log, `min_dld_version` (older CLI refuses, `update` and `--version` still run, malformed value), mixed-log ordering in INDEX, snapshot, audit, reindex plans.
 - Coverage stays ≥ 90% per file (DL-020).
 - CLI integration (`tests/cli`): create a log in timestamp mode, switch an existing sequential log, two branches creating decisions concurrently and merging without a collision, snapshot after a late merge.
 - Regression guard: a fixture with timestamp records run through a pattern copy of the 1.0 regexes, asserting no match.
@@ -159,5 +173,5 @@ Workstreams 1 and 2 come first and everything else depends on them; 3 to 6 can t
 1. ~~Spelling~~ settled: option B.
 2. ~~Slug~~ settled: not in 1.1; syntax reserved; when added, file name only.
 3. Default for new projects: expected to become `timestamp` in 2.0; decide then.
-4. Should `dld` refuse to run on a log whose config names a newer feature than the CLI supports (a `min_dld_version` key)? It cannot protect against 1.0, but closes the warn-and-continue gap for later changes.
-5. Should this repo's own log switch to timestamp IDs after 1.1, to exercise a mixed log for real?
+4. ~~Minimum version guard~~ settled: `min_dld_version` ships in 1.1.
+5. ~~This repo's own log~~ stays sequential for now; revisit after 1.1.
