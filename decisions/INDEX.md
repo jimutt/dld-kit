@@ -2,6 +2,15 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-100 | Offer timestamp IDs in /dld-init, and describe both ID forms in the skills, rule and docs | proposed | timestamp-ids, skills, docs |
+| DL-099 | Reserve <id>--<text>.md record file names for a later slug | proposed | timestamp-ids, records |
+| DL-098 | min_dld_version makes an older dld refuse to work on a project | proposed | timestamp-ids, config, cli |
+| DL-097 | Keep the snapshot watermark as an ID, count uncommitted records, and regenerate fully without a baseline commit | proposed | timestamp-ids, snapshot |
+| DL-096 | Decide ID uniqueness by ID, and mint reindex renames in the configured form | proposed | timestamp-ids, reindex, records |
+| DL-095 | id_format selects how new decision IDs are created; timestamp IDs keep order inside a burst | proposed | timestamp-ids, config, records |
+| DL-094 | Annotation, mention and rename scans recognise both ID forms | proposed | timestamp-ids, annotations, reindex |
+| DL-093 | Order decision IDs across both forms: sequential by number, then timestamp by text | proposed | timestamp-ids, records |
+| DL-092 | Add a timestamp decision ID form: DL-T, seven base32 time characters and five random ones | proposed | timestamp-ids, records |
 | DL-091 | Pass decision bodies to create-decision through a quoted heredoc | accepted | rc6-fixes, skills |
 | DL-090 | Fall back to master for the base branch, and list proposed decisions without one | accepted | rc6-fixes, base-branch |
 | DL-089 | Optional review subagent for /dld-plan, set by plan_review | accepted | review-settings, review |

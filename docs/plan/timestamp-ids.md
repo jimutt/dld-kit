@@ -1,6 +1,6 @@
 # Low-conflict decision IDs — Review and Plan (1.1)
 
-**Status:** proposal. Nothing here is decided. The choices become decisions in dld-kit's own log (via `/dld-plan`) as each workstream starts; where a decision and this document disagree, the decision wins.
+**Status:** planned. The choices are recorded as DL-092 to DL-100 (tag `timestamp-ids`) in dld-kit's own decision log; where a decision and this document disagree, the decision wins.
 
 ## Problem
 

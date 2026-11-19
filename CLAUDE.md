@@ -32,7 +32,7 @@ docs/
   assets/                  # README workflow diagram, light and dark SVG
   concept/                 # The original early thinking (concept paper, FAQ, TL;DR), kept as written; acknowledgements
   framework/               # Decision record format, project configuration specs
-  plan/                    # Design plans (skill design is historical, 1.0 plan)
+  plan/                    # Design plans (skill design is historical, 1.0 plan, timestamp IDs for 1.1)
 decisions/                 # dld-kit's OWN decision log (dogfooding, not shipped content)
   records/                 # DL-*.md decision records
   PRACTICES.md             # Development practices manifest
