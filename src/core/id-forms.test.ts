@@ -281,6 +281,9 @@ describe("reindex", () => {
     expect(() => parseRenamePlan(paths, line("DL-002", "DL-T1K3M9Z2P7XQ4"))).toThrow(
       `new ID 'DL-T1K3M9Z2P7XQ4' is not canonical; use ${T1}.`,
     );
+    expect(() => parseRenamePlan(paths, line("DL-002", "dl-5"))).toThrow(
+      "new ID 'dl-5' is not canonical; use DL-005.",
+    );
     expect(() => parseRenamePlan(paths, line("DL-T1K3M9Z2P7XQ4", "DL-002"))).toThrow(
       "IDs must be decision IDs: DL-<digits> or a timestamp ID.",
     );
@@ -298,6 +301,19 @@ test("a timestamp record on the base branch is integrated", () => {
 });
 
 describe("snapshot", () => {
+  test("a sequential record at the watermark in another spelling is modified, not new", () => {
+    const p = branched();
+    p.write("decisions/OVERVIEW.md", "x");
+    p.write(`${RECORDS}/DL-05.md`, recordText("DL-05"));
+    p.commitAll("snapshot");
+    const loaded = loadProject(p.ctx);
+    expect(updateSnapshotState(p.ctx, loaded, []).highest).toBe(5);
+    p.write(`${RECORDS}/DL-05.md`, `${recordText("DL-05")}more\n`);
+    p.commitAll("edit");
+    const changes = detectSnapshotChanges(p.ctx, loaded);
+    expect(changes).toMatchObject({ newDecisions: [], modifiedDecisions: ["DL-005"] });
+  });
+
   test("timestamp records are new until the watermark can hold them", () => {
     const p = branched();
     p.write("decisions/OVERVIEW.md", "x");

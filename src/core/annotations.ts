@@ -145,7 +145,7 @@ function readScannable(
 /**
  * Every `<prefix>(<id>)` annotation in the project's scannable files, in file and line order.
  * Files that are too large or unreadable are reported to `onSkip` and left out. Text that starts
- * like an annotation and holds a decision number but is not one goes to `onNearMiss`.
+ * like an annotation and names a decision but is not one goes to `onNearMiss`.
  */
 export function scanAnnotations(
   ctx: Context,

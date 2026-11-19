@@ -1,9 +1,9 @@
-import { basename, relative, sep } from "node:path";
+import { relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { compareIds } from "./ids.ts";
 import type { Project } from "./project.ts";
-import { findRecordFile, listRecordFiles, parseRecord } from "./records.ts";
+import { findRecordFile, listRecordFiles, parseRecord, recordId } from "./records.ts";
 
 export const RELATIONS = ["amends", "supersedes", "amended-by", "superseded-by"] as const;
 export type Relation = (typeof RELATIONS)[number];
@@ -27,7 +27,7 @@ export function relatedDecisions(ctx: Context, project: Project, id: string): Re
   if (targetFile === undefined) throw new DldError(`decision ${id} not found.`);
   const records = listRecordFiles(ctx, paths.recordsDir).map((file) => {
     const path = relative(paths.root, file).split(sep).join("/");
-    return { file, id: basename(file, ".md"), record: parseRecord(ctx.fs.readFile(file), path) };
+    return { file, id: recordId(file), record: parseRecord(ctx.fs.readFile(file), path) };
   });
   const byId = new Map(records.map((entry) => [entry.id, entry.record]));
   const target = records.find((entry) => entry.file === targetFile)?.record;

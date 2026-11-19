@@ -74,17 +74,28 @@ export function detectSnapshotChanges(ctx: Context, project: Project): SnapshotC
   }
   const included = stateString(state, "decisions_included");
   if (included === undefined || !/^\d+$/.test(included)) return { mode: "full" };
-  const watermark = formatId(Number.parseInt(included, 10));
+  const includedNumber = Number.parseInt(included, 10);
+  // Until the watermark holds an ID (DL-097), it is a sequential number: a timestamp record is
+  // always past it, so it is reported as new on every run and never as modified.
+  const pastWatermark = (id: string) => {
+    const parsed = parseId(id);
+    return parsed?.form !== "sequential" || parsed.number > includedNumber;
+  };
+  /** Sequential IDs are printed in canonical form, as before; timestamp IDs as they are. */
+  const shown = (id: string) => {
+    const parsed = parseId(id);
+    return parsed?.form === "sequential" ? formatId(parsed.number) : id;
+  };
 
   // A snapshot from before DL-070 left every proposed record out, wherever it is numbered.
   const proposedIncluded = stateString(state, "includes_proposed") === "true";
   const newDecisions = readRecords(ctx, project)
     .filter(
       (record) =>
-        (compareIds(record.id, watermark) > 0 && isSnapshotted(record.status)) ||
+        (pastWatermark(record.id) && isSnapshotted(record.status)) ||
         (!proposedIncluded && record.status === "proposed"),
     )
-    .map((record) => record.id);
+    .map((record) => shown(record.id));
 
   const git = gitAt(ctx, paths.root);
   let stored = stateString(state, "commit_hash");
@@ -102,7 +113,8 @@ export function detectSnapshotChanges(ctx: Context, project: Project): SnapshotC
       gitOrEmpty(git, "diff", "-z", "--name-only", commitRange, "--", recordsPathspec(paths)),
     )
       .flatMap((path) => recordFileId(basename(path)) ?? [])
-      .filter((id) => compareIds(id, watermark) <= 0);
+      .filter((id) => !pastWatermark(id))
+      .map(shown);
     modifiedDecisions = [...new Set(ids)].sort(compareIds);
   }
   return { mode: "incremental", newDecisions, modifiedDecisions, commitRange };
@@ -130,6 +142,7 @@ export function updateSnapshotState(
   const { paths } = project;
   const timestamp = formatTimestamp(ctx.now());
   const commit = shortHead(ctx, paths.root);
+  // Timestamp records do not move the numeric watermark; DL-097 replaces it with an ID.
   const highest = readRecords(ctx, project)
     .filter((record) => isSnapshotted(record.status))
     .reduce((max, record) => {

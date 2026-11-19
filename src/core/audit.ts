@@ -1,4 +1,4 @@
-import { basename, relative, sep } from "node:path";
+import { relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { gitAt, nulSeparated, recordsPathspec, resolveStateCommit } from "./git.ts";
@@ -11,6 +11,7 @@ import {
   listRecordFiles,
   parseRecord,
   recordBody,
+  recordId,
 } from "./records.ts";
 import { readStateSection, shortHead, stateString, writeStateSection } from "./state.ts";
 
@@ -64,11 +65,11 @@ export function findMissingAmends(
   if (ids !== undefined) {
     const wanted = new Set(ids);
     for (const id of wanted) {
-      if (!files.some((file) => basename(file, ".md") === id)) {
+      if (!files.some((file) => recordId(file) === id)) {
         throw new DldError(`decision ${id} not found.`);
       }
     }
-    include = (file) => wanted.has(basename(file, ".md"));
+    include = (file) => wanted.has(recordId(file));
   } else if (!all) {
     const changed = recordsChangedSinceAudit(ctx, project);
     if (changed !== undefined) include = (_, rel) => changed.has(rel);
@@ -79,7 +80,7 @@ export function findMissingAmends(
     if (!include(file, rel)) continue;
     const text = ctx.fs.readFile(file);
     const record = parseRecord(text, rel);
-    const source = basename(file, ".md");
+    const source = recordId(file);
     const declared = new Set([...record.supersedes, ...record.amends]);
     const refs = [...mentionTiers(recordBody(text))]
       .filter(

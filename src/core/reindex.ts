@@ -25,8 +25,6 @@ export interface Rename {
 /** A result, plus the reason the open-PR scan was skipped, if it was. */
 export type WithScan<T> = T & { skipped?: string };
 
-export { compareIds };
-
 // @decision(DL-027) @decision(DL-071)
 /**
  * The ref decisions are checked against: `origin/<baseBranch>` or `<baseBranch>` when the config
@@ -117,7 +115,7 @@ function localAdditions(git: Git, paths: ProjectPaths, base: string): string[] {
 }
 
 interface Taken {
-  /** Every taken ID, unique and sorted by number. */
+  /** Every taken ID, unique and in ID order. */
   ids: string[];
   onBase: Set<string>;
   claims: PrClaim[];
@@ -127,7 +125,9 @@ function takenIds(ctx: Context, paths: ProjectPaths, base: string): WithScan<Tak
   const git = gitAt(ctx, paths.root);
   const onBase = nulSeparated(
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths)),
-  ).flatMap(findIds);
+  )
+    // Every ID in a path counts, so a reserved or oddly named file still claims its ID.
+    .flatMap(findIds);
   const scan = openPrIds(ctx, paths, base);
   const ids = [...new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
   const taken = { ids, onBase: new Set(onBase), claims: scan.claims };
@@ -174,7 +174,7 @@ function collides(git: Git, base: string, { path, id }: Collision, taken: Taken)
 }
 
 // @decision(DL-027) @decision(DL-065)
-/** IDs taken on the base branch and in open PRs, sorted by number. */
+/** IDs taken on the base branch and in open PRs, in ID order. */
 export function listTakenIds(
   ctx: Context,
   { paths }: Project,

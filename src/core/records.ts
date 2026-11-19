@@ -28,36 +28,31 @@ export function isStatus(value: string): value is Status {
   return STATUSES.some((status) => status === value);
 }
 
+/** Paths of the files under `dir`, at any depth, whose name `wanted` accepts, in a stable order. */
+function walkFiles(ctx: Context, dir: string, wanted: (name: string) => boolean): string[] {
+  const found: string[] = [];
+  const walk = (current: string) => {
+    const entries = ctx.fs.readDir(current).sort((a, b) => (a.name < b.name ? -1 : 1));
+    for (const entry of entries) {
+      const path = join(current, entry.name);
+      if (entry.isDirectory) walk(path);
+      else if (entry.isFile && wanted(entry.name)) found.push(path);
+    }
+  };
+  if (ctx.fs.isDirectory(dir)) walk(dir);
+  return found;
+}
+
 // @decision(DL-099)
 /** Paths of every record file (`<id>.md`) under `recordsDir`, at any depth, in a stable order. */
 export function listRecordFiles(ctx: Context, recordsDir: string): string[] {
-  const found: string[] = [];
-  const walk = (dir: string) => {
-    const entries = ctx.fs.readDir(dir).sort((a, b) => (a.name < b.name ? -1 : 1));
-    for (const entry of entries) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory) walk(path);
-      else if (entry.isFile && recordFileId(entry.name) !== undefined) found.push(path);
-    }
-  };
-  if (ctx.fs.isDirectory(recordsDir)) walk(recordsDir);
-  return found;
+  return walkFiles(ctx, recordsDir, (name) => recordFileId(name) !== undefined);
 }
 
 // @decision(DL-099)
 /** Paths of files under `recordsDir` with a reserved `<id>--<text>.md` name, in a stable order. */
 export function reservedRecordFiles(ctx: Context, recordsDir: string): string[] {
-  const found: string[] = [];
-  const walk = (dir: string) => {
-    const entries = ctx.fs.readDir(dir).sort((a, b) => (a.name < b.name ? -1 : 1));
-    for (const entry of entries) {
-      const path = join(dir, entry.name);
-      if (entry.isDirectory) walk(path);
-      else if (entry.isFile && reservedFileId(entry.name) !== undefined) found.push(path);
-    }
-  };
-  if (ctx.fs.isDirectory(recordsDir)) walk(recordsDir);
-  return found;
+  return walkFiles(ctx, recordsDir, (name) => reservedFileId(name) !== undefined);
 }
 
 /** The ID a record file is named after, e.g. `DL-008` for `.../DL-008.md`. */
@@ -94,14 +89,17 @@ export function findRecordFile(
 // @decision(DL-080) @decision(DL-096)
 /** Record files that are the same decision as another, grouped by decision, in ID order. */
 export function duplicateRecordFiles(ctx: Context, recordsDir: string): string[][] {
-  const byIdentity = new Map<string, string[]>();
+  const groups = new Map<string, { id: string; paths: string[] }>();
   for (const path of listRecordFiles(ctx, recordsDir)) {
-    const key = identityKey(recordId(path));
-    byIdentity.set(key, [...(byIdentity.get(key) ?? []), path]);
+    const id = recordId(path);
+    const group = groups.get(identityKey(id));
+    if (group === undefined) groups.set(identityKey(id), { id, paths: [path] });
+    else group.paths.push(path);
   }
-  return [...byIdentity.values()]
-    .filter((paths) => paths.length > 1)
-    .sort(([a = ""], [b = ""]) => compareRecordFiles(a, b));
+  return [...groups.values()]
+    .filter(({ paths }) => paths.length > 1)
+    .sort((a, b) => compareIds(a.id, b.id))
+    .map(({ paths }) => paths);
 }
 
 interface FrontmatterBlock {

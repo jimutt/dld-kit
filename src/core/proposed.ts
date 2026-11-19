@@ -1,8 +1,8 @@
-import { basename, relative, sep } from "node:path";
+import { relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { integratedRecords } from "./decision-edits.ts";
 import type { Project } from "./project.ts";
-import { compareRecordFiles, listRecordFiles, parseRecord } from "./records.ts";
+import { compareRecordFiles, listRecordFiles, parseRecord, recordId } from "./records.ts";
 import { verifyBase } from "./reindex.ts";
 
 export interface ProposedDecision {
@@ -38,7 +38,7 @@ export function listProposed(
     .filter(({ record }) => record.status === "proposed")
     .sort((a, b) => compareRecordFiles(a.file, b.file))
     .map(({ file, path, record }) => {
-      const id = basename(file, ".md");
+      const id = recordId(file);
       const location: ProposedDecision["location"] =
         atBase === undefined ? "unknown" : atBase.has(id) ? "base" : "branch";
       return { id, title: record.title, path, location };

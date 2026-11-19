@@ -8,7 +8,7 @@ export const BASE32_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
 export const TIME_CHARS = 7;
 export const RANDOM_CHARS = 5;
 
-const BASE32_CLASS = "[0-9a-hjkmnp-tv-z]";
+const BASE32_CLASS = `[${BASE32_ALPHABET}]`;
 const SEQUENTIAL_SOURCE = "DL-\\d+";
 // @decision(DL-092)
 const TIMESTAMP_SOURCE = `DL-T${BASE32_CLASS}{${TIME_CHARS + RANDOM_CHARS}}`;
