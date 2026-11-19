@@ -39,7 +39,7 @@ Perform all the same checks as `/dld-audit`:
 
 Its stderr also lists `Warning: <file>:<line>: not an annotation: <text>` for malformed annotations; keep those for check (7). Annotations use the `annotation_prefix` from `dld.config.yaml` (`@decision` by default).
 
-Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). Note each decision's ID, status, and code references. A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`); `id_format` in `dld.config.yaml` says which form the project creates, and a log can hold both. `DL-NNN` here stands for either. Copy IDs from command output or from the records. Never retype one from memory or make one up.
+Read all `DL-*.md` files in the records subdirectory (`decisions/records/`). A record file is named exactly `<id>.md`; ignore files named `<id>--<text>.md`, which are not records. Note each decision's ID, status, and code references. A decision ID is `DL-` plus a number (`DL-012`) or a timestamp ID (`DL-T1k3m9z2p7xq4`); `id_format` in `dld.config.yaml` says which form the project creates, and a log can hold both. `DL-NNN` here stands for either. Copy IDs from command output or from the records. Never retype one from memory or make one up.
 
 Then run `{{dld}} regenerate-index` and keep its `Warning:` lines on stderr for check (8). The command also rewrites `INDEX.md`; if that changes the file, the index was out of date, which counts as a fix to list in the PR.
 

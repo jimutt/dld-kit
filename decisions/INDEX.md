@@ -2,6 +2,7 @@
 
 | ID | Title | Status | Tags |
 |----|-------|--------|------|
+| DL-101 | Name the canonical spelling and both ID forms in ID argument errors | accepted | timestamp-ids, cli |
 | DL-100 | Offer timestamp IDs in /dld-init, and describe both ID forms in the skills, rule and docs | accepted | timestamp-ids, skills, docs |
 | DL-099 | Reserve <id>--<text>.md record file names for a later slug | accepted | timestamp-ids, records |
 | DL-098 | min_dld_version makes an older dld refuse to work on a project | accepted | timestamp-ids, config, cli |

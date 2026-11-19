@@ -1,5 +1,5 @@
 import { editBase, restoreDecisionProse } from "../../core/decision-edits.ts";
-import { isDecisionId } from "../../core/ids.ts";
+import { isDecisionId, notAnIdMessage } from "../../core/ids.ts";
 import { loadProject } from "../../core/project.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 import { baseOption, DEFAULT_BASE_HELP } from "./base-option.ts";
@@ -28,7 +28,7 @@ Options:
     });
     if (ids.length === 0) throw new UsageError("expected at least one decision ID");
     const bad = ids.find((id) => !isDecisionId(id));
-    if (bad !== undefined) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
+    if (bad !== undefined) throw new UsageError(notAnIdMessage(bad, true));
     const project = loadProject(ctx);
     const base = editBase(
       ctx,

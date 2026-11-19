@@ -2,7 +2,7 @@ import { relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { gitAt, nulSeparated, recordsPathspec, resolveStateCommit } from "./git.ts";
-import { compareIds } from "./ids.ts";
+import { compareIds, spellingHint } from "./ids.ts";
 import { type MentionTier, mentionTiers } from "./mentions.ts";
 import type { Project } from "./project.ts";
 import {
@@ -66,7 +66,7 @@ export function findMissingAmends(
     const wanted = new Set(ids);
     for (const id of wanted) {
       if (!files.some((file) => recordId(file) === id)) {
-        throw new DldError(`decision ${id} not found.`);
+        throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
       }
     }
     include = (file) => wanted.has(recordId(file));

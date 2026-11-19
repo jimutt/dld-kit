@@ -30,7 +30,7 @@ Check that `dld.config.yaml` exists at the repo root. If not, tell the user to r
 This skill is typically invoked mid-session after `/dld-plan`, `/dld-decide`, or during `/dld-implement`, so the project context and decision content are likely already in your conversation context. Only read these if you don't already have the information:
 
 1. `dld.config.yaml` — project structure (flat vs namespaced, decisions directory)
-2. The target decision file(s) — decision records (`DL-*.md`) live in the `records/` subdirectory under the decisions directory
+2. The target decision file(s) — decision records (`DL-*.md`) live in the `records/` subdirectory under the decisions directory. A record file is named exactly `<id>.md`; ignore files named `<id>--<text>.md`, which are not records.
 
 ## Step 1: Identify the decision(s)
 

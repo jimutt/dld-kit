@@ -7572,6 +7572,14 @@ function canonicalSpelling(id) {
   const respelled = `DL-T${key.toLowerCase().replace(/[il]/g, "1").replace(/o/g, "0")}`;
   return TIMESTAMP_ID.test(respelled) ? respelled : void 0;
 }
+function spellingHint(id) {
+  const canonical = canonicalSpelling(id);
+  return canonical === void 0 || canonical === id ? "" : ` Did you mean ${canonical}?`;
+}
+function notAnIdMessage(id, many = false) {
+  const expected = many ? "expected decision IDs like DL-001 or DL-T1k3m9z2p7xq4" : "expected one decision ID like DL-001 or DL-T1k3m9z2p7xq4";
+  return id === void 0 ? expected : `${expected}, got '${id}'.${spellingHint(id)}`;
+}
 var textOrder = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 function compareIds(a, b) {
   const rank = (parsed) => parsed === void 0 ? 2 : parsed.form === "sequential" ? 0 : 1;
@@ -8144,7 +8152,7 @@ function checkDecisionEdits(ctx, { paths }, base, ids2 = [], { uncommitted = fal
     const located = locate(ctx, paths, records, id);
     if (located === void 0) {
       const local = findRecordFile(ctx, paths.recordsDir, id, paths.root);
-      if (local === void 0) throw new DldError(`decision ${id} not found.`);
+      if (local === void 0) throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
       return { path: toPosix(relative3(paths.root, local)), id, state: "draft" };
     }
     const path = located.current ?? located.basePath;
@@ -8624,7 +8632,7 @@ Options:
       allowPositionals: true
     });
     const bad = ids2.find((id) => !isDecisionId(id));
-    if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
+    if (bad !== void 0) throw new UsageError(notAnIdMessage(bad, true));
     const project = loadProject(ctx);
     const base = editBase(
       ctx,
@@ -9291,7 +9299,7 @@ function mentionTiers(body) {
 // src/core/decisions.ts
 function updateStatus(ctx, project, id, status) {
   const path = findRecordFile(ctx, project.paths.recordsDir, id, project.paths.root);
-  if (path === void 0) throw new DldError(`decision ${id} not found.`);
+  if (path === void 0) throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
   const text = ctx.fs.readFile(path);
   writeFileAtomic(ctx, path, setStatus(text, status, relative6(project.paths.root, path)));
   return path;
@@ -10545,7 +10553,7 @@ function findMissingAmends(ctx, project, { all = false, mentions = false, ids: i
     const wanted = new Set(ids2);
     for (const id of wanted) {
       if (!files.some((file) => recordId(file) === id)) {
-        throw new DldError(`decision ${id} not found.`);
+        throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
       }
     }
     include = (file) => wanted.has(recordId(file));
@@ -11363,14 +11371,14 @@ var RELATIONS = ["amends", "supersedes", "amended-by", "superseded-by"];
 function relatedDecisions(ctx, project, id) {
   const { paths } = project;
   const targetFile = findRecordFile(ctx, paths.recordsDir, id, paths.root);
-  if (targetFile === void 0) throw new DldError(`decision ${id} not found.`);
+  if (targetFile === void 0) throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
   const records = listRecordFiles(ctx, paths.recordsDir).map((file) => {
     const path = relative14(paths.root, file).split(sep8).join("/");
     return { file, id: recordId(file), record: parseRecord(ctx.fs.readFile(file), path) };
   });
   const byId = new Map(records.map((entry) => [entry.id, entry.record]));
   const target = records.find((entry) => entry.file === targetFile)?.record;
-  if (target === void 0) throw new DldError(`decision ${id} not found.`);
+  if (target === void 0) throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
   const related = [];
   const add = (relation, other) => {
     const record = byId.get(other);
@@ -11415,8 +11423,7 @@ status missing. Exits 1 if the decision does not exist.
       allowPositionals: true
     });
     const [id, ...extra] = positionals;
-    if (id === void 0 || !isDecisionId(id))
-      throw new UsageError("expected one decision ID like DL-001");
+    if (id === void 0 || !isDecisionId(id)) throw new UsageError(notAnIdMessage(id));
     if (extra.length > 0) throw new UsageError(`unexpected argument '${extra[0]}'`);
     for (const related of relatedDecisions(ctx, loadProject(ctx), id)) {
       io.stdout(`${formatRelated(related)}
@@ -11510,7 +11517,7 @@ Options:
     });
     if (ids2.length === 0) throw new UsageError("expected at least one decision ID");
     const bad = ids2.find((id) => !isDecisionId(id));
-    if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
+    if (bad !== void 0) throw new UsageError(notAnIdMessage(bad, true));
     const project = loadProject(ctx);
     const base = editBase(
       ctx,

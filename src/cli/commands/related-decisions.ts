@@ -1,4 +1,4 @@
-import { isDecisionId } from "../../core/ids.ts";
+import { isDecisionId, notAnIdMessage } from "../../core/ids.ts";
 import { loadProject } from "../../core/project.ts";
 import { formatRelated, relatedDecisions } from "../../core/related.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
@@ -23,8 +23,7 @@ status missing. Exits 1 if the decision does not exist.
       allowPositionals: true,
     });
     const [id, ...extra] = positionals;
-    if (id === undefined || !isDecisionId(id))
-      throw new UsageError("expected one decision ID like DL-001");
+    if (id === undefined || !isDecisionId(id)) throw new UsageError(notAnIdMessage(id));
     if (extra.length > 0) throw new UsageError(`unexpected argument '${extra[0]}'`);
     for (const related of relatedDecisions(ctx, loadProject(ctx), id)) {
       io.stdout(`${formatRelated(related)}\n`);
