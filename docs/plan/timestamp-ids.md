@@ -25,7 +25,7 @@
 | **E. Hash of content** (git-style short hash) | `a3f9c1d` | 7+ | no | Collision-resistant but unsortable, and the ID changes if the title is edited. Rejected. |
 | **F. Sequential with per-author ranges** | `DL-A-014` | — | partly | Needs allocation state; does not remove the problem for agents. Rejected. |
 
-**Collision math (B).** Two IDs collide only if they share the same second *and* the same 25 random bits. For two concurrent IDs created within a week of each other, that is about 1/604,800 × 1/33,554,432 ≈ 5×10⁻¹⁴ per pair. Even 4 random characters (20 bits, ≈ 2×10⁻¹² per pair) would be enough; 5 leaves margin. Bursts inside one process (`/dld-plan` writing several decisions in the same second) are not a probabilistic matter: `create-decision` already refuses an existing ID, and `next-id` makes IDs strictly increasing against local records (see workstream 3).
+**Collision math (B).** Two IDs collide only if they share the same second *and* the same 25 random bits. For two concurrent IDs created within a week of each other, that is about 1/604,800 × 1/33,554,432 ≈ 5×10⁻¹⁴ per pair. Even 4 random characters (20 bits, ≈ 2×10⁻¹² per pair) would be enough; 5 leaves margin. That figure assumes creation times are spread out. The motivating case is the opposite: several agents started together. Even if every ID of two agents lands in the same seconds, the risk is 1 in 33 million per aligned pair, so a few hundred concurrent IDs stay far below one in a million. Inside one working copy it is not probabilistic at all: `create-decision` refuses an existing ID. If a collision ever happens across branches, `find-collisions` and `/dld-reindex` still detect and repair it.
 
 **Third-party libraries are not needed.** The CLI bundles to one zero-dependency file (PRACTICES.md); B is about 20 lines on `node:crypto`.
 
@@ -40,9 +40,16 @@
 
 ## The optional suffix
 
-Recommendation: the **ID is the key only** (frontmatter `id`, annotations, `amends`, `supersedes`, mentions). The slug lives in the **file name only**: `DL-T1k3m9z2p7xq4h--retry-policy.md`. Changing the slug is a plain `git mv` and never touches annotations; a typo or a reworded title cannot break references. The cost is that "file name == ID" no longer holds, so every lookup that does `basename(file, ".md") === id` goes through one `recordIdOf(path)` helper (workstream 2).
+Decided: the **ID is the key only** (frontmatter `id`, annotations, `amends`, `supersedes`, mentions). The slug lives in the **file name only**: `DL-T1k3m9z2p7xq4h--retry-policy.md`. Changing the slug is a plain `git mv` and never touches annotations; a typo or a reworded title cannot break references. The cost is that "file name == ID" no longer holds, so every lookup that does `basename(file, ".md") === id` goes through one `recordIdOf(path)` helper (workstream 2).
 
-The alternative, slug inside the ID, makes annotations self-describing but turns a rename into a cross-file rewrite and makes the programmatic key ambiguous. Not recommended.
+The alternative, slug inside the ID, makes annotations self-describing but turns a rename into a cross-file rewrite and makes the programmatic key ambiguous. Rejected.
+
+Consequences to design for:
+
+- A record's path can no longer be built from its ID. Lookup is the hottest path in DLD (the always-on rule sends agents from an annotation to the record), so skills and the rule must say "find `DL-<id>*.md`" or call a command that prints the path.
+- Everything that matches a local record to its base-branch version must match by ID, not by file name: `integratedRecords` in `decision-edits.ts`, `collectIndexRows --include-base`, `list-proposed`. Otherwise changing a slug would make an integrated record look like a new draft and bypass `decision_edits`.
+- Two records with the same ID but different slugs merge without a git conflict, so `duplicateRecordFiles` (DL-080) is the only signal. It must group by ID.
+- Slugs go stale when a title changes. Nothing should depend on them.
 
 ## Configuration
 
@@ -53,7 +60,7 @@ id_format: sequential   # default, unchanged behaviour
 ```
 
 - The setting only decides how **new** IDs are minted. Both forms are always valid when read, so a repository can switch at any time and the log becomes mixed.
-- Total order for sorting everywhere: sequential IDs by number, then timestamp IDs by key text. (Legacy IDs are all older than any timestamp ID created after the switch.)
+- Total order for sorting everywhere: sequential IDs by number, then timestamp IDs by key text. This is a convention, not strict chronology: a sequential ID can be newer than a timestamp ID (a branch in flight during the switch, or a 1.0 CLI, which ignores `id_format`). Nothing programmatic may assume ID order equals creation order.
 - `/dld-init` asks which format to use; `/dld-reindex` stays for sequential mode and for branches that were in flight when the switch happened.
 
 ## What the review found
@@ -69,15 +76,15 @@ Counts are from `src/` and `templates/` on `main` (1.0.0).
 - `src/core/rename.ts` (`(?![0-9])` boundary so `DL-100` does not match inside `DL-1000`), `rename-plan.ts`, `reindex.ts` (`idNumber`, `planRenames` assigns `highest + 1 + index`), `open-prs.ts`, `related.ts` (`idNumber` slices `id.slice(3)`), `decision-edits.ts`, and CLI commands `check-decision-edits`, `restore-decision-prose`, `related-decisions`, `create-decision`, `update-snapshot-state`.
 - Seven modules carry a `number: number` field or sort with `recordNumber`: `decisions.ts`, `ids.ts`, `proposed.ts`, `audit.ts`, `records.ts`, `snapshot.ts`, `index-file.ts`.
 
-**The snapshot watermark is numeric and does not survive this change.** `.dld-state.yaml` stores `decisions_included: N` and `detectSnapshotChanges` treats every record numbered above N as new (DL-025, DL-070, DL-084). Timestamp IDs make this wrong in a new way: a branch cut last week merges today with a key *below* the watermark and is never snapshotted. (Sequential IDs have the same weakness today, just less often.) The fix is to detect new records from git (`--diff-filter=A` over `commit_hash..HEAD`, which the modified-record path already does) and keep the number only as a read-compatible legacy field.
+**The snapshot watermark is numeric.** `.dld-state.yaml` stores `decisions_included: N`; `detectSnapshotChanges` reports records numbered above N as new, and records at or below N that appear in `git diff commit_hash..HEAD` as modified (DL-025, DL-070, DL-084). A record merged late with an ID below the watermark is therefore already caught, as *modified*, as long as the stored commit resolves. So the watermark does not break; it needs to hold an ID and compare with `compareIds`. Two existing gaps become more common with timestamp IDs and are worth closing at the same time: when the stored commit does not resolve, only the watermark is used and late merges are missed; and the diff ignores uncommitted and untracked records, which `recordsChangedSinceAudit` in `audit.ts` already handles.
 
-**Burst ordering is a real behaviour change.** `/dld-plan` and `/dld-retrofit` create many records in a loop, calling `next-id` each time. Plain random suffixes would shuffle a plan's decisions inside one second. IDs must be strictly increasing against the local log (`time = max(now, newest local key time + 1s)`), so a plan keeps its order and `decision_range` summaries ("DL-005 – DL-007") stay meaningful.
+**Burst ordering is a minor behaviour change.** `/dld-plan` and `/dld-retrofit` create records in a loop, calling `next-id` each time. An agent's calls are normally more than a second apart, so IDs come out in order anyway; only scripted or very fast use puts several in one second, where random suffixes would shuffle them. A cheap rule keeps order there (see workstream 3). It must not be `max(now, newest local key + 1s)` without a bound: one record with a far-future key (a wrong clock) would pin every later ID to "newest + 1s", so concurrent branches would share the time part and uniqueness would rest on the 25 random bits alone.
 
 **`/dld-reindex` mostly goes quiet in timestamp mode.** Collisions become astronomically unlikely, but the machinery is still correct and still needed for sequential logs and for the switch window. `planRenames` must mint replacement IDs through the same generator instead of `highest + 1`. No new decision is needed to keep it.
 
-**The skills barely change.** About 190 `DL-NNN`/`DL-XXX` mentions across 12 templates and the rule are placeholders in prose or examples. The real behaviour changes are `next-id` in dld-decide, dld-plan and dld-retrofit, the reindex skill's framing, the "canonical ID form" wording in dld-audit and dld-audit-auto, `/dld-init`, and `decision_range`.
+**The skills barely change.** About 120 lines mentioning `DL-NNN`/`DL-XXX` across 11 skill templates and the rule (some 70 more in the docs and README) are placeholders in prose or examples. The real behaviour changes are `next-id` in dld-decide, dld-plan and dld-retrofit, the reindex skill's framing, the "canonical ID form" wording in dld-audit and dld-audit-auto, `/dld-init`, and `decision_range`.
 
-**1.0 CLIs and unknown config.** An unknown `id_format` key makes a 1.0 CLI print a warning and carry on (`parseConfig` warns per unknown key). Teammates on 1.0 will not see timestamp records at all, thanks to the leading letter. The release note must say: upgrade everyone before switching.
+**1.0 CLIs and unknown config.** An unknown `id_format` key makes a 1.0 CLI print a warning and carry on (`parseConfig` warns per unknown key). Teammates on 1.0 will not see timestamp records at all, thanks to the leading letter. That is not harmless: a 1.0 `regenerate-index` rewrites `INDEX.md` without them, `next-id` mints a sequential ID, and audits skip their annotations. Skills installed as a plugin bundle their own CLI, so version skew between collaborators is the normal case. The release note must say: upgrade everyone before switching.
 
 ## Plan
 
@@ -87,9 +94,11 @@ Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's o
 
 1. `id_format` config and mixed logs; ordering rule; default stays `sequential`. Amends DL-014 and DL-078.
 2. ID spelling (option B), the `T` marker guard, collision reasoning, suffix lives in the file name only. Amends DL-078.
-3. Monotonic generation inside a burst.
+3. Ordering inside a burst, with the bound on clock-ahead keys.
 4. Snapshot change detection from git instead of a numeric watermark. Amends DL-025, DL-070, DL-084.
 5. Reindex renames mint IDs through the configured generator. Amends DL-027, DL-029.
+
+The amend targets above are a first pass. Derive the real list from the `@decision` annotations on every function the work touches; DL-018 (index order), DL-074 (annotation syntax and near-misses), DL-079 (config keys) and DL-080 (uniqueness by number) are also affected.
 
 `decision_edits: block` is set for this repo, so each of those is an amendment record, not an edit.
 
@@ -97,7 +106,7 @@ Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's o
 
 - `parseId(id)` → `{ kind: "sequential", number } | { kind: "timestamp", key }`, `compareIds(a, b)`, `isCanonicalId`, `canonicalSpelling` (timestamp IDs are lower-case Crockford base32; reject other spellings the way DL-078 rejects `DL-5`).
 - `generateId(ctx, format, existing)` for both formats. Add `randomBytes(n)` to `Context` (DL-008) so tests are deterministic; the real context uses `node:crypto`.
-- Export the patterns once (`ID_PATTERN`, `ID_SOURCE`, a `(?![\w-])`-style boundary) so no other module spells `DL-\d+`.
+- Export the patterns once (`ID_PATTERN`, `ID_SOURCE`, and the trailing boundary: `(?![0-9])` for sequential IDs as today, `(?![0-9a-z])` for the fixed-length timestamp form) so no other module spells `DL-\d+`.
 
 ### 2. Replace "number" with a sort key
 
@@ -107,8 +116,8 @@ Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's o
 
 ### 3. Generation and commands
 
-- `next-id` honours `id_format`, is monotonic against local records, prints one ID. `create-decision` keeps `--id` (so dld-plan's flow is unchanged) and also accepts `--auto-id`, which allocates and creates under the same exclusive-create check; that removes a race when two agents share a working copy.
-- `plan-renames`, `rename-decision`, `commit-reindex`: generate via the configured generator, anchor rewrites with the new boundary pattern (`DL-T…-a3f9c1` must not match inside a longer key or a `--slug`).
+- `next-id` honours `id_format` and prints one ID. Ordering inside a burst: if the newest local key is at or ahead of the clock by no more than a small bound (say 60 s), use its time + 1 s; otherwise use the clock. A local key further ahead than the bound is reported by `/dld-audit`. `create-decision` keeps `--id` (so dld-plan's flow is unchanged) and also accepts `--auto-id`, which allocates and creates under the same exclusive-create check; that removes a race when two agents share a working copy.
+- `plan-renames`, `rename-decision`, `commit-reindex`: generate via the configured generator, anchor rewrites with the new boundary pattern (a key must not match inside a longer alphanumeric run), and keep a record's slug when renaming it.
 - `find-collisions`, `list-taken-ids`: unchanged in logic; run on both forms.
 
 ### 4. Scans and text
@@ -117,7 +126,7 @@ Annotation scanner, near-miss detection (`/dl-\d/i` → also `dl-t\d`), mention 
 
 ### 5. Snapshot state
 
-Compute new decisions from the git range (records added since `commit_hash`), keep `includes_proposed`, read an old numeric `decisions_included` for logs that predate 1.1, and write a ID-valued field (highest ID by `compareIds`) for display only. `update-snapshot-state` output ("through DL-…") formats the new form.
+Store the watermark as an ID and compare with `compareIds`; keep reading the numeric `decisions_included` written by 1.0. Include uncommitted and untracked records in the changed set, the way `recordsChangedSinceAudit` does. When the stored commit does not resolve, fall back to `mode: full` instead of trusting the watermark alone. `update-snapshot-state` output ("through DL-…") formats either form.
 
 ### 6. Config, init, skills, docs
 
@@ -125,9 +134,9 @@ Compute new decisions from the git range (records added since `commit_hash`), ke
 - Templates: dld-decide, dld-plan, dld-retrofit (ID-generation wording and burst note), dld-reindex (when it is still needed), dld-audit, dld-audit-auto (canonical form), dld-status, rule file; README "Teams" paragraph; `docs/workflows.md`, `docs/faq.md`; a short "switching to timestamp IDs" section in `docs/upgrading-from-0x.md` or a new `docs/id-formats.md`.
 - `npm run generate`, then `npm run check:generated`.
 
-### 7. Tests (M, largest share)
+### 7. Tests
 
-- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, base32 encode/decode round trip and fixed-width ordering, upper-case and alias spellings rejected, slug handling, mixed-log ordering in INDEX, snapshot, audit, reindex plans.
+- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, base32 encode/decode round trip and fixed-width ordering, upper-case and alias spellings rejected, slug handling (lookup by ID, slug changed on a branch against `decision_edits: block`, same ID under two slugs), a far-future key in the log, mixed-log ordering in INDEX, snapshot, audit, reindex plans.
 - Coverage stays ≥ 90% per file (DL-020).
 - CLI integration (`tests/cli`): create a log in timestamp mode, switch an existing sequential log, two branches creating decisions concurrently and merging without a collision, snapshot after a late merge.
 - Regression guard: a fixture with timestamp records run through a pattern copy of the 1.0 regexes, asserting no match.
@@ -138,13 +147,15 @@ Compute new decisions from the git range (records added since `commit_hash`), ke
 
 ## Sequencing
 
-Workstreams 1 and 2 come first and everything else depends on them; 3 to 6 can then run in parallel; 7 (tests) is written alongside each workstream, and 8 closes. The largest and riskiest parts are workstream 2 (many modules change shape), workstream 5 (a behaviour change, not a refactor) and the test matrix in 7.
+Workstreams 1 and 2 come first and everything else depends on them; 3 to 6 can then run in parallel; 7 (tests) is written alongside each workstream, and 8 closes. The largest and riskiest parts are workstream 2 (many modules change shape), the slug (file name no longer equals ID) and the test matrix in 7.
 
 1.1 can ship in two PRs: (a) the ID model, key refactor and tests behind `id_format: sequential` only, which changes nothing visible and is easy to review; (b) the generator, config, snapshot change, skills and docs that turn the option on.
 
 ## Open questions
 
 1. ~~Spelling~~ settled: option B.
-2. Slug in the file name only (recommended), or part of the ID?
-3. Should `id_format: timestamp` become the default for new projects in 2.0?
-4. Should `dld` refuse to run on a log whose config names a newer feature than the CLI supports (a `min_dld_version` key)? It would close the 1.0 warn-and-continue gap for future changes, but is a separate feature.
+2. ~~Slug placement~~ settled: file name only, never part of the ID.
+3. Default for new projects: expected to become `timestamp` in 2.0; decide then.
+4. Should `dld` refuse to run on a log whose config names a newer feature than the CLI supports (a `min_dld_version` key)? It cannot protect against 1.0, but closes the warn-and-continue gap for later changes.
+5. Ship the slug in 1.1, or ship plain timestamp IDs first and add the slug after? The file-name grammar can reserve `--` either way.
+6. Should this repo's own log switch to timestamp IDs after 1.1, to exercise a mixed log for real?
