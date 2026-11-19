@@ -235,11 +235,11 @@ export function planRenames(
     (a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
   );
   const newIds = mintIds(ctx, config.idFormat, [...taken, ...localIds], ordered.length);
-  const renames = ordered.map(({ path, id }, index) => ({
-    path,
-    oldId: id,
-    newId: newIds[index] ?? "",
-  }));
+  const renames = ordered.map(({ path, id }, index) => {
+    const newId = newIds[index];
+    if (newId === undefined) throw new Error("mintIds returned too few IDs");
+    return { path, oldId: id, newId };
+  });
   return skipped === undefined ? { renames } : { renames, skipped };
 }
 

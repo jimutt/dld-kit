@@ -33,6 +33,8 @@ describe("parseConfig", () => {
     const config = "decisions_dir: decisions\nmode: flat\nid_format: ";
     expect(parseConfig(`${config}timestamp\n`).idFormat).toBe("timestamp");
     expect(parseConfig(`${config}sequential\n`).idFormat).toBe("sequential");
+    expect(parseConfig(`${config}~\n`).idFormat).toBe("sequential");
+    expect(() => parseConfig(`${config}3\n`)).toThrow("'id_format' must be one of");
     expect(() => parseConfig(`${config}ulid\n`)).toThrow(
       "'id_format' must be one of sequential, timestamp",
     );

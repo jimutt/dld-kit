@@ -40,34 +40,30 @@ export interface CreateDecisionInput {
 // @decision(DL-014) @decision(DL-015) @decision(DL-016) @decision(DL-078) @decision(DL-080)
 // @decision(DL-092) @decision(DL-095) @decision(DL-096)
 /** Writes a new proposed record and returns its path. */
-export function createDecision(
-  ctx: Context,
-  project: Project,
-  { id = nextId(ctx, project), ...rest }: CreateDecisionInput,
-): string {
-  const input = { ...rest, id };
-  if (!isCanonicalId(input.id)) {
-    const canonical = canonicalSpelling(input.id);
+export function createDecision(ctx: Context, project: Project, given: CreateDecisionInput): string {
+  if (given.id !== undefined && !isCanonicalId(given.id)) {
+    const canonical = canonicalSpelling(given.id);
     throw new DldError(
       canonical === undefined
-        ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001, or a timestamp ID.`
-        : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
+        ? `invalid decision ID '${given.id}'; expected DL-<digits>, e.g. DL-001, or a timestamp ID.`
+        : `decision ID '${given.id}' is not canonical; use ${canonical}.`,
       EXIT_USAGE,
     );
   }
-  const identity = identityKey(input.id);
   const { config } = project;
-  if (input.namespace !== undefined) {
+  if (given.namespace !== undefined) {
     if (config.mode !== "namespaced") {
       throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE);
     }
-    if (!config.namespaces.includes(input.namespace)) {
+    if (!config.namespaces.includes(given.namespace)) {
       throw new DldError(
-        `unknown namespace '${input.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
+        `unknown namespace '${given.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
         EXIT_USAGE,
       );
     }
   }
+  const input = { ...given, id: given.id ?? nextId(ctx, project) };
+  const identity = identityKey(input.id);
   const existing = listRecordFiles(ctx, project.paths.recordsDir).find(
     (path) => identityKey(recordId(path)) === identity,
   );

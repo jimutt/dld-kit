@@ -7848,8 +7848,10 @@ function mintTimestampId(ctx, existing) {
   }
   const seconds = newest !== void 0 && newest >= now ? Math.min(newest + 1, now + BURST_WINDOW_SECONDS) : now;
   for (let attempt = 0; attempt < MINT_ATTEMPTS; attempt++) {
-    const [a = 0, b = 0, c = 0, d = 0] = ctx.randomBytes(4);
-    const id = timestampId(seconds, (a * 2 ** 24 + b * 2 ** 16 + c * 2 ** 8 + d) % RANDOM_VALUES);
+    const bytes = ctx.randomBytes(4);
+    if (bytes.length < 4) throw new Error("randomBytes returned too few bytes");
+    const random = new DataView(bytes.buffer, bytes.byteOffset, 4).getUint32(0) % RANDOM_VALUES;
+    const id = timestampId(seconds, random);
     if (!existing.has(id)) return id;
   }
   throw new DldError("could not generate a decision ID that is not taken; try again.");
@@ -8113,11 +8115,11 @@ function planRenames(ctx, { paths, config }, base) {
     (a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
   );
   const newIds = mintIds(ctx, config.idFormat, [...taken, ...localIds], ordered.length);
-  const renames = ordered.map(({ path, id }, index) => ({
-    path,
-    oldId: id,
-    newId: newIds[index] ?? ""
-  }));
+  const renames = ordered.map(({ path, id }, index) => {
+    const newId = newIds[index];
+    if (newId === void 0) throw new Error("mintIds returned too few IDs");
+    return { path, oldId: id, newId };
+  });
   return skipped === void 0 ? { renames } : { renames, skipped };
 }
 function formatRename({ path, oldId, newId }) {
@@ -9225,28 +9227,28 @@ function updateStatus(ctx, project, id, status) {
   writeFileAtomic(ctx, path, setStatus(text, status, relative6(project.paths.root, path)));
   return path;
 }
-function createDecision(ctx, project, { id = nextId(ctx, project), ...rest }) {
-  const input = { ...rest, id };
-  if (!isCanonicalId(input.id)) {
-    const canonical = canonicalSpelling(input.id);
+function createDecision(ctx, project, given) {
+  if (given.id !== void 0 && !isCanonicalId(given.id)) {
+    const canonical = canonicalSpelling(given.id);
     throw new DldError(
-      canonical === void 0 ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001, or a timestamp ID.` : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
+      canonical === void 0 ? `invalid decision ID '${given.id}'; expected DL-<digits>, e.g. DL-001, or a timestamp ID.` : `decision ID '${given.id}' is not canonical; use ${canonical}.`,
       EXIT_USAGE
     );
   }
-  const identity = identityKey(input.id);
   const { config } = project;
-  if (input.namespace !== void 0) {
+  if (given.namespace !== void 0) {
     if (config.mode !== "namespaced") {
       throw new DldError("--namespace is only valid in a namespaced project.", EXIT_USAGE);
     }
-    if (!config.namespaces.includes(input.namespace)) {
+    if (!config.namespaces.includes(given.namespace)) {
       throw new DldError(
-        `unknown namespace '${input.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
+        `unknown namespace '${given.namespace}'; configured namespaces: ${config.namespaces.join(", ")}.`,
         EXIT_USAGE
       );
     }
   }
+  const input = { ...given, id: given.id ?? nextId(ctx, project) };
+  const identity = identityKey(input.id);
   const existing = listRecordFiles(ctx, project.paths.recordsDir).find(
     (path2) => identityKey(recordId(path2)) === identity
   );

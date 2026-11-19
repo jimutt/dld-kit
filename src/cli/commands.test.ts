@@ -151,6 +151,20 @@ describe("create-decision", () => {
     expect(both.err).toStartWith("dld create-decision: exactly one of --id and --auto-id");
   });
 
+  // @decision(DL-095)
+  test("an ID far ahead of the clock is warned about in a timestamp project only", () => {
+    const ahead = "DL-Tzzzzzzz00000";
+    const warning = `Warning: ${ahead} is dated more than 60 seconds ahead of the clock; it is ignored when ordering new IDs\n`;
+    project = tempProject(`${FLAT_CONFIG}id_format: timestamp\n`);
+    project.write(`decisions/records/${ahead}.md`, recordText(ahead));
+    expect(dld(project, "next-id").err).toBe(warning);
+    const bad = dld(project, "create-decision", "--auto-id", "--title", "T", "--namespace", "x");
+    expect(bad).toMatchObject({ code: EXIT_USAGE, out: "" });
+    expect(bad.err).not.toContain("ahead of the clock");
+    project.write("dld.config.yaml", FLAT_CONFIG);
+    expect(dld(project, "next-id")).toEqual({ code: EXIT_OK, out: "DL-001\n", err: "" });
+  });
+
   test("--auto-id is sequential by default", () => {
     project = tempProject();
     project.write("decisions/records/DL-004.md", recordText("DL-004"));

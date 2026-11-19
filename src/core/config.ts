@@ -276,7 +276,6 @@ function repoRelativePatterns(value: unknown, key: string): string[] {
   return patterns;
 }
 
-// @decision(DL-067)
 // @decision(DL-095)
 function idFormat(value: unknown): IdFormat {
   if (value === undefined || value === null) return "sequential";
@@ -285,6 +284,7 @@ function idFormat(value: unknown): IdFormat {
   return found;
 }
 
+// @decision(DL-067)
 function decisionEdits(value: unknown): DecisionEdits {
   if (value === undefined || value === null) return "block";
   const allowed: readonly unknown[] = DECISION_EDITS;

@@ -37,8 +37,10 @@ export function mintTimestampId(ctx: Context, existing: ReadonlySet<string>): st
   const seconds =
     newest !== undefined && newest >= now ? Math.min(newest + 1, now + BURST_WINDOW_SECONDS) : now;
   for (let attempt = 0; attempt < MINT_ATTEMPTS; attempt++) {
-    const [a = 0, b = 0, c = 0, d = 0] = ctx.randomBytes(4);
-    const id = timestampId(seconds, (a * 2 ** 24 + b * 2 ** 16 + c * 2 ** 8 + d) % RANDOM_VALUES);
+    const bytes = ctx.randomBytes(4);
+    if (bytes.length < 4) throw new Error("randomBytes returned too few bytes");
+    const random = new DataView(bytes.buffer, bytes.byteOffset, 4).getUint32(0) % RANDOM_VALUES;
+    const id = timestampId(seconds, random);
     if (!existing.has(id)) return id;
   }
   throw new DldError("could not generate a decision ID that is not taken; try again.");

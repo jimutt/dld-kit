@@ -105,6 +105,25 @@ describe("nextId, timestamp", () => {
 
 // @decision(DL-095) @decision(DL-096)
 describe("mintIds", () => {
+  test("stays unique past the burst window, where IDs share the last second", () => {
+    let counter = 0;
+    const ctx = fakeContext({
+      randomBytes: () => {
+        counter += 1;
+        return Uint8Array.of(0, 0, counter >>> 8, counter & 255);
+      },
+    });
+    const ids = mintIds(ctx, "timestamp", [], 70);
+    expect(new Set(ids).size).toBe(70);
+    expect(ids.slice(0, 61)).toEqual([...ids.slice(0, 61)].sort());
+    expect(ids.slice(60).every((id) => id.startsWith(at(60).slice(0, 11)))).toBe(true);
+  });
+
+  test("fails on a random source that returns too few bytes", () => {
+    const ctx = fakeContext({ randomBytes: () => new Uint8Array(2) });
+    expect(() => mintIds(ctx, "timestamp", [], 1)).toThrow("too few bytes");
+  });
+
   test("gives consecutive sequential numbers above the highest", () => {
     expect(mintIds(fakeContext(), "sequential", ["DL-007", at(0)], 3)).toEqual([
       "DL-008",
