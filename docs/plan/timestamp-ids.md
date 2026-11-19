@@ -133,7 +133,7 @@ Store the watermark as an ID and compare with `compareIds`; keep reading the num
 
 ### 6. Config, init, skills, docs
 
-- `config.ts`: add `id_format` to `CONFIG_KEYS` and validation; `dld init` and `/dld-init` ask the question; `docs/framework/project-configuration.md` and `decision-record-format.md` document the rule, the slug and mixed ordering.
+- `config.ts`: add `id_format` to `CONFIG_KEYS` and validation; `dld init` and `/dld-init` ask the question; `docs/framework/project-configuration.md` and `decision-record-format.md` document the rule, the reserved `--` syntax and mixed ordering.
 - Templates: dld-decide, dld-plan, dld-retrofit (ID-generation wording and burst note), dld-reindex (when it is still needed), dld-audit, dld-audit-auto (canonical form), dld-status, rule file; README "Teams" paragraph; `docs/workflows.md`, `docs/faq.md`; a short "switching to timestamp IDs" section in `docs/upgrading-from-0x.md` or a new `docs/id-formats.md`.
 - `npm run generate`, then `npm run check:generated`.
 
