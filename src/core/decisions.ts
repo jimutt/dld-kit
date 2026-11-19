@@ -2,7 +2,7 @@ import { join, relative } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, EXIT_USAGE } from "./errors.ts";
 import { createFileExclusive, writeFileAtomic } from "./files.ts";
-import { canonicalSpelling, identityKey, isCanonicalId } from "./ids.ts";
+import { canonicalSpelling, identityKey, isCanonicalId, spellingHint } from "./ids.ts";
 import { statedRelations } from "./mentions.ts";
 import { nextId } from "./new-ids.ts";
 import type { Project } from "./project.ts";
@@ -20,7 +20,7 @@ import {
 /** Sets a decision's status. Returns the record's path. */
 export function updateStatus(ctx: Context, project: Project, id: string, status: Status): string {
   const path = findRecordFile(ctx, project.paths.recordsDir, id, project.paths.root);
-  if (path === undefined) throw new DldError(`decision ${id} not found.`);
+  if (path === undefined) throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
   const text = ctx.fs.readFile(path);
   writeFileAtomic(ctx, path, setStatus(text, status, relative(project.paths.root, path)));
   return path;

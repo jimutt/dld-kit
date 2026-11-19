@@ -3,7 +3,7 @@ import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
 import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
-import { isDecisionId, recordFileId } from "./ids.ts";
+import { isDecisionId, recordFileId, spellingHint } from "./ids.ts";
 import type { Project, ProjectPaths } from "./project.ts";
 import { findRecordFile, parseRecord, recordBody, recordHead } from "./records.ts";
 import { mergeBase, resolveBase, verifyBase } from "./reindex.ts";
@@ -79,7 +79,7 @@ export function checkDecisionEdits(
     const located = locate(ctx, paths, records, id);
     if (located === undefined) {
       const local = findRecordFile(ctx, paths.recordsDir, id, paths.root);
-      if (local === undefined) throw new DldError(`decision ${id} not found.`);
+      if (local === undefined) throw new DldError(`decision ${id} not found.${spellingHint(id)}`);
       return { path: toPosix(relative(paths.root, local)), id, state: "draft" };
     }
     const path = located.current ?? located.basePath;

@@ -92,6 +92,25 @@ export function canonicalSpelling(id: string): string | undefined {
   return TIMESTAMP_ID.test(respelled) ? respelled : undefined;
 }
 
+// @decision(DL-101)
+/**
+ * Text to append to an error about an ID that is not valid or not found: names the canonical
+ * spelling when `id` is another spelling of a valid ID, and is empty otherwise.
+ */
+export function spellingHint(id: string): string {
+  const canonical = canonicalSpelling(id);
+  return canonical === undefined || canonical === id ? "" : ` Did you mean ${canonical}?`;
+}
+
+// @decision(DL-101)
+/** The usage error text for arguments that are not decision IDs. */
+export function notAnIdMessage(id: string | undefined, many = false): string {
+  const expected = many
+    ? "expected decision IDs like DL-001 or DL-T1k3m9z2p7xq4"
+    : "expected one decision ID like DL-001 or DL-T1k3m9z2p7xq4";
+  return id === undefined ? expected : `${expected}, got '${id}'.${spellingHint(id)}`;
+}
+
 const textOrder = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 // @decision(DL-093)

@@ -9,9 +9,11 @@ import {
   isCanonicalId,
   isDecisionId,
   looksLikeId,
+  notAnIdMessage,
   parseId,
   recordFileId,
   reservedFileId,
+  spellingHint,
   timestampId,
   timestampSeconds,
 } from "./ids.ts";
@@ -208,5 +210,27 @@ describe("timestamp ID parts", () => {
     ] as const) {
       expect(() => timestampId(seconds, random)).toThrow("cannot make a timestamp ID");
     }
+  });
+});
+
+describe("spellingHint and notAnIdMessage", () => {
+  test("name the canonical spelling of another spelling of a valid ID", () => {
+    expect(spellingHint("DL-5")).toBe(" Did you mean DL-005?");
+    expect(spellingHint("DL-T1K3M9Z2P7XQ4")).toBe(` Did you mean ${T1}?`);
+    expect(spellingHint(T1)).toBe("");
+    expect(spellingHint("DL-005")).toBe("");
+    expect(spellingHint("DL-TBD")).toBe("");
+  });
+
+  test("describe both ID forms", () => {
+    expect(notAnIdMessage(undefined)).toBe(
+      "expected one decision ID like DL-001 or DL-T1k3m9z2p7xq4",
+    );
+    expect(notAnIdMessage("DL-T1K3M9Z2P7XQ4", true)).toBe(
+      `expected decision IDs like DL-001 or DL-T1k3m9z2p7xq4, got 'DL-T1K3M9Z2P7XQ4'. Did you mean ${T1}?`,
+    );
+    expect(notAnIdMessage("nope")).toBe(
+      "expected one decision ID like DL-001 or DL-T1k3m9z2p7xq4, got 'nope'.",
+    );
   });
 });

@@ -119,7 +119,7 @@ DLD_BODY
 
 Keep the delimiter quoted (`<<'DLD_BODY'`): that passes the body through exactly as written, so backticks, `$` and `%` in it need no escaping. Don't indent the body, and put the closing `DLD_BODY` alone on its own line, unindented; no line of the body may be exactly `DLD_BODY`. The other arguments are ordinary shell strings: put the title and tags in single quotes, and write an apostrophe in them as `'\''`.
 
-Pass `--namespace` only in a namespaced project, with one of the configured namespaces; leave it out in a flat project. Repeat for each decision. Run `next-id` before each creation and use the ID it prints, a number such as `DL-004` or a timestamp ID such as `DL-T1k3m9z2p7xq4`, depending on the project's `id_format`. Never work out the next ID yourself. The IDs come out in the order the decisions are created, so create them in the order of the breakdown.
+Pass `--namespace` only in a namespaced project, with one of the configured namespaces; leave it out in a flat project. Repeat for each decision. Run `next-id` before each creation and use the ID it prints, a number such as `DL-004` or a timestamp ID such as `DL-T1k3m9z2p7xq4`, depending on the project's `id_format`. Never work out the next ID yourself. The IDs come out in the order the decisions are created, so create them in the order of the breakdown. An ID exists only once its decision is created: to mention a later decision of the plan in an earlier one's body, create both, then add the mention to the earlier draft.
 
 If any decision supersedes an existing one, also update the old decision's status:
 ```bash
@@ -156,7 +156,7 @@ If the review is off, skip to the next step. Otherwise, launch a subagent to rev
 **Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so. Your final report names the model that reviewed and where the choice came from: your request, `dld.local.yaml`, `dld.config.yaml` or the default.
 
 ```
-You are reviewing a plan for the {{project_name}} project: {{decision_count}} proposed decisions ({{decision_range}}) that break down this feature:
+You are reviewing a plan for the {{project_name}} project: {{decision_count}} proposed decisions ({{decision_ids}}) that break down this feature:
 
 {{feature_description}}
 
@@ -193,7 +193,7 @@ Group findings by severity:
 
 **Filling in the placeholders:**
 - `{{project_name}}`: from `dld.config.yaml` or the repository directory name
-- `{{decision_count}}` and `{{decision_range}}`: how many decisions this plan created, and their IDs
+- `{{decision_count}}` and `{{decision_ids}}`: how many decisions this plan created, and each of their IDs
 - `{{feature_description}}`: the feature as the user described it, with what you agreed on in the conversation
 - `{{new_record_paths}}`: the paths of the records created in step 6
 - `{{related_record_paths}}`: the existing decisions you found in step 3, or "none"

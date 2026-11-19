@@ -149,7 +149,7 @@ If the review is off, skip this step entirely. Otherwise, launch a subagent to r
 **Model:** when the model is not `default`, run the subagent on it if your harness lets you choose a subagent's model and accepts that name (in Claude Code, the `Agent` tool's `model` parameter). If it doesn't, run the review on the default model and say so. Your final report names the model that reviewed and where the choice came from: your request, `dld.local.yaml`, `dld.config.yaml` or the default.
 
 ```
-You are reviewing code changes for the {{project_name}} project before committing. The changes implement {{decision_count}} decisions ({{decision_range}}) covering:
+You are reviewing code changes for the {{project_name}} project before committing. The changes implement {{decision_count}} decisions ({{decision_ids}}) covering:
 
 {{decision_summaries}}
 
@@ -188,7 +188,7 @@ Group findings by severity:
 
 **Filling in the placeholders:**
 - `{{project_name}}` — from `dld.config.yaml` or the repo directory name
-- `{{decision_count}}` and `{{decision_range}}` — count and IDs of the decisions just implemented (e.g., "3 decisions (DL-005 – DL-007)")
+- `{{decision_count}}` and `{{decision_ids}}` — count and IDs of the decisions just implemented, each ID listed (e.g., "3 decisions (DL-005, DL-006, DL-007)")
 - `{{decision_summaries}}` — one-line summary of each decision's title and intent
 - `{{tech_stack_summary}}` — languages, frameworks, and key libraries from the project (infer from `dld.config.yaml`, `package.json`, or equivalent)
 - `{{file_list}}` — all files you created or modified during steps 2–4

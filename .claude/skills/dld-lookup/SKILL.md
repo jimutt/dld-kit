@@ -23,7 +23,7 @@ This skill uses: `related-decisions`.
 
 Check that `dld.config.yaml` exists at the repo root. If not, tell the user to run `/dld-init` first and stop.
 
-Read `dld.config.yaml` to understand the project structure (flat vs namespaced, decisions directory). The decisions directory path can be resolved by reading the `decisions_dir` field from `dld.config.yaml`. Decision records (DL-*.md) live in the `records/` subdirectory under the decisions directory.
+Read `dld.config.yaml` to understand the project structure (flat vs namespaced, decisions directory). The decisions directory path can be resolved by reading the `decisions_dir` field from `dld.config.yaml`. Decision records (DL-*.md) live in the `records/` subdirectory under the decisions directory. A record file is named exactly `<id>.md`; ignore files named `<id>--<text>.md`, which are not records.
 
 ## Query modes
 

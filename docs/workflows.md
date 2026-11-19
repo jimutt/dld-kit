@@ -33,7 +33,7 @@ This works as a standalone "document this codebase" action. You get structured d
 When multiple developers draft decisions in parallel, two of them can end up picking the same `DL-NNN` ID. Once one of those lands on the base branch, or shows up in an open PR, the other branch has to renumber.
 
 ```
-/dld-reindex           # Renames the local draft(s) to the next free ID,
+/dld-reindex           # Renames the local draft(s) to free IDs,
                        # rewrites @decision annotations and cross-references,
                        # and commits the renames on top of the branch
 /dld-reindex squash    # Same, but squashes the branch into one commit

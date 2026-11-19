@@ -178,7 +178,7 @@ Do this for each generated decision.
 ## Step 9: Summary and next steps
 
 > **Retrofit complete:**
-> - Created **N** decisions (DL-XXX through DL-YYY)
+> - Created **N** decisions: DL-XXX, DL-YYY, ... (each ID listed)
 > - Added **M** `@decision` annotations across the codebase
 > - Mode: [broad/detailed]
 > - Scope: [entire codebase / specific area]

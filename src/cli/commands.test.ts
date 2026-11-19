@@ -1066,6 +1066,14 @@ describe("related-decisions", () => {
     });
     expect(dld(project, "related-decisions").code).toBe(EXIT_USAGE);
     expect(dld(project, "related-decisions", "DL-002", "DL-003").code).toBe(EXIT_USAGE);
+    expect(dld(project, "related-decisions", "DL-2")).toMatchObject({
+      code: 1,
+      err: "Error: decision DL-2 not found. Did you mean DL-002?\n",
+    });
+    expect(dld(project, "related-decisions", "DL-T1K3M9Z2P7XQ4")).toMatchObject({
+      code: EXIT_USAGE,
+      err: expect.stringContaining("got 'DL-T1K3M9Z2P7XQ4'. Did you mean DL-T1k3m9z2p7xq4?"),
+    });
   });
 });
 
