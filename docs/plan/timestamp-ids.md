@@ -93,33 +93,33 @@ Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's o
 
 `decision_edits: block` is set for this repo, so each of those is an amendment record, not an edit.
 
-### 1. ID model — `src/core/ids.ts` (M)
+### 1. ID model — `src/core/ids.ts`
 
 - `parseId(id)` → `{ kind: "sequential", number } | { kind: "timestamp", key }`, `compareIds(a, b)`, `isCanonicalId`, `canonicalSpelling` (timestamp IDs are lower-case Crockford base32; reject other spellings the way DL-078 rejects `DL-5`).
 - `generateId(ctx, format, existing)` for both formats. Add `randomBytes(n)` to `Context` (DL-008) so tests are deterministic; the real context uses `node:crypto`.
 - Export the patterns once (`ID_PATTERN`, `ID_SOURCE`, a `(?![\w-])`-style boundary) so no other module spells `DL-\d+`.
 
-### 2. Replace "number" with a sort key (M)
+### 2. Replace "number" with a sort key
 
 - `recordNumber` → `recordIdOf(path)` (strips the optional `--slug`) plus `compareIds`. Update the seven modules above.
 - `findRecordFile`, `duplicateRecordFiles`, `createDecision` (duplicate check by ID), `proposed.ts` (`basename === id`), `audit.ts`, `related.ts`, `index-file.ts` (sort and row key), `snapshot.ts`.
 - `RECORD_FILE` accepts `DL-<digits>.md` and `DL-T…(--slug)?.md`. Add `--slug <text>` to `create-decision`, validated as `[a-z0-9]+(-[a-z0-9]+)*`.
 
-### 3. Generation and commands (M)
+### 3. Generation and commands
 
 - `next-id` honours `id_format`, is monotonic against local records, prints one ID. `create-decision` keeps `--id` (so dld-plan's flow is unchanged) and also accepts `--auto-id`, which allocates and creates under the same exclusive-create check; that removes a race when two agents share a working copy.
 - `plan-renames`, `rename-decision`, `commit-reindex`: generate via the configured generator, anchor rewrites with the new boundary pattern (`DL-T…-a3f9c1` must not match inside a longer key or a `--slug`).
 - `find-collisions`, `list-taken-ids`: unchanged in logic; run on both forms.
 
-### 4. Scans and text (S–M)
+### 4. Scans and text
 
 Annotation scanner, near-miss detection (`/dl-\d/i` → also `dl-t\d`), mention scanner (`SUBJECT` for "DL-X's"), open-PR claims, `decision-edits`, `restore-decision-prose` and `related-decisions` argument validation all take their pattern from workstream 1.
 
-### 5. Snapshot state (M)
+### 5. Snapshot state
 
 Compute new decisions from the git range (records added since `commit_hash`), keep `includes_proposed`, read an old numeric `decisions_included` for logs that predate 1.1, and write a ID-valued field (highest ID by `compareIds`) for display only. `update-snapshot-state` output ("through DL-…") formats the new form.
 
-### 6. Config, init, skills, docs (M)
+### 6. Config, init, skills, docs
 
 - `config.ts`: add `id_format` to `CONFIG_KEYS` and validation; `dld init` and `/dld-init` ask the question; `docs/framework/project-configuration.md` and `decision-record-format.md` document the rule, the slug and mixed ordering.
 - Templates: dld-decide, dld-plan, dld-retrofit (ID-generation wording and burst note), dld-reindex (when it is still needed), dld-audit, dld-audit-auto (canonical form), dld-status, rule file; README "Teams" paragraph; `docs/workflows.md`, `docs/faq.md`; a short "switching to timestamp IDs" section in `docs/upgrading-from-0x.md` or a new `docs/id-formats.md`.
@@ -132,27 +132,15 @@ Compute new decisions from the git range (records added since `commit_hash`), ke
 - CLI integration (`tests/cli`): create a log in timestamp mode, switch an existing sequential log, two branches creating decisions concurrently and merging without a collision, snapshot after a late merge.
 - Regression guard: a fixture with timestamp records run through a pattern copy of the 1.0 regexes, asserting no match.
 
-### 8. Release (S)
+### 8. Release
 
 `npx changeset` minor → 1.1.0. Release notes: opt-in, default unchanged, **upgrade all collaborators before enabling**. Check `check:pack` and `check:installers` as usual.
 
-## Effort
+## Sequencing
 
-Core and tests are the bulk; skills and docs are mostly mechanical.
+Workstreams 1 and 2 come first and everything else depends on them; 3 to 6 can then run in parallel; 7 (tests) is written alongside each workstream, and 8 closes. The largest and riskiest parts are workstream 2 (many modules change shape), workstream 5 (a behaviour change, not a refactor) and the test matrix in 7.
 
-| Workstream | Size | Rough effort |
-|---|---|---|
-| 0 Decisions | S | 0.5 day |
-| 1 ID model | M | 1 day |
-| 2 Number → key | M | 1.5 days |
-| 3 Generation and commands | M | 1.5 days |
-| 4 Scans | S–M | 1 day |
-| 5 Snapshot state | M | 1 day |
-| 6 Config, skills, docs | M | 1.5 days |
-| 7 Tests (partly inside the above) | M | 2 days extra |
-| 8 Release | S | 0.5 day |
-
-About 10 engineer-days with agent assistance, most of it in workstreams 2, 5 and 7. 1.1 can ship in two PRs: (a) the ID model, key refactor and tests behind `id_format: sequential` only, which changes nothing visible and is easy to review; (b) the generator, config, snapshot change, skills and docs that turn the option on.
+1.1 can ship in two PRs: (a) the ID model, key refactor and tests behind `id_format: sequential` only, which changes nothing visible and is easy to review; (b) the generator, config, snapshot change, skills and docs that turn the option on.
 
 ## Open questions
 
