@@ -2,18 +2,28 @@ import { join, relative } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, EXIT_USAGE } from "./errors.ts";
 import { createFileExclusive, writeFileAtomic } from "./files.ts";
-import { canonicalSpelling, isCanonicalId } from "./ids.ts";
+import { canonicalSpelling, formatId, identityKey, isCanonicalId, parseId } from "./ids.ts";
 import { statedRelations } from "./mentions.ts";
 import type { Project } from "./project.ts";
 import {
   findRecordFile,
   formatTimestamp,
   listRecordFiles,
-  recordNumber,
+  recordId,
   renderNewRecord,
   type Status,
   setStatus,
 } from "./records.ts";
+
+// @decision(DL-078)
+/** One more than the highest sequential number in the log. */
+export function nextId(ctx: Context, recordsDir: string): string {
+  const highest = listRecordFiles(ctx, recordsDir).reduce((max, path) => {
+    const parsed = parseId(recordId(path));
+    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
+  }, 0);
+  return formatId(highest + 1);
+}
 
 // @decision(DL-014) @decision(DL-015)
 /** Sets a decision's status. Returns the record's path. */
@@ -36,18 +46,19 @@ export interface CreateDecisionInput {
 }
 
 // @decision(DL-014) @decision(DL-015) @decision(DL-016) @decision(DL-078) @decision(DL-080)
+// @decision(DL-092) @decision(DL-096)
 /** Writes a new proposed record and returns its path. */
 export function createDecision(ctx: Context, project: Project, input: CreateDecisionInput): string {
   if (!isCanonicalId(input.id)) {
     const canonical = canonicalSpelling(input.id);
     throw new DldError(
       canonical === undefined
-        ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.`
+        ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001, or a timestamp ID.`
         : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
       EXIT_USAGE,
     );
   }
-  const number = Number.parseInt(input.id.slice(3), 10);
+  const identity = identityKey(input.id);
   const { config } = project;
   if (input.namespace !== undefined) {
     if (config.mode !== "namespaced") {
@@ -61,7 +72,7 @@ export function createDecision(ctx: Context, project: Project, input: CreateDeci
     }
   }
   const existing = listRecordFiles(ctx, project.paths.recordsDir).find(
-    (path) => recordNumber(path) === number,
+    (path) => identityKey(recordId(path)) === identity,
   );
   if (existing !== undefined) {
     throw new DldError(

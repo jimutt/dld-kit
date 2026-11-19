@@ -1,4 +1,4 @@
-import { nextId } from "../../core/ids.ts";
+import { nextId } from "../../core/decisions.ts";
 import { loadProject } from "../../core/project.ts";
 import { type Command, EXIT_OK, parseCommandArgs } from "../command.ts";
 

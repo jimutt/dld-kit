@@ -1,9 +1,8 @@
 import { posix } from "node:path";
 import { DldError, EXIT_USAGE } from "./errors.ts";
 import { recordsPathspec } from "./git.ts";
-import { canonicalSpelling, isCanonicalId } from "./ids.ts";
+import { canonicalSpelling, isCanonicalId, isDecisionId } from "./ids.ts";
 import type { ProjectPaths } from "./project.ts";
-import { DECISION_ID } from "./records.ts";
 import type { Rename } from "./reindex.ts";
 
 // @decision(DL-028)
@@ -14,8 +13,10 @@ import type { Rename } from "./reindex.ts";
  */
 export function renameProblem(paths: ProjectPaths, rename: Rename): string | undefined {
   const { path, oldId, newId } = rename;
-  if (!DECISION_ID.test(oldId) || !DECISION_ID.test(newId)) return "IDs must match DL-[0-9]+.";
-  // @decision(DL-078)
+  if (!isDecisionId(oldId) || (!isDecisionId(newId) && canonicalSpelling(newId) === undefined)) {
+    return "IDs must be decision IDs: DL-<digits> or a timestamp ID.";
+  }
+  // @decision(DL-078) @decision(DL-092)
   if (!isCanonicalId(newId)) {
     const canonical = canonicalSpelling(newId);
     return `new ID '${newId}' is not canonical${canonical === undefined ? "" : `; use ${canonical}`}.`;

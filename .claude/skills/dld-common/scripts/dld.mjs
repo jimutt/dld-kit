@@ -7523,13 +7523,79 @@ function resolveStateCommit(git, value) {
   return gitOrEmpty(git, "rev-parse", "--verify", "--quiet", `${value}^{commit}`) === "" ? void 0 : value;
 }
 
+// src/core/ids.ts
+var TIME_CHARS = 7;
+var RANDOM_CHARS = 5;
+var BASE32_CLASS = "[0-9a-hjkmnp-tv-z]";
+var SEQUENTIAL_SOURCE = "DL-\\d+";
+var TIMESTAMP_SOURCE = `DL-T${BASE32_CLASS}{${TIME_CHARS + RANDOM_CHARS}}`;
+var TIMESTAMP_END = "(?![0-9a-z])";
+var ID_SOURCE = `(?:${TIMESTAMP_SOURCE}${TIMESTAMP_END}|${SEQUENTIAL_SOURCE})`;
+var SEQUENTIAL_ID = /^DL-(\d+)$/;
+var TIMESTAMP_ID = new RegExp(`^${TIMESTAMP_SOURCE}$`);
+var RECORD_NAME = new RegExp(`^(${TIMESTAMP_SOURCE}|${SEQUENTIAL_SOURCE})\\.md$`);
+var RESERVED_NAME = new RegExp(`^(${TIMESTAMP_SOURCE}|${SEQUENTIAL_SOURCE})--.*\\.md$`);
+function parseId(id) {
+  const digits = SEQUENTIAL_ID.exec(id)?.[1];
+  if (digits !== void 0) return { form: "sequential", number: Number.parseInt(digits, 10) };
+  if (TIMESTAMP_ID.test(id)) return { form: "timestamp", key: id.slice(4) };
+  return void 0;
+}
+function isDecisionId(id) {
+  return parseId(id) !== void 0;
+}
+function findIds(text) {
+  return text.match(new RegExp(ID_SOURCE, "g")) ?? [];
+}
+function idMatcher(id, flags = "") {
+  const end = parseId(id)?.form === "timestamp" ? TIMESTAMP_END : "(?![0-9])";
+  return new RegExp(`${id}${end}`, flags);
+}
+function looksLikeId(text) {
+  return /dl-(?:\d|t\d)/i.test(text);
+}
+function formatId(n) {
+  return `DL-${String(n).padStart(3, "0")}`;
+}
+function isCanonicalId(id) {
+  return /^DL-(\d{3}|[1-9]\d{3,})$/.test(id) || TIMESTAMP_ID.test(id);
+}
+function canonicalSpelling(id) {
+  const digits = /^dl-(\d+)$/i.exec(id)?.[1];
+  if (digits !== void 0) {
+    const number = Number(digits);
+    return Number.isSafeInteger(number) ? formatId(number) : void 0;
+  }
+  const key = /^dl-t([0-9a-z]+)$/i.exec(id)?.[1];
+  if (key === void 0) return void 0;
+  const respelled = `DL-T${key.toLowerCase().replace(/[il]/g, "1").replace(/o/g, "0")}`;
+  return TIMESTAMP_ID.test(respelled) ? respelled : void 0;
+}
+var textOrder = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+function compareIds(a, b) {
+  const rank = (parsed) => parsed === void 0 ? 2 : parsed.form === "sequential" ? 0 : 1;
+  const left = parseId(a);
+  const right = parseId(b);
+  if (left?.form === "sequential" && right?.form === "sequential") {
+    return left.number - right.number || textOrder(a, b);
+  }
+  return rank(left) - rank(right) || textOrder(a, b);
+}
+function identityKey(id) {
+  const parsed = parseId(id);
+  return parsed?.form === "sequential" ? `#${parsed.number}` : id;
+}
+function recordFileId(name) {
+  return RECORD_NAME.exec(name)?.[1];
+}
+function reservedFileId(name) {
+  return RESERVED_NAME.exec(name)?.[1];
+}
+
 // src/core/records.ts
 var import_yaml = __toESM(require_dist(), 1);
 import { basename as basename2, join as join2, relative as relative2 } from "node:path";
 var STATUSES = ["proposed", "accepted", "deprecated", "superseded"];
-var RECORD_FILE = /^DL-(\d+)\.md$/;
-var DECISION_ID = /^DL-\d+$/;
-var DECISION_MENTION = /DL-\d+/g;
 function isStatus(value) {
   return STATUSES.some((status) => status === value);
 }
@@ -7540,16 +7606,32 @@ function listRecordFiles(ctx, recordsDir) {
     for (const entry of entries) {
       const path = join2(dir, entry.name);
       if (entry.isDirectory) walk(path);
-      else if (entry.isFile && RECORD_FILE.test(entry.name)) found.push(path);
+      else if (entry.isFile && recordFileId(entry.name) !== void 0) found.push(path);
     }
   };
   if (ctx.fs.isDirectory(recordsDir)) walk(recordsDir);
   return found;
 }
-function recordNumber(path) {
-  const digits = RECORD_FILE.exec(basename2(path))?.[1];
-  if (digits === void 0) throw new Error(`not a decision record file: ${path}`);
-  return Number.parseInt(digits, 10);
+function reservedRecordFiles(ctx, recordsDir) {
+  const found = [];
+  const walk = (dir) => {
+    const entries = ctx.fs.readDir(dir).sort((a, b) => a.name < b.name ? -1 : 1);
+    for (const entry of entries) {
+      const path = join2(dir, entry.name);
+      if (entry.isDirectory) walk(path);
+      else if (entry.isFile && reservedFileId(entry.name) !== void 0) found.push(path);
+    }
+  };
+  if (ctx.fs.isDirectory(recordsDir)) walk(recordsDir);
+  return found;
+}
+function recordId(path) {
+  const id = recordFileId(basename2(path));
+  if (id === void 0) throw new Error(`not a decision record file: ${path}`);
+  return id;
+}
+function compareRecordFiles(a, b) {
+  return compareIds(recordId(a), recordId(b));
 }
 function findRecordFile(ctx, recordsDir, id, root) {
   const matches = listRecordFiles(ctx, recordsDir).filter((path) => basename2(path) === `${id}.md`);
@@ -7560,12 +7642,12 @@ function findRecordFile(ctx, recordsDir, id, root) {
   return matches[0];
 }
 function duplicateRecordFiles(ctx, recordsDir) {
-  const byNumber = /* @__PURE__ */ new Map();
+  const byIdentity = /* @__PURE__ */ new Map();
   for (const path of listRecordFiles(ctx, recordsDir)) {
-    const number = recordNumber(path);
-    byNumber.set(number, [...byNumber.get(number) ?? [], path]);
+    const key = identityKey(recordId(path));
+    byIdentity.set(key, [...byIdentity.get(key) ?? [], path]);
   }
-  return [...byNumber.entries()].filter(([, paths]) => paths.length > 1).sort(([a], [b]) => a - b).map(([, paths]) => paths);
+  return [...byIdentity.values()].filter((paths) => paths.length > 1).sort(([a = ""], [b = ""]) => compareRecordFiles(a, b));
 }
 var isDelimiter = (line) => line === "---" || line === "---\r";
 function frontmatterBlock(text) {
@@ -7726,24 +7808,6 @@ function formatTimestamp(date) {
 // src/core/reindex.ts
 import { basename as basename3 } from "node:path";
 
-// src/core/ids.ts
-function formatId(n) {
-  return `DL-${String(n).padStart(3, "0")}`;
-}
-function isCanonicalId(id) {
-  return /^DL-(\d{3}|[1-9]\d{3,})$/.test(id);
-}
-function canonicalSpelling(id) {
-  const digits = /^dl-(\d+)$/i.exec(id)?.[1];
-  if (digits === void 0) return void 0;
-  const number = Number(digits);
-  return Number.isSafeInteger(number) ? formatId(number) : void 0;
-}
-function nextId(ctx, recordsDir) {
-  const highest = listRecordFiles(ctx, recordsDir).map(recordNumber).reduce((max, n) => Math.max(max, n), 0);
-  return formatId(highest + 1);
-}
-
 // src/core/open-prs.ts
 var GITHUB_REMOTE = /github\.com[:/]/;
 var PR_LIMIT = "100";
@@ -7795,7 +7859,7 @@ function openPrIds(ctx, paths, base) {
     if (!pr.isCrossRepository && pr.headRefName === current) continue;
     for (const path of pr.files) {
       if (!path.startsWith(prefix)) continue;
-      for (const id of path.match(DECISION_MENTION) ?? []) claims.push({ id, head: pr.headRefOid });
+      for (const id of findIds(path)) claims.push({ id, head: pr.headRefOid });
     }
   }
   return { claims };
@@ -7832,10 +7896,6 @@ function firstLine(text) {
 
 // src/core/reindex.ts
 var DEFAULT_BASE = "origin/main";
-var idNumber = (id) => Number.parseInt(id.slice(3), 10);
-function compareIds(a, b) {
-  return idNumber(a) - idNumber(b) || (a < b ? -1 : a > b ? 1 : 0);
-}
 function resolveBase(ctx, baseBranch) {
   const git = (...args) => ctx.git(args);
   const tried = [];
@@ -7907,7 +7967,7 @@ function takenIds(ctx, paths, base) {
   const git = gitAt(ctx, paths.root);
   const onBase = nulSeparated(
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths))
-  ).flatMap((path) => path.match(DECISION_MENTION) ?? []);
+  ).flatMap(findIds);
   const scan = openPrIds(ctx, paths, base);
   const ids2 = [.../* @__PURE__ */ new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
   const taken = { ids: ids2, onBase: new Set(onBase), claims: scan.claims };
@@ -7952,8 +8012,8 @@ function collisionsOf(ctx, paths, base) {
   const git = gitAt(ctx, paths.root);
   const added = localAdditions(git, paths, base);
   const local = added.flatMap((path) => {
-    const id = basename3(path, ".md");
-    return RECORD_FILE.test(basename3(path)) ? [{ path, id }] : [];
+    const id = recordFileId(basename3(path));
+    return id === void 0 ? [] : [{ path, id }];
   });
   if (local.length === 0) return { collisions: [], localIds: [], taken: [] };
   const taken = takenIds(ctx, paths, base);
@@ -7972,7 +8032,10 @@ function findCollisions(ctx, { paths }, base) {
 function planRenames(ctx, { paths }, base) {
   verifyBase(ctx, paths, base);
   const { collisions, localIds, taken, skipped } = collisionsOf(ctx, paths, base);
-  const highest = [...taken, ...localIds].reduce((max, id) => Math.max(max, idNumber(id)), 0);
+  const highest = [...taken, ...localIds].reduce((max, id) => {
+    const parsed = parseId(id);
+    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
+  }, 0);
   const renames = [...collisions].sort((a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)).map(({ path, id }, index) => ({ path, oldId: id, newId: formatId(highest + 1 + index) }));
   return skipped === void 0 ? { renames } : { renames, skipped };
 }
@@ -8024,7 +8087,7 @@ function checkDecisionEdits(ctx, { paths }, base, ids2 = [], { uncommitted = fal
     )
   );
   const candidates = new Set(
-    changed.map((path) => basename4(path)).filter((name) => RECORD_FILE.test(name)).map((name) => basename4(name, ".md")).filter((id) => records.byId.has(id))
+    changed.flatMap((path) => recordFileId(basename4(path)) ?? []).filter((id) => records.byId.has(id))
   );
   return [...candidates].map(stateOf).filter(({ state }) => state === "edited" || state === "deleted" || state === "allowed").sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }
@@ -8036,7 +8099,7 @@ function trailerIds(git, onto) {
     `--format=%(trailers:key=${EDIT_TRAILER},valueonly)`,
     `${onto}..HEAD`
   );
-  return new Set(values.split(/[\s,]+/).filter((value) => DECISION_ID.test(value)));
+  return new Set(values.split(/[\s,]+/).filter(isDecisionId));
 }
 function integratedRecords(ctx, paths, base) {
   const onto = mergeBase(ctx, paths, base);
@@ -8053,7 +8116,8 @@ function integratedRecords(ctx, paths, base) {
   );
   for (const path of nulSeparated(listing)) {
     const name = basename4(path);
-    if (RECORD_FILE.test(name)) byId.set(basename4(name, ".md"), path);
+    const id = recordFileId(name);
+    if (id !== void 0) byId.set(id, path);
   }
   return { onto, byId };
 }
@@ -8421,7 +8485,7 @@ Options:
       options: { base: { type: "string" }, uncommitted: { type: "boolean" } },
       allowPositionals: true
     });
-    const bad = ids2.find((id) => !DECISION_ID.test(id));
+    const bad = ids2.find((id) => !isDecisionId(id));
     if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
     const project = loadProject(ctx);
     const base = editBase(
@@ -8492,8 +8556,8 @@ function readRecords(ctx, { paths }) {
   return listRecordFiles(ctx, paths.recordsDir).map((path) => {
     const text = ctx.fs.readFile(path);
     const record = parseRecord(text, relative5(paths.root, path));
-    return { path, number: recordNumber(path), text, status: record.status };
-  }).sort((a, b) => a.number - b.number);
+    return { path, id: recordId(path), text, status: record.status };
+  }).sort((a, b) => compareIds(a.id, b.id));
 }
 function collectActiveDecisions(ctx, project, { includeProposed = false } = {}) {
   if (!ctx.fs.isDirectory(project.paths.recordsDir)) {
@@ -8512,11 +8576,11 @@ function detectSnapshotChanges(ctx, project) {
   }
   const included = stateString(state, "decisions_included");
   if (included === void 0 || !/^\d+$/.test(included)) return { mode: "full" };
-  const includedNumber = Number.parseInt(included, 10);
+  const watermark = formatId(Number.parseInt(included, 10));
   const proposedIncluded = stateString(state, "includes_proposed") === "true";
   const newDecisions = readRecords(ctx, project).filter(
-    (record) => record.number > includedNumber && isSnapshotted(record.status) || !proposedIncluded && record.status === "proposed"
-  ).map((record) => formatId(record.number));
+    (record) => compareIds(record.id, watermark) > 0 && isSnapshotted(record.status) || !proposedIncluded && record.status === "proposed"
+  ).map((record) => record.id);
   const git = gitAt(ctx, paths.root);
   let stored = stateString(state, "commit_hash");
   const lastRun = stateString(state, "last_run");
@@ -8528,10 +8592,10 @@ function detectSnapshotChanges(ctx, project) {
   let commitRange = "";
   if (commit2 !== void 0 && commit2 !== shortHead(ctx, paths.root)) {
     commitRange = `${commit2}..HEAD`;
-    const numbers = nulSeparated(
+    const ids2 = nulSeparated(
       gitOrEmpty(git, "diff", "-z", "--name-only", commitRange, "--", recordsPathspec(paths))
-    ).map((path) => basename5(path)).filter((name) => RECORD_FILE.test(name)).map((name) => recordNumber(name)).filter((number) => number <= includedNumber);
-    modifiedDecisions = [...new Set(numbers)].sort((a, b) => a - b).map(formatId);
+    ).flatMap((path) => recordFileId(basename5(path)) ?? []).filter((id) => compareIds(id, watermark) <= 0);
+    modifiedDecisions = [...new Set(ids2)].sort(compareIds);
   }
   return { mode: "incremental", newDecisions, modifiedDecisions, commitRange };
 }
@@ -8549,7 +8613,10 @@ function updateSnapshotState(ctx, project, customArtifacts) {
   const { paths } = project;
   const timestamp = formatTimestamp(ctx.now());
   const commit2 = shortHead(ctx, paths.root);
-  const highest = readRecords(ctx, project).filter((record) => isSnapshotted(record.status)).reduce((max, record) => Math.max(max, record.number), 0);
+  const highest = readRecords(ctx, project).filter((record) => isSnapshotted(record.status)).reduce((max, record) => {
+    const parsed = parseId(record.id);
+    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
+  }, 0);
   const artifacts = /* @__PURE__ */ Object.create(null);
   for (const name of [...BUILT_IN_ARTIFACTS, ...customArtifacts]) artifacts[name] = timestamp;
   writeStateSection(ctx, paths, "snapshot", {
@@ -8595,7 +8662,9 @@ import { join as join8, posix as posix2 } from "node:path";
 import { posix } from "node:path";
 function renameProblem(paths, rename) {
   const { path, oldId, newId } = rename;
-  if (!DECISION_ID.test(oldId) || !DECISION_ID.test(newId)) return "IDs must match DL-[0-9]+.";
+  if (!isDecisionId(oldId) || !isDecisionId(newId) && canonicalSpelling(newId) === void 0) {
+    return "IDs must be decision IDs: DL-<digits> or a timestamp ID.";
+  }
   if (!isCanonicalId(newId)) {
     const canonical = canonicalSpelling(newId);
     return `new ID '${newId}' is not canonical${canonical === void 0 ? "" : `; use ${canonical}`}.`;
@@ -8925,9 +8994,8 @@ var createConfigCommand = {
 import { join as join10, relative as relative6 } from "node:path";
 
 // src/core/mentions.ts
-var ID = /DL-\d+/g;
 var RELATION_WORD = /(?<![\w-])(amends|supersedes)\b/gi;
-var SUBJECT = /DL-\d+(?:'s)?\s*$/;
+var SUBJECT = new RegExp(`${ID_SOURCE}(?:'s)?\\s*$`);
 var CHANGE_CUE = /\b(?:replac|supersed|amend|extend|overrid|relax|narrow|revert)\w*|\bno longer\b|\binstead of\b/i;
 var CUE_SECTIONS = /* @__PURE__ */ new Set(["decision", "consequences"]);
 var SENTENCE_END = /(?<=[.;:!?])\s+/;
@@ -8937,7 +9005,7 @@ var QUOTED = /"[^"\n]*"|“[^”\n]*”/g;
 var HEADING = /^##[ \t]+(.*?)[ \t#]*$/;
 var LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
 var RANK = { mention: 0, cue: 1, explicit: 2 };
-var ids = (text) => text.match(ID) ?? [];
+var ids = findIds;
 function sentences(body) {
   const out = [];
   let section = "";
@@ -9052,6 +9120,13 @@ function mentionTiers(body) {
 }
 
 // src/core/decisions.ts
+function nextId(ctx, recordsDir) {
+  const highest = listRecordFiles(ctx, recordsDir).reduce((max, path) => {
+    const parsed = parseId(recordId(path));
+    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
+  }, 0);
+  return formatId(highest + 1);
+}
 function updateStatus(ctx, project, id, status) {
   const path = findRecordFile(ctx, project.paths.recordsDir, id, project.paths.root);
   if (path === void 0) throw new DldError(`decision ${id} not found.`);
@@ -9063,11 +9138,11 @@ function createDecision(ctx, project, input) {
   if (!isCanonicalId(input.id)) {
     const canonical = canonicalSpelling(input.id);
     throw new DldError(
-      canonical === void 0 ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001.` : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
+      canonical === void 0 ? `invalid decision ID '${input.id}'; expected DL-<digits>, e.g. DL-001, or a timestamp ID.` : `decision ID '${input.id}' is not canonical; use ${canonical}.`,
       EXIT_USAGE
     );
   }
-  const number = Number.parseInt(input.id.slice(3), 10);
+  const identity = identityKey(input.id);
   const { config } = project;
   if (input.namespace !== void 0) {
     if (config.mode !== "namespaced") {
@@ -9081,7 +9156,7 @@ function createDecision(ctx, project, input) {
     }
   }
   const existing = listRecordFiles(ctx, project.paths.recordsDir).find(
-    (path2) => recordNumber(path2) === number
+    (path2) => identityKey(recordId(path2)) === identity
   );
   if (existing !== void 0) {
     throw new DldError(
@@ -9193,7 +9268,7 @@ function renderIndex(rows, mode) {
     namespaced ? "| ID | Title | Status | Namespace | Tags |" : "| ID | Title | Status | Tags |",
     namespaced ? "|----|-------|--------|-----------|------|" : "|----|-------|--------|------|"
   ];
-  const sorted = [...rows].sort((a, b) => b.number - a.number);
+  const sorted = [...rows].sort((a, b) => compareIds(b.fileId, a.fileId));
   for (const { record } of sorted) {
     const cells = [record.id, record.title, record.status];
     if (namespaced) cells.push(record.namespace ?? "");
@@ -9209,7 +9284,7 @@ function indexPath(paths) {
 function collectIndexRows(ctx, paths, includeBase) {
   const localFiles = listRecordFiles(ctx, paths.recordsDir);
   const rows = localFiles.map((path) => ({
-    number: recordNumber(path),
+    fileId: recordId(path),
     record: parseRecord(ctx.fs.readFile(path), relative7(paths.root, path))
   }));
   if (includeBase === void 0) return rows;
@@ -9224,10 +9299,12 @@ function collectIndexRows(ctx, paths, includeBase) {
   }
   const localNames = new Set(localFiles.map((path) => basename6(path)));
   const recordsRel = relative7(paths.root, paths.recordsDir).split(sep3).join("/");
-  const basePaths = git("ls-tree", "-r", "--name-only", includeBase, "--", recordsRel).split("\n").filter((path) => RECORD_FILE.test(basename6(path)) && !localNames.has(basename6(path)));
+  const basePaths = git("ls-tree", "-r", "--name-only", includeBase, "--", recordsRel).split("\n").filter(
+    (path) => recordFileId(basename6(path)) !== void 0 && !localNames.has(basename6(path))
+  );
   for (const path of basePaths) {
     rows.push({
-      number: recordNumber(path),
+      fileId: recordId(path),
       record: parseRecord(git("show", `${includeBase}:${path}`), `${includeBase}:${path}`)
     });
   }
@@ -10110,6 +10187,7 @@ var detectSnapshotChangesCommand = {
 
 // src/core/annotations.ts
 import { join as join16, relative as relative9, sep as sep5 } from "node:path";
+var ANNOTATION_ID = ID_SOURCE;
 var EXCLUDED_DIRS = /* @__PURE__ */ new Set([
   ".git",
   // Agent configuration directories, which hold installed skills.
@@ -10192,8 +10270,8 @@ function scanAnnotations(ctx, options, onSkip = () => {
 }, onNearMiss = () => {
 }) {
   const prefix = escapeRegExp(options.prefix);
-  const pattern = new RegExp(`${prefix}\\((DL-\\d+)\\)`, "g");
-  const exact = new RegExp(`^${prefix}\\(DL-\\d+\\)$`);
+  const pattern = new RegExp(`${prefix}\\((${ANNOTATION_ID})\\)`, "g");
+  const exact = new RegExp(`^${prefix}\\(${ANNOTATION_ID}\\)$`);
   const loose = new RegExp(`${prefix}\\([^()\\n]*\\)`, "gi");
   const found = [];
   for (const file of listScannableFiles(ctx, options)) {
@@ -10205,7 +10283,7 @@ function scanAnnotations(ctx, options, onSkip = () => {
         if (match[1] !== void 0) found.push({ file, line, id: match[1] });
       }
       for (const [candidate] of content.matchAll(loose)) {
-        if (!exact.test(candidate) && /dl-\d/i.test(candidate)) {
+        if (!exact.test(candidate) && looksLikeId(candidate)) {
           onNearMiss({ file, line, text: candidate });
         }
       }
@@ -10281,7 +10359,6 @@ Options:
 // src/core/audit.ts
 import { basename as basename7, relative as relative10, sep as sep6 } from "node:path";
 var toPosix2 = (path) => path.split(sep6).join("/");
-var idNumber2 = (id) => Number.parseInt(id.slice(3), 10);
 function recordsChangedSinceAudit(ctx, { paths }) {
   const git = gitAt(ctx, paths.root);
   const stored = stateString(readStateSection(ctx, paths, "audit"), "commit_hash");
@@ -10295,9 +10372,7 @@ function recordsChangedSinceAudit(ctx, { paths }) {
 }
 function findMissingAmends(ctx, project, { all = false, mentions = false, ids: ids2 }) {
   const { paths } = project;
-  const files = listRecordFiles(ctx, paths.recordsDir).sort(
-    (a, b) => recordNumber(a) - recordNumber(b)
-  );
+  const files = listRecordFiles(ctx, paths.recordsDir).sort(compareRecordFiles);
   let include = () => true;
   if (ids2 !== void 0) {
     const wanted = new Set(ids2);
@@ -10321,7 +10396,7 @@ function findMissingAmends(ctx, project, { all = false, mentions = false, ids: i
     const declared = /* @__PURE__ */ new Set([...record.supersedes, ...record.amends]);
     const refs = [...mentionTiers(recordBody(text))].filter(
       ([id, tier]) => id !== source && !declared.has(id) && (mentions || tier !== "mention")
-    ).sort(([a], [b]) => idNumber2(a) - idNumber2(b));
+    ).sort(([a], [b]) => compareIds(a, b));
     for (const [referenced, tier] of refs) found.push({ source, referenced, tier });
   }
   return found;
@@ -10377,7 +10452,6 @@ Options:
 // src/core/rename.ts
 import { Buffer as Buffer2 } from "node:buffer";
 import { join as join17, posix as posix4 } from "node:path";
-var idPattern = (id, flags = "") => new RegExp(`${id}(?![0-9])`, flags);
 function changedFiles(ctx, paths, commit2) {
   return nulSeparated(
     gitAt(ctx, paths.root)(
@@ -10415,7 +10489,7 @@ function renameDecision(ctx, project, rename, base) {
   const since = mergeBase(ctx, paths, base);
   const scannable = new Set(listScannableFiles(ctx, scanOptionsFor(project)));
   gitAt(ctx, paths.root)("mv", "--", path, newPath);
-  const substitute = (text) => text.replace(idPattern(oldId, "g"), newId);
+  const substitute = (text) => text.replace(idMatcher(oldId, "g"), newId);
   rewriteFile(ctx, newFull, (text) => substitute(setId(text, oldId, newId)));
   const decisions = `${decisionsPathspec(paths)}/`;
   const prefix = Buffer2.from(config.annotationPrefix, "utf8").toString("latin1");
@@ -10450,7 +10524,7 @@ function findStaleMentions(ctx, { paths }, planText, base) {
   });
   const found = [];
   for (const { oldId, newId } of renames) {
-    const pattern = idPattern(oldId);
+    const pattern = idMatcher(oldId);
     for (const { file, lines } of files) {
       lines.forEach((text, index) => {
         if (pattern.test(text)) found.push({ file, line: index + 1, oldId, newId, text });
@@ -10962,7 +11036,7 @@ function listProposed(ctx, project, base) {
   return listRecordFiles(ctx, paths.recordsDir).map((file) => {
     const path = relative12(paths.root, file).split(sep7).join("/");
     return { file, path, record: parseRecord(ctx.fs.readFile(file), path) };
-  }).filter(({ record }) => record.status === "proposed").sort((a, b) => recordNumber(a.file) - recordNumber(b.file)).map(({ file, path, record }) => {
+  }).filter(({ record }) => record.status === "proposed").sort((a, b) => compareRecordFiles(a.file, b.file)).map(({ file, path, record }) => {
     const id = basename8(file, ".md");
     const location = atBase === void 0 ? "unknown" : atBase.has(id) ? "base" : "branch";
     return { id, title: record.title, path, location };
@@ -11098,6 +11172,11 @@ Options:
       const shown = files.map((path) => relative13(paths.root, path)).join(", ");
       ctx.warn(`${ids2} is in more than one file: ${shown}`);
     }
+    for (const path of reservedRecordFiles(ctx, paths.recordsDir)) {
+      ctx.warn(
+        `${relative13(paths.root, path)}: '<id>--<text>.md' is a reserved file name and is not read as a decision record`
+      );
+    }
     const rows = collectIndexRows(ctx, paths, values["include-base"]);
     writeIndex(ctx, paths, renderIndex(rows, config.mode));
     io.stdout(rows.length === 0 ? "INDEX.md regenerated (empty).\n" : "INDEX.md regenerated.\n");
@@ -11108,7 +11187,6 @@ Options:
 // src/core/related.ts
 import { basename as basename10, relative as relative14, sep as sep8 } from "node:path";
 var RELATIONS = ["amends", "supersedes", "amended-by", "superseded-by"];
-var idNumber3 = (id) => DECISION_ID.test(id) ? Number.parseInt(id.slice(3), 10) : Number.POSITIVE_INFINITY;
 function relatedDecisions(ctx, project, id) {
   const { paths } = project;
   const targetFile = findRecordFile(ctx, paths.recordsDir, id, paths.root);
@@ -11138,7 +11216,7 @@ function relatedDecisions(ctx, project, id) {
     if (entry.record.supersedes.includes(id)) add("superseded-by", entry.id);
   }
   return related.sort(
-    (a, b) => idNumber3(a.id) - idNumber3(b.id) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) || RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation)
+    (a, b) => compareIds(a.id, b.id) || RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation)
   );
 }
 function formatRelated({ relation, id, status, title }) {
@@ -11164,7 +11242,7 @@ status missing. Exits 1 if the decision does not exist.
       allowPositionals: true
     });
     const [id, ...extra] = positionals;
-    if (id === void 0 || !DECISION_ID.test(id))
+    if (id === void 0 || !isDecisionId(id))
       throw new UsageError("expected one decision ID like DL-001");
     if (extra.length > 0) throw new UsageError(`unexpected argument '${extra[0]}'`);
     for (const related of relatedDecisions(ctx, loadProject(ctx), id)) {
@@ -11258,7 +11336,7 @@ Options:
       allowPositionals: true
     });
     if (ids2.length === 0) throw new UsageError("expected at least one decision ID");
-    const bad = ids2.find((id) => !DECISION_ID.test(id));
+    const bad = ids2.find((id) => !isDecisionId(id));
     if (bad !== void 0) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
     const project = loadProject(ctx);
     const base = editBase(

@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { NAMESPACED_CONFIG, recordText, type TempProject, tempProject } from "../test-helpers.ts";
-import { createDecision, updateStatus } from "./decisions.ts";
+import {
+  fakeContext,
+  memoryFs,
+  NAMESPACED_CONFIG,
+  recordText,
+  type TempProject,
+  tempProject,
+} from "../test-helpers.ts";
+import { createDecision, nextId, updateStatus } from "./decisions.ts";
 import { loadProject } from "./project.ts";
 
 let project: TempProject | undefined;
@@ -155,5 +162,44 @@ describe("createDecision", () => {
     project = tempProject();
     const path = createDecision(project.ctx, loadProject(project.ctx), { ...input, id: "DL-1000" });
     expect(path).toBe(join(project.root, "decisions/records/DL-1000.md"));
+  });
+});
+
+const NEXT_RECORDS = "/p/decisions/records";
+
+function next(files: string[]): string {
+  const fs = memoryFs(Object.fromEntries(files.map((f) => [`${NEXT_RECORDS}/${f}`, ""])));
+  return nextId(fakeContext({ fs }), NEXT_RECORDS);
+}
+
+describe("nextId", () => {
+  test("starts at DL-001 when the records directory is missing", () => {
+    expect(nextId(fakeContext(), NEXT_RECORDS)).toBe("DL-001");
+  });
+
+  test("starts at DL-001 when there are no records", () => {
+    expect(next(["README.md"])).toBe("DL-001");
+  });
+
+  test("follows the highest ID, including across gaps", () => {
+    expect(next(["DL-001.md", "DL-005.md"])).toBe("DL-006");
+  });
+
+  test("parses zero-padded numbers as decimal", () => {
+    expect(next(["DL-008.md", "DL-009.md"])).toBe("DL-010");
+  });
+
+  test("scans namespace subdirectories", () => {
+    expect(next(["billing/DL-001.md", "auth/DL-003.md"])).toBe("DL-004");
+  });
+
+  // @decision(DL-095)
+  test("ignores timestamp IDs", () => {
+    expect(next(["DL-002.md", "DL-T1k3m9z2p7xq4.md"])).toBe("DL-003");
+    expect(next(["DL-T1k3m9z2p7xq4.md"])).toBe("DL-001");
+  });
+
+  test("ignores files that are not decision records", () => {
+    expect(next(["DL-002.md", "notes.txt", "DL-draft.md", "DL-007.md.bak"])).toBe("DL-003");
   });
 });

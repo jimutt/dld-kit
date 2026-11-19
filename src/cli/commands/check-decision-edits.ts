@@ -1,6 +1,6 @@
 import { checkDecisionEdits, editBase, formatRecordEdit } from "../../core/decision-edits.ts";
+import { isDecisionId } from "../../core/ids.ts";
 import { loadProject } from "../../core/project.ts";
-import { DECISION_ID } from "../../core/records.ts";
 import { type Command, EXIT_OK, parseCommandArgs, UsageError } from "../command.ts";
 import { baseOption, DEFAULT_BASE_HELP } from "./base-option.ts";
 
@@ -36,7 +36,7 @@ Options:
       options: { base: { type: "string" }, uncommitted: { type: "boolean" } },
       allowPositionals: true,
     });
-    const bad = ids.find((id) => !DECISION_ID.test(id));
+    const bad = ids.find((id) => !isDecisionId(id));
     if (bad !== undefined) throw new UsageError(`expected decision IDs like DL-001, got '${bad}'`);
     const project = loadProject(ctx);
     const base = editBase(

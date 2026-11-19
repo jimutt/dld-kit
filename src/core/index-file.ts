@@ -3,23 +3,19 @@ import type { Mode } from "./config.ts";
 import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
+import { compareIds, recordFileId } from "./ids.ts";
 import type { ProjectPaths } from "./project.ts";
-import {
-  type DecisionRecord,
-  listRecordFiles,
-  parseRecord,
-  RECORD_FILE,
-  recordNumber,
-} from "./records.ts";
+import { type DecisionRecord, listRecordFiles, parseRecord, recordId } from "./records.ts";
 
 export const INDEX_FILE = "INDEX.md";
 
 interface IndexRow {
-  number: number;
+  /** The ID the record's file is named after, which orders the rows. */
+  fileId: string;
   record: DecisionRecord;
 }
 
-// @decision(DL-018)
+// @decision(DL-018) @decision(DL-093)
 /** INDEX.md content for the given rows, in the layout regenerate-index.sh writes. */
 export function renderIndex(rows: readonly IndexRow[], mode: Mode): string {
   const namespaced = mode === "namespaced";
@@ -29,7 +25,7 @@ export function renderIndex(rows: readonly IndexRow[], mode: Mode): string {
     namespaced ? "| ID | Title | Status | Namespace | Tags |" : "| ID | Title | Status | Tags |",
     namespaced ? "|----|-------|--------|-----------|------|" : "|----|-------|--------|------|",
   ];
-  const sorted = [...rows].sort((a, b) => b.number - a.number);
+  const sorted = [...rows].sort((a, b) => compareIds(b.fileId, a.fileId));
   for (const { record } of sorted) {
     const cells = [record.id, record.title, record.status];
     if (namespaced) cells.push(record.namespace ?? "");
@@ -55,7 +51,7 @@ export function collectIndexRows(
 ): IndexRow[] {
   const localFiles = listRecordFiles(ctx, paths.recordsDir);
   const rows = localFiles.map((path) => ({
-    number: recordNumber(path),
+    fileId: recordId(path),
     record: parseRecord(ctx.fs.readFile(path), relative(paths.root, path)),
   }));
   if (includeBase === undefined) return rows;
@@ -73,10 +69,12 @@ export function collectIndexRows(
   const recordsRel = relative(paths.root, paths.recordsDir).split(sep).join("/");
   const basePaths = git("ls-tree", "-r", "--name-only", includeBase, "--", recordsRel)
     .split("\n")
-    .filter((path) => RECORD_FILE.test(basename(path)) && !localNames.has(basename(path)));
+    .filter(
+      (path) => recordFileId(basename(path)) !== undefined && !localNames.has(basename(path)),
+    );
   for (const path of basePaths) {
     rows.push({
-      number: recordNumber(path),
+      fileId: recordId(path),
       record: parseRecord(git("show", `${includeBase}:${path}`), `${includeBase}:${path}`),
     });
   }

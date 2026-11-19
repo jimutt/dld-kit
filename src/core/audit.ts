@@ -2,14 +2,15 @@ import { basename, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { gitAt, nulSeparated, recordsPathspec, resolveStateCommit } from "./git.ts";
+import { compareIds } from "./ids.ts";
 import { type MentionTier, mentionTiers } from "./mentions.ts";
 import type { Project } from "./project.ts";
 import {
+  compareRecordFiles,
   formatTimestamp,
   listRecordFiles,
   parseRecord,
   recordBody,
-  recordNumber,
 } from "./records.ts";
 import { readStateSection, shortHead, stateString, writeStateSection } from "./state.ts";
 
@@ -29,7 +30,6 @@ export interface MissingAmendsOptions {
 }
 
 const toPosix = (path: string) => path.split(sep).join("/");
-const idNumber = (id: string) => Number.parseInt(id.slice(3), 10);
 
 /**
  * Record files (root-relative, `/`-separated) changed since the last audit, or undefined
@@ -59,9 +59,7 @@ export function findMissingAmends(
   { all = false, mentions = false, ids }: MissingAmendsOptions,
 ): MissingAmend[] {
   const { paths } = project;
-  const files = listRecordFiles(ctx, paths.recordsDir).sort(
-    (a, b) => recordNumber(a) - recordNumber(b),
-  );
+  const files = listRecordFiles(ctx, paths.recordsDir).sort(compareRecordFiles);
   let include: (file: string, rel: string) => boolean = () => true;
   if (ids !== undefined) {
     const wanted = new Set(ids);
@@ -87,7 +85,7 @@ export function findMissingAmends(
       .filter(
         ([id, tier]) => id !== source && !declared.has(id) && (mentions || tier !== "mention"),
       )
-      .sort(([a], [b]) => idNumber(a) - idNumber(b));
+      .sort(([a], [b]) => compareIds(a, b));
     for (const [referenced, tier] of refs) found.push({ source, referenced, tier });
   }
   return found;

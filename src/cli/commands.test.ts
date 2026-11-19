@@ -191,6 +191,19 @@ describe("regenerate-index", () => {
     });
   });
 
+  // @decision(DL-099)
+  test("warns about reserved file names and leaves them out", () => {
+    project = tempProject();
+    project.write("decisions/records/DL-001.md", recordText("DL-001"));
+    project.write("decisions/records/DL-002--retry-policy.md", recordText("DL-002"));
+    expect(dld(project, "regenerate-index")).toEqual({
+      code: EXIT_OK,
+      out: "INDEX.md regenerated.\n",
+      err: "Warning: decisions/records/DL-002--retry-policy.md: '<id>--<text>.md' is a reserved file name and is not read as a decision record\n",
+    });
+    expect(readFileSync(join(project.root, "decisions/INDEX.md"), "utf8")).not.toContain("DL-002");
+  });
+
   test("fails when the records directory is missing", () => {
     project = tempProject();
     expect(dld(project, "regenerate-index").err).toContain("records directory not found");

@@ -1,7 +1,11 @@
 import { join, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { FsError } from "./errors.ts";
+import { ID_SOURCE, looksLikeId } from "./ids.ts";
 import type { Project } from "./project.ts";
+
+/** The ID inside an annotation: either form, as the ID module spells them. */
+const ANNOTATION_ID = ID_SOURCE;
 
 // @decision(DL-019) @decision(DL-060)
 /** Directories never scanned, wherever they appear in a path. */
@@ -137,9 +141,9 @@ function readScannable(
   return text.slice(0, BINARY_SNIFF_BYTES).includes("\0") ? undefined : text;
 }
 
-// @decision(DL-019) @decision(DL-022) @decision(DL-069) @decision(DL-074)
+// @decision(DL-019) @decision(DL-022) @decision(DL-069) @decision(DL-074) @decision(DL-094)
 /**
- * Every `<prefix>(DL-NNN)` annotation in the project's scannable files, in file and line order.
+ * Every `<prefix>(<id>)` annotation in the project's scannable files, in file and line order.
  * Files that are too large or unreadable are reported to `onSkip` and left out. Text that starts
  * like an annotation and holds a decision number but is not one goes to `onNearMiss`.
  */
@@ -150,8 +154,8 @@ export function scanAnnotations(
   onNearMiss: (nearMiss: NearMiss) => void = () => {},
 ): Annotation[] {
   const prefix = escapeRegExp(options.prefix);
-  const pattern = new RegExp(`${prefix}\\((DL-\\d+)\\)`, "g");
-  const exact = new RegExp(`^${prefix}\\(DL-\\d+\\)$`);
+  const pattern = new RegExp(`${prefix}\\((${ANNOTATION_ID})\\)`, "g");
+  const exact = new RegExp(`^${prefix}\\(${ANNOTATION_ID}\\)$`);
   const loose = new RegExp(`${prefix}\\([^()\\n]*\\)`, "gi");
   const found: Annotation[] = [];
   for (const file of listScannableFiles(ctx, options)) {
@@ -163,7 +167,7 @@ export function scanAnnotations(
         if (match[1] !== undefined) found.push({ file, line, id: match[1] });
       }
       for (const [candidate] of content.matchAll(loose)) {
-        if (!exact.test(candidate) && /dl-\d/i.test(candidate)) {
+        if (!exact.test(candidate) && looksLikeId(candidate)) {
           onNearMiss({ file, line, text: candidate });
         }
       }

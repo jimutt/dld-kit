@@ -2,10 +2,9 @@ import { basename } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
 import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
-import { formatId } from "./ids.ts";
+import { compareIds, findIds, formatId, parseId, recordFileId } from "./ids.ts";
 import { openPrIds, type PrClaim } from "./open-prs.ts";
 import type { Project, ProjectPaths } from "./project.ts";
-import { DECISION_MENTION, RECORD_FILE } from "./records.ts";
 
 export const DEFAULT_BASE = "origin/main";
 
@@ -26,12 +25,7 @@ export interface Rename {
 /** A result, plus the reason the open-PR scan was skipped, if it was. */
 export type WithScan<T> = T & { skipped?: string };
 
-const idNumber = (id: string) => Number.parseInt(id.slice(3), 10);
-
-/** Orders IDs by number; IDs with the same number (DL-01, DL-001) by text. */
-export function compareIds(a: string, b: string): number {
-  return idNumber(a) - idNumber(b) || (a < b ? -1 : a > b ? 1 : 0);
-}
+export { compareIds };
 
 // @decision(DL-027) @decision(DL-071)
 /**
@@ -133,7 +127,7 @@ function takenIds(ctx: Context, paths: ProjectPaths, base: string): WithScan<Tak
   const git = gitAt(ctx, paths.root);
   const onBase = nulSeparated(
     gitOrEmpty(git, "ls-tree", "-r", "-z", "--name-only", base, "--", recordsPathspec(paths)),
-  ).flatMap((path) => path.match(DECISION_MENTION) ?? []);
+  ).flatMap(findIds);
   const scan = openPrIds(ctx, paths, base);
   const ids = [...new Set([...onBase, ...scan.claims.map(({ id }) => id)])].sort(compareIds);
   const taken = { ids, onBase: new Set(onBase), claims: scan.claims };
@@ -199,8 +193,8 @@ function collisionsOf(
   const git = gitAt(ctx, paths.root);
   const added = localAdditions(git, paths, base);
   const local = added.flatMap((path) => {
-    const id = basename(path, ".md");
-    return RECORD_FILE.test(basename(path)) ? [{ path, id }] : [];
+    const id = recordFileId(basename(path));
+    return id === undefined ? [] : [{ path, id }];
   });
   if (local.length === 0) return { collisions: [], localIds: [], taken: [] };
   const taken = takenIds(ctx, paths, base);
@@ -236,7 +230,10 @@ export function planRenames(
 ): WithScan<{ renames: Rename[] }> {
   verifyBase(ctx, paths, base);
   const { collisions, localIds, taken, skipped } = collisionsOf(ctx, paths, base);
-  const highest = [...taken, ...localIds].reduce((max, id) => Math.max(max, idNumber(id)), 0);
+  const highest = [...taken, ...localIds].reduce((max, id) => {
+    const parsed = parseId(id);
+    return parsed?.form === "sequential" ? Math.max(max, parsed.number) : max;
+  }, 0);
   const renames = [...collisions]
     .sort((a, b) => compareIds(a.id, b.id) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
     .map(({ path, id }, index) => ({ path, oldId: id, newId: formatId(highest + 1 + index) }));

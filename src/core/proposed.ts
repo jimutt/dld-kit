@@ -2,7 +2,7 @@ import { basename, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { integratedRecords } from "./decision-edits.ts";
 import type { Project } from "./project.ts";
-import { listRecordFiles, parseRecord, recordNumber } from "./records.ts";
+import { compareRecordFiles, listRecordFiles, parseRecord } from "./records.ts";
 import { verifyBase } from "./reindex.ts";
 
 export interface ProposedDecision {
@@ -36,7 +36,7 @@ export function listProposed(
       return { file, path, record: parseRecord(ctx.fs.readFile(file), path) };
     })
     .filter(({ record }) => record.status === "proposed")
-    .sort((a, b) => recordNumber(a.file) - recordNumber(b.file))
+    .sort((a, b) => compareRecordFiles(a.file, b.file))
     .map(({ file, path, record }) => {
       const id = basename(file, ".md");
       const location: ProposedDecision["location"] =

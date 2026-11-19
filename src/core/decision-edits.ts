@@ -3,15 +3,9 @@ import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
 import { writeFileAtomic } from "./files.ts";
 import { gitAt, gitOrEmpty, nulSeparated, recordsPathspec } from "./git.ts";
+import { isDecisionId, recordFileId } from "./ids.ts";
 import type { Project, ProjectPaths } from "./project.ts";
-import {
-  DECISION_ID,
-  findRecordFile,
-  parseRecord,
-  RECORD_FILE,
-  recordBody,
-  recordHead,
-} from "./records.ts";
+import { findRecordFile, parseRecord, recordBody, recordHead } from "./records.ts";
 import { mergeBase, resolveBase, verifyBase } from "./reindex.ts";
 
 /**
@@ -115,9 +109,7 @@ export function checkDecisionEdits(
   );
   const candidates = new Set(
     changed
-      .map((path) => basename(path))
-      .filter((name) => RECORD_FILE.test(name))
-      .map((name) => basename(name, ".md"))
+      .flatMap((path) => recordFileId(basename(path)) ?? [])
       .filter((id) => records.byId.has(id)),
   );
   return [...candidates]
@@ -138,7 +130,7 @@ function trailerIds(git: (...args: string[]) => string, onto: string): Set<strin
     `--format=%(trailers:key=${EDIT_TRAILER},valueonly)`,
     `${onto}..HEAD`,
   );
-  return new Set(values.split(/[\s,]+/).filter((value) => DECISION_ID.test(value)));
+  return new Set(values.split(/[\s,]+/).filter(isDecisionId));
 }
 
 interface Integrated {
@@ -163,7 +155,8 @@ export function integratedRecords(ctx: Context, paths: ProjectPaths, base: strin
   );
   for (const path of nulSeparated(listing)) {
     const name = basename(path);
-    if (RECORD_FILE.test(name)) byId.set(basename(name, ".md"), path);
+    const id = recordFileId(name);
+    if (id !== undefined) byId.set(id, path);
   }
   return { onto, byId };
 }

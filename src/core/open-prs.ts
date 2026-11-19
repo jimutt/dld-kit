@@ -1,8 +1,8 @@
 import type { Context } from "./context.ts";
 import { GhCommandError, ToolNotFoundError } from "./errors.ts";
 import { gitAt, gitOrEmpty, recordsPathspec } from "./git.ts";
+import { findIds } from "./ids.ts";
 import type { ProjectPaths } from "./project.ts";
-import { DECISION_MENTION } from "./records.ts";
 
 /** A decision ID in a record path an open PR touches, with that PR's head commit. */
 export interface PrClaim {
@@ -79,7 +79,7 @@ export function openPrIds(ctx: Context, paths: ProjectPaths, base: string): Open
     if (!pr.isCrossRepository && pr.headRefName === current) continue;
     for (const path of pr.files) {
       if (!path.startsWith(prefix)) continue;
-      for (const id of path.match(DECISION_MENTION) ?? []) claims.push({ id, head: pr.headRefOid });
+      for (const id of findIds(path)) claims.push({ id, head: pr.headRefOid });
     }
   }
   return { claims };

@@ -1,3 +1,5 @@
+import { findIds, ID_SOURCE } from "./ids.ts";
+
 /** How strongly a record's body ties it to a decision it mentions. */
 export type MentionTier = "explicit" | "cue" | "mention";
 
@@ -8,9 +10,8 @@ export interface StatedRelation {
   relation: Relation;
 }
 
-const ID = /DL-\d+/g;
 const RELATION_WORD = /(?<![\w-])(amends|supersedes)\b/gi;
-const SUBJECT = /DL-\d+(?:'s)?\s*$/;
+const SUBJECT = new RegExp(`${ID_SOURCE}(?:'s)?\\s*$`);
 const CHANGE_CUE =
   /\b(?:replac|supersed|amend|extend|overrid|relax|narrow|revert)\w*|\bno longer\b|\binstead of\b/i;
 const CUE_SECTIONS = new Set(["decision", "consequences"]);
@@ -22,7 +23,7 @@ const HEADING = /^##[ \t]+(.*?)[ \t#]*$/;
 const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
 const RANK: Record<MentionTier, number> = { mention: 0, cue: 1, explicit: 2 };
 
-const ids = (text: string): string[] => text.match(ID) ?? [];
+const ids = findIds;
 
 interface Sentence {
   section: string;

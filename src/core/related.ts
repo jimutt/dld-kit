@@ -1,8 +1,9 @@
 import { basename, relative, sep } from "node:path";
 import type { Context } from "./context.ts";
 import { DldError } from "./errors.ts";
+import { compareIds } from "./ids.ts";
 import type { Project } from "./project.ts";
-import { DECISION_ID, findRecordFile, listRecordFiles, parseRecord } from "./records.ts";
+import { findRecordFile, listRecordFiles, parseRecord } from "./records.ts";
 
 export const RELATIONS = ["amends", "supersedes", "amended-by", "superseded-by"] as const;
 export type Relation = (typeof RELATIONS)[number];
@@ -14,10 +15,6 @@ export interface RelatedDecision {
   status: string;
   title: string;
 }
-
-/** The ID's number, or Infinity for a value that is not a decision ID, so it sorts last. */
-const idNumber = (id: string) =>
-  DECISION_ID.test(id) ? Number.parseInt(id.slice(3), 10) : Number.POSITIVE_INFINITY;
 
 // @decision(DL-077)
 /**
@@ -55,9 +52,7 @@ export function relatedDecisions(ctx: Context, project: Project, id: string): Re
   }
   return related.sort(
     (a, b) =>
-      idNumber(a.id) - idNumber(b.id) ||
-      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) ||
-      RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation),
+      compareIds(a.id, b.id) || RELATIONS.indexOf(a.relation) - RELATIONS.indexOf(b.relation),
   );
 }
 

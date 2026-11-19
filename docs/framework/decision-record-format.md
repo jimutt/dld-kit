@@ -6,17 +6,23 @@ Each decision is a single markdown file with YAML frontmatter for structured met
 
 ### File Naming
 
-Files are named by their sequential ID: `DL-001.md`, `DL-002.md`, etc.
+A record's file is named after its ID and nothing else: `DL-001.md`, `DL-T1k3m9z2p7xq4.md`. A record's path can therefore always be built from its ID.
 
-IDs are globally sequential across the entire project, even when namespaces are used. This keeps `@decision(DL-XXX)` annotations simple and allows cross-referencing across namespaces without ambiguity. An ID belongs to exactly one record: `create-decision` refuses an ID that exists in any namespace, and commands that look a decision up by ID fail if it is in more than one file.
+IDs are unique across the entire project, even when namespaces are used. This keeps `@decision(DL-XXX)` annotations simple and allows cross-referencing across namespaces without ambiguity. An ID belongs to exactly one record: `create-decision` refuses an ID that exists in any namespace, and commands that look a decision up by ID fail if it is in more than one file.
+
+File names of the form `<id>--<text>.md` are reserved for a later readable suffix. Such a file is not a record: the tools skip it, and `regenerate-index` warns about it.
 
 ### Decision IDs
 
-An ID is `DL-` followed by a decimal number, zero-padded to three digits. Numbers above 999 use as many digits as they need: `DL-001`, `DL-042`, `DL-999`, `DL-1000`.
+There are two forms of ID, and a log can hold both.
 
-- This canonical spelling is the ID's identity everywhere: file names, frontmatter, annotations and references. `DL-5` and `DL-005` are not the same ID, so tools that create IDs (`create-decision`, the reindex renames) reject anything but the canonical form.
-- IDs are ordered by number, not as text. `INDEX.md`, `collect-active-decisions` and the reindex plan list `DL-999` before `DL-1000`; file browsers that sort by name may not.
-- The next ID is one more than the highest existing number.
+**Sequential IDs** are `DL-` followed by a decimal number, zero-padded to three digits. Numbers above 999 use as many digits as they need: `DL-001`, `DL-042`, `DL-999`, `DL-1000`. The next one is one more than the highest existing number.
+
+**Timestamp IDs** are `DL-T` followed by 12 characters of lower-case Crockford base32 (`0123456789abcdefghjkmnpqrstvwxyz`, so no `i`, `l`, `o` or `u`), for example `DL-T1k3m9z2p7xq4`. The first seven characters are the creation time in whole Unix seconds and the last five are random, so IDs created on separate branches do not clash and sort by creation time as text. The time is an ordering key; the record's `timestamp` field is the date to read.
+
+- The canonical spelling is the ID's identity everywhere: file names, frontmatter, annotations and references. `DL-5` and `DL-005` are not the same ID, and neither are `DL-T1K3M9Z2P7XQ4` and `DL-T1k3m9z2p7xq4`, so tools that create IDs (`create-decision`, the reindex renames) reject anything but the canonical form and name it when they can.
+- Order: sequential IDs first, by number, not as text, then timestamp IDs as text. `INDEX.md`, `collect-active-decisions` and the reindex plan list `DL-999` before `DL-1000` and both before any timestamp ID; file browsers that sort by name may not. This order is a convention: a sequential ID can be newer than a timestamp ID.
+- Two record files are the same decision when their sequential IDs have the same number (`DL-07.md` and `DL-007.md`), or their timestamp IDs are the same text.
 
 ### Directory Layout
 
@@ -141,8 +147,9 @@ These are **not** annotations, and the tools ignore them for linking:
 - `@decision( DL-002 )`: spaces inside the parentheses
 - `@decision(dl-003)` or `@Decision(DL-003)`: wrong letter case
 - `@decision(DL-004, DL-005)`: more than one ID
+- `@decision(DL-T1K3M9Z2P7XQ4)`: a timestamp ID that is not in its canonical lower-case spelling
 
-`find-annotations` and `verify-annotations` warn about text like this on stderr (`Warning: <file>:<line>: not an annotation: <text>`), and `/dld-audit` lists it. Placeholders without digits, such as `@decision(DL-XXX)` in documentation, are not reported.
+`find-annotations` and `verify-annotations` warn about text like this on stderr (`Warning: <file>:<line>: not an annotation: <text>`), and `/dld-audit` lists it. Placeholders without digits, such as `@decision(DL-XXX)` in documentation, are not reported. For timestamp IDs the warning covers text with `DL-T` or `dl-t` followed by a digit.
 
 ### Markdown Body
 

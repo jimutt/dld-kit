@@ -168,7 +168,9 @@ describe("renameDecision", () => {
     p.write("decisions/records/DL-004.md", recordText("DL-009", "proposed"));
     p.write("decisions/records/DL-007.md", recordText("DL-007", "proposed"));
     p.commitAll("local");
-    expect(() => rename(p, "DL-002", "bad")).toThrow("IDs must match DL-[0-9]+.");
+    expect(() => rename(p, "DL-002", "bad")).toThrow(
+      "IDs must be decision IDs: DL-<digits> or a timestamp ID.",
+    );
     expect(() => rename(p, "DL-005", "DL-006")).toThrow("decisions/records/DL-005.md not found.");
     expect(() => rename(p, "DL-004", "DL-006")).toThrow(
       "decisions/records/DL-004.md has id DL-009, not DL-004.",
