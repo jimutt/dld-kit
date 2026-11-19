@@ -215,16 +215,32 @@ function editDistance(a: string, b: string): number {
   return previous[b.length] ?? 0;
 }
 
-// @decision(DL-071)
 // @decision(DL-098)
 function optionalMinVersion(value: unknown): { minDldVersion?: string } {
   if (value === undefined || value === null) return {};
   if (typeof value !== "string" || parseVersion(value) === undefined) {
-    throw invalid("'min_dld_version' must be a version such as 1.1.0, in quotes if needed");
+    throw invalid(
+      `'min_dld_version' must have three parts, <major>.<minor>.<patch>, such as 1.1.0; got '${String(value)}'`,
+    );
   }
   return { minDldVersion: value };
 }
 
+// @decision(DL-098)
+/**
+ * The config's `min_dld_version` when it is a valid version, read without validating anything
+ * else, so a dld too old to understand the rest of the config can still say so.
+ */
+export function peekMinVersion(ctx: Context, root: string): string | undefined {
+  const path = join(root, CONFIG_FILE);
+  if (!ctx.fs.exists(path)) return undefined;
+  const raw: unknown = parseDocument(ctx.fs.readFile(path), { logLevel: "silent" }).toJS();
+  if (!isRecord(raw)) return undefined;
+  const value = raw.min_dld_version;
+  return typeof value === "string" && parseVersion(value) !== undefined ? value : undefined;
+}
+
+// @decision(DL-071)
 function optionalBaseBranch(value: unknown): { baseBranch?: string } {
   const branch = optionalString(value, "base_branch");
   if (branch === undefined) return {};

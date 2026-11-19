@@ -196,7 +196,7 @@ Every collaborator's skills carry their own copy of the `dld` CLI, so a team run
 Error: this project needs dld 1.1.0 or newer; this is dld 1.0.0. Update dld-kit (npx dld-kit@latest update, or your plugin manager) and try again.
 ```
 
-Set it when the project starts using something older versions do not understand, such as `id_format: timestamp`. The commands that install or update dld-kit (`init`, `update`, `install-rule`) are not stopped. Versions before 1.1 do not know the key: they warn about it as an unknown key and carry on, so for those the only protection is upgrading first.
+Set it when the project starts using something older versions do not understand, such as `id_format: timestamp`. The commands that install or update dld-kit (`init`, `update`, `install-rule`, `create-config`) are not stopped, and neither are `resolve-base`, the session hook's `session-context`, `--version` and `--help`. Versions before 1.1 do not know the key: they warn about it as an unknown key and carry on, so for those the only protection is upgrading first.
 
 ### Unknown keys
 
@@ -242,7 +242,7 @@ IDs are derived from the existing decision files, never tracked in config. `id_f
 - A timestamp ID in the log dated more than 60 seconds ahead of the clock (created on a machine with a wrong clock) is ignored when creating IDs, and the commands warn about it.
 - `/dld-reindex` renames colliding IDs to new IDs in the configured form, so a project that has switched moves the sequential IDs of branches opened before the switch onto timestamp IDs.
 
-Every collaborator's dld-kit must be recent enough to read timestamp IDs before a project switches: a 1.0 `dld` does not see timestamp records at all. Set `min_dld_version: 1.1.0` together with `id_format: timestamp`, so that later versions refuse instead of misreading.
+Every collaborator's dld-kit must be recent enough to read timestamp IDs before a project switches: a 1.0 `dld` does not see timestamp records at all. Set `min_dld_version: 1.1.0` together with `id_format: timestamp`. No dld that knows the key is older than that, so it does not stop anyone today; it records what the project needs, and raising it later stops every dld from 1.1 on that is too old.
 
 ## The `/dld-init` Skill
 

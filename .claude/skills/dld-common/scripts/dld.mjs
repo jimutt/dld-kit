@@ -8462,9 +8462,19 @@ function editDistance(a, b) {
 function optionalMinVersion(value) {
   if (value === void 0 || value === null) return {};
   if (typeof value !== "string" || parseVersion(value) === void 0) {
-    throw invalid("'min_dld_version' must be a version such as 1.1.0, in quotes if needed");
+    throw invalid(
+      `'min_dld_version' must have three parts, <major>.<minor>.<patch>, such as 1.1.0; got '${String(value)}'`
+    );
   }
   return { minDldVersion: value };
+}
+function peekMinVersion(ctx, root) {
+  const path = join4(root, CONFIG_FILE);
+  if (!ctx.fs.exists(path)) return void 0;
+  const raw = (0, import_yaml2.parseDocument)(ctx.fs.readFile(path), { logLevel: "silent" }).toJS();
+  if (!isRecord2(raw)) return void 0;
+  const value = raw.min_dld_version;
+  return typeof value === "string" && parseVersion(value) !== void 0 ? value : void 0;
 }
 function optionalBaseBranch(value) {
   const branch = optionalString(value, "base_branch");
@@ -8559,11 +8569,11 @@ function resolvePaths(root, config) {
 }
 function loadProject(ctx, { anyVersion = false, running = version } = {}) {
   const root = findProjectRoot(ctx);
-  const config = loadConfig(ctx, root);
-  const minimum = config.minDldVersion;
-  if (!anyVersion && minimum !== void 0 && !satisfiesMinimum(running, minimum)) {
+  const minimum = anyVersion ? void 0 : peekMinVersion(ctx, root);
+  if (minimum !== void 0 && !satisfiesMinimum(running, minimum)) {
     throw new DldError(tooOldMessage(running, minimum));
   }
+  const config = loadConfig(ctx, root);
   return { config, paths: resolvePaths(root, config) };
 }
 
@@ -8728,10 +8738,9 @@ function detectSnapshotChanges(ctx, project) {
   ).map((record) => record.id);
   const records = recordsPathspec(paths);
   const changed = [
-    ...nulSeparated(gitOrEmpty(git, "diff", "-z", "--name-only", commit2, "--", records)),
-    ...nulSeparated(
-      gitOrEmpty(git, "ls-files", "-z", "--others", "--exclude-standard", "--", records)
-    )
+    // --no-renames: a renamed record shows up under both its old and its new ID.
+    ...nulSeparated(git("diff", "-z", "--no-renames", "--name-only", commit2, "--", records)),
+    ...nulSeparated(git("ls-files", "-z", "--others", "--exclude-standard", "--", records))
   ].flatMap((path) => recordFileId(basename5(path)) ?? []).filter((id) => !isPast(id, watermark));
   const modifiedDecisions = [...new Set(changed)].sort(compareIds);
   const commitRange = commit2 === shortHead(ctx, paths.root) ? "" : `${commit2}..HEAD`;

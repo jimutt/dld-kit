@@ -122,10 +122,9 @@ export function detectSnapshotChanges(ctx: Context, project: Project): SnapshotC
   // Against the working tree, which is what the snapshot reads: committed and uncommitted
   // changes, and record files git does not track yet.
   const changed = [
-    ...nulSeparated(gitOrEmpty(git, "diff", "-z", "--name-only", commit, "--", records)),
-    ...nulSeparated(
-      gitOrEmpty(git, "ls-files", "-z", "--others", "--exclude-standard", "--", records),
-    ),
+    // --no-renames: a renamed record shows up under both its old and its new ID.
+    ...nulSeparated(git("diff", "-z", "--no-renames", "--name-only", commit, "--", records)),
+    ...nulSeparated(git("ls-files", "-z", "--others", "--exclude-standard", "--", records)),
   ]
     .flatMap((path) => recordFileId(basename(path)) ?? [])
     .filter((id) => !isPast(id, watermark));

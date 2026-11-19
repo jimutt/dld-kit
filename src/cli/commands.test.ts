@@ -412,6 +412,9 @@ describe("min_dld_version", () => {
       ["next-id"],
       ["regenerate-index"],
       ["update-status", "DL-001", "proposed"],
+      ["create-decision", "--auto-id", "--title", "T"],
+      ["detect-snapshot-changes"],
+      ["update-snapshot-state"],
     ]) {
       const result = dld(project, ...argv);
       expect(result).toMatchObject({ code: EXIT_ERROR, out: "" });
@@ -422,7 +425,23 @@ describe("min_dld_version", () => {
       recordText("DL-001"),
     );
     expect(dld(project, "--version").code).toBe(EXIT_OK);
+    expect(dld(project, "next-id", "--help")).toMatchObject({ code: EXIT_OK, err: "" });
     expect(dld(project, "resolve-base").err).not.toContain("this project needs");
+  });
+
+  test("the commands that install and update dld-kit are not stopped", async () => {
+    project = tempProject(`${FLAT_CONFIG}min_dld_version: 999.0.0\n`);
+    project.write("CLAUDE.md", "# Project\n");
+    const cli = fakePackage(project);
+    const results = [
+      await dldInstall(project, cli, "update", "--agent", "claude"),
+      await dldInstall(project, undefined, "install-rule", "--agent", "claude"),
+      dld(project, "session-context", "--agent", "claude"),
+    ];
+    for (const result of results) {
+      expect(result.err).not.toContain("this project needs");
+      expect(result.code).toBe(EXIT_OK);
+    }
   });
 });
 

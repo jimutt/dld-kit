@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { version } from "../../package.json";
-import { type Config, loadConfig } from "./config.ts";
+import { type Config, loadConfig, peekMinVersion } from "./config.ts";
 import type { Context } from "./context.ts";
 import { DldError, GitCommandError } from "./errors.ts";
 import { satisfiesMinimum, tooOldMessage } from "./version.ts";
@@ -42,10 +42,11 @@ export function loadProject(
   { anyVersion = false, running = version }: { anyVersion?: boolean; running?: string } = {},
 ): Project {
   const root = findProjectRoot(ctx);
-  const config = loadConfig(ctx, root);
-  const minimum = config.minDldVersion;
-  if (!anyVersion && minimum !== undefined && !satisfiesMinimum(running, minimum)) {
+  // Before the config is validated: a newer config may hold values this dld rejects.
+  const minimum = anyVersion ? undefined : peekMinVersion(ctx, root);
+  if (minimum !== undefined && !satisfiesMinimum(running, minimum)) {
     throw new DldError(tooOldMessage(running, minimum));
   }
+  const config = loadConfig(ctx, root);
   return { config, paths: resolvePaths(root, config) };
 }

@@ -280,6 +280,33 @@ describe("detectSnapshotChanges", () => {
     expect(detect(project)).toMatchObject({ newDecisions: ["DL-006"] });
   });
 
+  // @decision(DL-097)
+  test("reports a renamed record under both IDs, a deleted one, and one in a namespace", () => {
+    project = tempProject(NAMESPACED_CONFIG);
+    project.write("decisions/records/auth/DL-003.md", recordText("DL-003"));
+    writeRecord(project, "DL-004");
+    snapshotted(project);
+    project.git("mv", "decisions/records/DL-002.md", "decisions/records/DL-009.md");
+    project.git("rm", "-q", "decisions/records/DL-001.md");
+    project.write("decisions/records/auth/DL-003.md", recordText("DL-003", "superseded"));
+    project.git("commit", "-qam", "change");
+    expect(detect(project)).toMatchObject({
+      newDecisions: ["DL-009"],
+      modifiedDecisions: ["DL-001", "DL-002", "DL-003"],
+    });
+  });
+
+  // @decision(DL-097)
+  test("a watermark of 0 puts every record after it", () => {
+    project = tempProject();
+    project.write("decisions/OVERVIEW.md");
+    project.git("add", ".");
+    project.git("commit", "-qm", "empty log");
+    updateSnapshotState(project.ctx, loadProject(project.ctx), []);
+    writeRecord(project, "DL-001");
+    expect(detect(project)).toMatchObject({ newDecisions: ["DL-001"], modifiedDecisions: [] });
+  });
+
   test("falls back to the commit at last_run when commit_hash is missing", () => {
     project = tempProject();
     snapshotted(project);
