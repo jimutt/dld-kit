@@ -19,7 +19,7 @@
 | Option | Example | Length (after `DL-`) | Sortable | Notes |
 |---|---|---|---|---|
 | **A. Readable time + hex** (custom) | `T20261119-142530-a3f9c1` | 23 | yes | Date visible in `ls` and annotations, but verbose. The record's `timestamp` already carries the date. Rejected. |
-| **B. Compact base32 time + random** (custom, **chosen**) | `T1k3m9z2p7xq4h` | 13 | yes | `T` marker, Unix seconds in Crockford base32 (7 chars), 25 random bits (5 chars). Opaque, which is fine: the date is in the record's `timestamp`. |
+| **B. Compact base32 time + random** (custom, **chosen**) | `T1k3m9z2p7xq4` | 13 | yes | `T` marker, Unix seconds in Crockford base32 (7 chars), 25 random bits (5 chars). Opaque, which is fine: the date is in the record's `timestamp`. |
 | **C. ULID** | `01KABCDEFGHJKMNPQRSTVWXYZ0` | 26 | yes | Standard, libraries exist. 48-bit ms time + 80 random bits: more precision and entropy than a decision log needs. |
 | **D. UUIDv7 / TypeID** | `0194…-…` / `01h…` | 32–36 / 26 | yes | Standard, but longest. UUID form is hostile in prose and annotations. |
 | **E. Hash of content** (git-style short hash) | `a3f9c1d` | 7+ | no | Collision-resistant but unsortable, and the ID changes if the title is edited. Rejected. |
@@ -29,7 +29,7 @@
 
 **Third-party libraries are not needed.** The CLI bundles to one zero-dependency file (PRACTICES.md); B is about 20 lines on `node:crypto`.
 
-**Decision: B, spelled `DL-T<7 base32 time><5 base32 random>`**, e.g. `DL-T1k3m9z2p7xq4h` (16 characters with the prefix).
+**Decision: B, spelled `DL-T<7 base32 time><5 base32 random>`**, e.g. `DL-T1k3m9z2p7xq4` (16 characters with the prefix).
 
 - Time is Unix seconds, encoded in Crockford base32 with fixed width. 7 characters cover until the year 3059, so lexical order is chronological order.
 - Canonical spelling is lower case, alphabet `0123456789abcdefghjkmnpqrstvwxyz`. Upper case and the Crockford aliases (`I`/`L` → `1`, `O` → `0`) are not canonical, the same way `DL-5` is not canonical for `DL-005` (DL-078); tools reject them and `canonicalSpelling` suggests the fix.
@@ -42,7 +42,7 @@
 
 Decided: 1.1 ships **without** a slug. A record's file name stays exactly `<id>.md`, so the path can always be built from the ID. Lookup from an annotation to its record is the most common thing agents do, and it must stay a direct file read.
 
-Also decided, for when a slug is added later: it lives in the **file name only** (`DL-T1k3m9z2p7xq4h--retry-policy.md`) and is never part of the ID in frontmatter, annotations, `amends`, `supersedes` or mentions. Slug inside the ID was rejected: it turns a rename into a cross-file rewrite and makes the programmatic key ambiguous.
+Also decided, for when a slug is added later: it lives in the **file name only** (`DL-T1k3m9z2p7xq4--retry-policy.md`) and is never part of the ID in frontmatter, annotations, `amends`, `supersedes` or mentions. Slug inside the ID was rejected: it turns a rename into a cross-file rewrite and makes the programmatic key ambiguous.
 
 **1.1 reserves the syntax.** `--` cannot occur in either ID form, so `<id>--<text>.md` is unambiguous later. In 1.1 such a file is not a record: `create-decision` never writes one, and `/dld-audit` reports any file in the records directory named that way, so nobody starts using the form by hand before the tooling supports it.
 
