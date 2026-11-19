@@ -240,7 +240,7 @@ IDs are derived from the existing decision files, never tracked in config. `id_f
 
 - When several IDs are created within one second, each gets the time of the newest local timestamp ID plus one second, so they keep their order. The time in an ID is never more than 60 seconds ahead of the clock.
 - A timestamp ID in the log dated more than 60 seconds ahead of the clock (created on a machine with a wrong clock) is ignored when creating IDs, and the commands warn about it.
-- `/dld-reindex` renames colliding IDs to new IDs in the configured form, so a project that has switched moves the sequential IDs of branches opened before the switch onto timestamp IDs.
+- `/dld-reindex` renames colliding IDs to new IDs in the form the branch's config asks for. A branch opened before a switch gets timestamp IDs once it has the config change, and sequential ones until then; both are valid.
 
 Every collaborator's dld-kit must be recent enough to read timestamp IDs before a project switches: a 1.0 `dld` does not see timestamp records at all. Set `min_dld_version: 1.1.0` together with `id_format: timestamp`. No dld that knows the key is older than that, so it does not stop anyone today; it records what the project needs, and raising it later stops every dld from 1.1 on that is too old.
 

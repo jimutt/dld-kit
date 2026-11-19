@@ -40,7 +40,7 @@ When multiple developers draft decisions in parallel, two of them can end up pic
                        # that rebases cleanly (needs a force-push)
 ```
 
-With `id_format: timestamp` this rarely comes up: timestamp IDs don't clash, and the skill gives the renamed records timestamp IDs too. See [ID formats](id-formats.md).
+With `id_format: timestamp` this rarely comes up: timestamp IDs practically never clash. When the skill does rename, the new IDs take the form the branch's config asks for. See [ID formats](id-formats.md).
 
 The skill checks IDs against the base branch and, when `gh` is installed and authenticated, against open PRs, so the new IDs don't collide with someone else's work in progress. Decisions your branch got from a PR it's stacked on (an implementation branch cut from a decisions PR) are not collisions.
 

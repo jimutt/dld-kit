@@ -52,7 +52,7 @@ min_dld_version: 1.1.0
 
 The log then holds both forms. Lists put sequential IDs first, by number, then timestamp IDs. That is a convention, not strict creation order: a branch opened before the switch can still bring in a sequential ID later.
 
-Branches opened before the switch can still collide on their sequential IDs. `/dld-reindex` resolves that as before, and gives the renamed records timestamp IDs.
+Branches opened before the switch can still collide on their sequential IDs. `/dld-reindex` resolves that as before. The new IDs take the form that `dld.config.yaml` on that branch asks for, so they are sequential until the branch has the switch. To get timestamp IDs, bring the config change onto the branch first (`git checkout main -- dld.config.yaml`), then run `/dld-reindex`.
 
 To switch back, set `id_format: sequential` or remove the key, and keep `min_dld_version`: the log still holds timestamp records. Nothing is renamed in either direction.
 
