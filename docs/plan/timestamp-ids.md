@@ -38,18 +38,21 @@
 
 **The leading letter is deliberate.** Every `DL-\d+` match in 1.0 (annotation scan, mention scan, `RECORD_FILE`, reindex) would match the leading digits of `DL-1k3m…` as a number, and a 1.0 `next-id` would then mint a nonsense sequential ID above it. The base32 time part starts with a digit for the next several decades (`1…`), so the marker is required. With the `T` first, 1.0 tooling does not recognise the new IDs at all: records are invisible to it rather than misread. The `T` also sorts after every digit-only legacy ID in file listings (`DL-T…` after `DL-1000`).
 
-## The optional suffix
+## The optional suffix (not in 1.1)
 
-Decided: the **ID is the key only** (frontmatter `id`, annotations, `amends`, `supersedes`, mentions). The slug lives in the **file name only**: `DL-T1k3m9z2p7xq4h--retry-policy.md`. Changing the slug is a plain `git mv` and never touches annotations; a typo or a reworded title cannot break references. The cost is that "file name == ID" no longer holds, so every lookup that does `basename(file, ".md") === id` goes through one `recordIdOf(path)` helper (workstream 2).
+Decided: 1.1 ships **without** a slug. A record's file name stays exactly `<id>.md`, so the path can always be built from the ID. Lookup from an annotation to its record is the most common thing agents do, and it must stay a direct file read.
 
-The alternative, slug inside the ID, makes annotations self-describing but turns a rename into a cross-file rewrite and makes the programmatic key ambiguous. Rejected.
+Also decided, for when a slug is added later: it lives in the **file name only** (`DL-T1k3m9z2p7xq4h--retry-policy.md`) and is never part of the ID in frontmatter, annotations, `amends`, `supersedes` or mentions. Slug inside the ID was rejected: it turns a rename into a cross-file rewrite and makes the programmatic key ambiguous.
 
-Consequences to design for:
+**1.1 reserves the syntax.** `--` cannot occur in either ID form, so `<id>--<text>.md` is unambiguous later. In 1.1 such a file is not a record: `create-decision` never writes one, and `/dld-audit` reports any file in the records directory named that way, so nobody starts using the form by hand before the tooling supports it.
 
-- A record's path can no longer be built from its ID. Lookup is the hottest path in DLD (the always-on rule sends agents from an annotation to the record), so skills and the rule must say "find `DL-<id>*.md`" or call a command that prints the path.
-- Everything that matches a local record to its base-branch version must match by ID, not by file name: `integratedRecords` in `decision-edits.ts`, `collectIndexRows --include-base`, `list-proposed`. Otherwise changing a slug would make an integrated record look like a new draft and bypass `decision_edits`.
-- Two records with the same ID but different slugs merge without a git conflict, so `duplicateRecordFiles` (DL-080) is the only signal. It must group by ID.
-- Slugs go stale when a title changes. Nothing should depend on them.
+What the later slug work has to solve, kept here so it is not rediscovered:
+
+- Lookup by ID needs a glob or a command that prints the path, in every skill and in the always-on rule.
+- Everything that matches a local record to its base-branch version must match by ID, not by file name (`integratedRecords` in `decision-edits.ts`, `collectIndexRows --include-base`, `list-proposed`). Otherwise changing a slug would make an integrated record look like a new draft and bypass `decision_edits`.
+- Two records with the same ID but different slugs merge without a git conflict, so `duplicateRecordFiles` (DL-080) becomes the only signal.
+- Slugs go stale when a title changes.
+- A CLI from before the slug release will not see slugged records, the same skew problem as 1.0 meeting timestamp IDs.
 
 ## Configuration
 
@@ -93,7 +96,7 @@ Counts are from `src/` and `templates/` on `main` (1.0.0).
 Run `/dld-plan` for roughly these records, tagged `timestamp-ids`. This repo's own log stays sequential.
 
 1. `id_format` config and mixed logs; ordering rule; default stays `sequential`. Amends DL-014 and DL-078.
-2. ID spelling (option B), the `T` marker guard, collision reasoning, suffix lives in the file name only. Amends DL-078.
+2. ID spelling (option B), the `T` marker guard, collision reasoning, the reserved `--` suffix syntax. Amends DL-078.
 3. Ordering inside a burst, with the bound on clock-ahead keys.
 4. Snapshot change detection from git instead of a numeric watermark. Amends DL-025, DL-070, DL-084.
 5. Reindex renames mint IDs through the configured generator. Amends DL-027, DL-029.
@@ -110,14 +113,14 @@ The amend targets above are a first pass. Derive the real list from the `@decisi
 
 ### 2. Replace "number" with a sort key
 
-- `recordNumber` → `recordIdOf(path)` (strips the optional `--slug`) plus `compareIds`. Update the seven modules above.
+- `recordNumber` → `recordIdOf(path)` (the file name without `.md`) plus `compareIds`. Update the seven modules above.
 - `findRecordFile`, `duplicateRecordFiles`, `createDecision` (duplicate check by ID), `proposed.ts` (`basename === id`), `audit.ts`, `related.ts`, `index-file.ts` (sort and row key), `snapshot.ts`.
-- `RECORD_FILE` accepts `DL-<digits>.md` and `DL-T…(--slug)?.md`. Add `--slug <text>` to `create-decision`, validated as `[a-z0-9]+(-[a-z0-9]+)*`.
+- `RECORD_FILE` accepts `DL-<digits>.md` and `DL-T<12 base32>.md`, nothing else. A reserved-form name (`<id>--<text>.md`) is reported by the audit.
 
 ### 3. Generation and commands
 
 - `next-id` honours `id_format` and prints one ID. Ordering inside a burst: if the newest local key is at or ahead of the clock by no more than a small bound (say 60 s), use its time + 1 s; otherwise use the clock. A local key further ahead than the bound is reported by `/dld-audit`. `create-decision` keeps `--id` (so dld-plan's flow is unchanged) and also accepts `--auto-id`, which allocates and creates under the same exclusive-create check; that removes a race when two agents share a working copy.
-- `plan-renames`, `rename-decision`, `commit-reindex`: generate via the configured generator, anchor rewrites with the new boundary pattern (a key must not match inside a longer alphanumeric run), and keep a record's slug when renaming it.
+- `plan-renames`, `rename-decision`, `commit-reindex`: generate via the configured generator, anchor rewrites with the new boundary pattern (a key must not match inside a longer alphanumeric run).
 - `find-collisions`, `list-taken-ids`: unchanged in logic; run on both forms.
 
 ### 4. Scans and text
@@ -136,7 +139,7 @@ Store the watermark as an ID and compare with `compareIds`; keep reading the num
 
 ### 7. Tests
 
-- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, base32 encode/decode round trip and fixed-width ordering, upper-case and alias spellings rejected, slug handling (lookup by ID, slug changed on a branch against `decision_edits: block`, same ID under two slugs), a far-future key in the log, mixed-log ordering in INDEX, snapshot, audit, reindex plans.
+- Unit: ID parse/compare/generate (fixed random bytes, fixed clock, same-second bursts, clock going backwards), every changed regex against both forms, `DL-100`/`DL-1000`/`DL-T…` boundary cases, base32 encode/decode round trip and fixed-width ordering, upper-case and alias spellings rejected, a reserved-form file name is ignored as a record and reported, a far-future key in the log, mixed-log ordering in INDEX, snapshot, audit, reindex plans.
 - Coverage stays ≥ 90% per file (DL-020).
 - CLI integration (`tests/cli`): create a log in timestamp mode, switch an existing sequential log, two branches creating decisions concurrently and merging without a collision, snapshot after a late merge.
 - Regression guard: a fixture with timestamp records run through a pattern copy of the 1.0 regexes, asserting no match.
@@ -147,15 +150,14 @@ Store the watermark as an ID and compare with `compareIds`; keep reading the num
 
 ## Sequencing
 
-Workstreams 1 and 2 come first and everything else depends on them; 3 to 6 can then run in parallel; 7 (tests) is written alongside each workstream, and 8 closes. The largest and riskiest parts are workstream 2 (many modules change shape), the slug (file name no longer equals ID) and the test matrix in 7.
+Workstreams 1 and 2 come first and everything else depends on them; 3 to 6 can then run in parallel; 7 (tests) is written alongside each workstream, and 8 closes. The largest and riskiest parts are workstream 2 (many modules change shape) and the test matrix in 7.
 
 1.1 can ship in two PRs: (a) the ID model, key refactor and tests behind `id_format: sequential` only, which changes nothing visible and is easy to review; (b) the generator, config, snapshot change, skills and docs that turn the option on.
 
 ## Open questions
 
 1. ~~Spelling~~ settled: option B.
-2. ~~Slug placement~~ settled: file name only, never part of the ID.
+2. ~~Slug~~ settled: not in 1.1; syntax reserved; when added, file name only.
 3. Default for new projects: expected to become `timestamp` in 2.0; decide then.
 4. Should `dld` refuse to run on a log whose config names a newer feature than the CLI supports (a `min_dld_version` key)? It cannot protect against 1.0, but closes the warn-and-continue gap for later changes.
-5. Ship the slug in 1.1, or ship plain timestamp IDs first and add the slug after? The file-name grammar can reserve `--` either way.
-6. Should this repo's own log switch to timestamp IDs after 1.1, to exercise a mixed log for real?
+5. Should this repo's own log switch to timestamp IDs after 1.1, to exercise a mixed log for real?
